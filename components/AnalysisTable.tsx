@@ -1,6 +1,6 @@
 // FIX: Imported `useState` from React to resolve a reference error for the hook and a related JSX namespace issue.
 import React, { useState, Fragment, useMemo } from 'react';
-import { AnalyzedBetLeg, QuantitativeAnalysis, ReasoningStep } from '../types';
+import { AnalyzedBetLeg, QuantitativeAnalysis, ReasoningStep, ExtractedBetLeg } from '../types';
 import { RotateCwIcon } from './icons/RotateCwIcon';
 import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
 import { TrendingUpIcon } from './icons/TrendingUpIcon';
@@ -18,10 +18,14 @@ import RadialProgress from './RadialProgress';
 import { TargetIcon } from './icons/TargetIcon';
 import { LayersIcon } from './icons/LayersIcon';
 import { OddsLineChart } from './OddsLineChart';
+import { MaximizeIcon } from './icons/MaximizeIcon';
 
 
 interface AnalysisTableProps {
   legs: AnalyzedBetLeg[];
+  originalLegs?: ExtractedBetLeg[];
+  imageUrl?: string | null;
+  onViewImage?: () => void;
   onReset: () => void;
 }
 
@@ -153,7 +157,7 @@ const RenderReasoningText: React.FC<{ text: string; legIndex: number; onModuleCl
     );
 };
 
-const AnalysisTable: React.FC<AnalysisTableProps> = ({ legs, onReset }) => {
+const AnalysisTable: React.FC<AnalysisTableProps> = ({ legs, originalLegs, imageUrl, onViewImage, onReset }) => {
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [highlightedSteps, setHighlightedSteps] = useState<Set<number>>(new Set());
   
@@ -162,9 +166,10 @@ const AnalysisTable: React.FC<AnalysisTableProps> = ({ legs, onReset }) => {
   }, [legs]);
 
   const parlayMetrics = useMemo(() => {
-    if (legs.length < 2) return null;
+    if (legs.length < 2 && (!originalLegs || originalLegs.length < 2)) return null;
 
-    const parlayOdds = calculateParlayOdds(legs);
+    const analyzedOdds = calculateParlayOdds(legs);
+    const originalOdds = originalLegs ? calculateParlayOdds(originalLegs) : null;
     const parlayEV = calculateParlayEV(legs);
     const parlayConfidence = calculateParlayConfidence(legs);
     
@@ -180,12 +185,13 @@ const AnalysisTable: React.FC<AnalysisTableProps> = ({ legs, onReset }) => {
     }
 
     return {
-      odds: parlayOdds,
+      odds: analyzedOdds,
+      originalOdds,
       ev: parlayEV,
       confidence: parlayConfidence,
       summary: summaryText
     };
-  }, [legs]);
+  }, [legs, originalLegs]);
 
   const handleToggleRow = (index: number) => {
     setExpandedRows(prevExpandedRows => {
@@ -227,7 +233,21 @@ const AnalysisTable: React.FC<AnalysisTableProps> = ({ legs, onReset }) => {
   return (
     <div className="flex-1 overflow-auto p-4 md:p-6">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-gray-200">Synoptic Lens Analysis</h2>
+        <div className="flex items-center gap-4">
+            <h2 className="text-xl font-semibold text-gray-200">Synoptic Lens Analysis</h2>
+            {imageUrl && onViewImage && (
+                <button 
+                    onClick={onViewImage} 
+                    className="group relative flex-shrink-0"
+                    aria-label="View uploaded image"
+                >
+                    <img src={imageUrl} alt="Bet slip thumbnail" className="h-14 w-14 rounded-md border-2 border-gray-600 object-cover transition-all group-hover:border-cyan-400" />
+                    <div className="absolute inset-0 flex items-center justify-center rounded-md bg-black/60 opacity-0 transition-opacity group-hover:opacity-100">
+                        <MaximizeIcon className="h-6 w-6 text-white" />
+                    </div>
+                </button>
+            )}
+        </div>
         <button
           onClick={onReset}
           className="flex items-center gap-2 rounded-md bg-gray-700 px-3 py-1.5 text-sm font-medium text-gray-300 transition-colors hover:bg-gray-600"
@@ -241,13 +261,19 @@ const AnalysisTable: React.FC<AnalysisTableProps> = ({ legs, onReset }) => {
         <div className="mb-6 rounded-lg border border-cyan-500/30 bg-gray-950 p-4">
           <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-cyan-400">
             <LayersIcon className="h-5 w-5" />
-            Parlay Analysis Summary ({legs.length} Legs)
+            Parlay Analysis Summary ({legs.length} Analyzed Legs)
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
             {/* Metrics */}
             <div className="md:col-span-2 grid grid-cols-2 gap-4">
+              {parlayMetrics.originalOdds !== null && (
+                <div className="flex flex-col items-center justify-center rounded-lg bg-gray-800/50 p-4">
+                    <span className="text-sm text-gray-400">Original Slip Odds</span>
+                    <span className="font-mono text-xl font-bold text-gray-300">{formatAmericanOdds(parlayMetrics.originalOdds)}</span>
+                </div>
+              )}
               <div className="flex flex-col items-center justify-center rounded-lg bg-gray-800/50 p-4">
-                <span className="text-sm text-gray-400">Parlay Odds</span>
+                <span className="text-sm text-gray-400">Analyzed Parlay Odds</span>
                 <span className="font-mono text-3xl font-bold text-yellow-300">{formatAmericanOdds(parlayMetrics.odds)}</span>
               </div>
               <div className="flex flex-col items-center justify-center rounded-lg bg-gray-800/50 p-4">
@@ -433,18 +459,21 @@ const AnalysisTable: React.FC<AnalysisTableProps> = ({ legs, onReset }) => {
                                         <strong className="font-semibold text-cyan-400 flex items-center gap-2 mb-2 border-b border-gray-700 pb-1">
                                             {icon} {tooltipData.domain} ({tooltipData.id})
                                         </strong>
-                                        <p className="mb-2">{tooltipData.description}</p>
-                                        <div className="space-y-1.5">
+                                        <p className="mb-2 text-gray-400">{tooltipData.description}</p>
+                                        <div className="space-y-1">
                                             {tooltipData.steps.map(step => (
                                                 <div key={step.step}>
-                                                    <button onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        e.preventDefault();
-                                                        handleJumpToStep(index, step.step);
+                                                    <button
+                                                      onMouseEnter={() => setHighlightedSteps(new Set([step.step]))}
+                                                      onMouseLeave={() => setHighlightedSteps(new Set(tooltipData.steps.map(s => s.step)))}
+                                                      onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          e.preventDefault();
+                                                          handleJumpToStep(index, step.step);
                                                       }}
-                                                      className="text-left text-cyan-400 hover:underline w-full pointer-events-auto"
+                                                      className="text-left w-full pointer-events-auto p-1 -m-1 rounded transition-colors hover:bg-gray-800"
                                                     >
-                                                        <strong className="font-semibold">Step {step.step}:</strong> <span className="text-gray-400">{step.description.substring(0, 40)}...</span>
+                                                        <strong className="font-semibold text-cyan-400 hover:underline">Step {step.step}:</strong> <span className="text-gray-400">{step.description.substring(0, 40)}...</span>
                                                     </button>
                                                 </div>
                                             ))}

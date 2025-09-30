@@ -42,6 +42,7 @@ export interface Message {
   content: string | AnalysisResponse;
 }
 
+// Represents the raw data extracted from a bet slip image or built by the user, before analysis.
 export interface ExtractedBetLeg {
   player: string;
   propType: string; // e.g., "Passing Yards"

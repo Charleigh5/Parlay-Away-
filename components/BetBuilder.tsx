@@ -1,22 +1,23 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { ExtractedBetLeg, Game, Player, PlayerProp } from '../types';
-import { calculateParlayOdds, formatAmericanOdds, generateHistoricalOdds } from '../utils';
+import { calculateParlayOdds, formatAmericanOdds } from '../utils';
 import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
 import { SendIcon } from './icons/SendIcon';
 import { PlusIcon } from './icons/PlusIcon';
 import { Trash2Icon } from './icons/Trash2Icon';
-import { OddsLineChart } from './OddsLineChart';
 import { SaveIcon } from './icons/SaveIcon';
 import { FolderOpenIcon } from './icons/FolderOpenIcon';
 import { SearchIcon } from './icons/SearchIcon';
 import { fetchNFLEvents } from '../services/sportsDataService';
-import { TargetIcon } from './icons/TargetIcon';
 import { ShieldIcon } from './icons/ShieldIcon';
 import { DEFENSIVE_STATS, TEAM_ABBREVIATION_TO_NAME, TEAM_NAME_TO_ABBREVIATION } from '../data/mockDefensiveStats';
-import { BarChartIcon } from './icons/BarChartIcon';
-import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import { MOCK_GAMES } from '../data/mockSportsData';
 import HistoricalPerformanceChart from './HistoricalPerformanceChart';
+import { ADVANCED_STATS, AdvancedStat } from '../data/mockAdvancedStats';
+import { TrendingUpIcon } from './icons/TrendingUpIcon';
+import { XIcon } from './icons/XIcon';
+import { CrosshairIcon } from './icons/CrosshairIcon';
+import { TrendingDownIcon } from './icons/TrendingDownIcon';
 
 
 interface BetBuilderProps {
@@ -75,10 +76,10 @@ const SAVED_PARLAYS_LIST_KEY = 'synopticEdge_savedParlaysList';
 
 
 const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
-    const [legs, setLegs] = useState<ExtractedBetLeg[]>([]);
+    const [legs, setLegs] = useState<EnrichedLeg[]>([]);
     const [savedParlays, setSavedParlays] = useState<SavedParlay[]>([]);
-    const [expandedLegIndex, setExpandedLegIndex] = useState<number | null>(null);
-    
+    const [isParlayManagerOpen, setIsParlayManagerOpen] = useState(false);
+
     // State for live schedule data
     const [games, setGames] = useState<Game[]>([]);
     const [scheduleLoading, setScheduleLoading] = useState(true);
@@ -86,16 +87,14 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
 
     // State for current leg selection
     const [searchTerm, setSearchTerm] = useState('');
-    const [selectedGameId, setSelectedGameId] = useState<string>('');
-    const [selectedPlayerName, setSelectedPlayerName] = useState<string>('');
-    const [selectedPropType, setSelectedPropType] = useState<string>('');
-    const [selectedLineIndex, setSelectedLineIndex] = useState<string>(''); // Store the index of the selected line
-    const [selectedPosition, setSelectedPosition] = useState<'Over' | 'Under'>('Over');
-    
-    // State for opponent analysis
-    const [opponentInfo, setOpponentInfo] = useState<OpponentInfo | null>(null);
-    const [opponentStat, setOpponentStat] = useState<DisplayableOpponentStat | null>(null);
+    const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
+    const [selectedPlayerName, setSelectedPlayerName] = useState<string | null>(null);
+    const [selectedPropType, setSelectedPropType] = useState<string | null>(null);
+    const [selectedLine, setSelectedLine] = useState<number | null>(null);
+    const [selectedPosition, setSelectedPosition] = useState<'Over' | 'Under' | null>(null);
+    const [marketOdds, setMarketOdds] = useState<number | null>(null);
 
+    // Fetch schedule data on mount
     useEffect(() => {
         const loadSchedule = async () => {
             try {
@@ -104,8 +103,8 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                 const fetchedGames = await fetchNFLEvents();
                 setGames(fetchedGames);
             } catch (error) {
-                const message = error instanceof Error ? error.message : 'An unknown error occurred';
-                setScheduleError(`Failed to load schedule: ${message}. Using fallback data.`);
+                console.error("Failed to fetch NFL events:", error);
+                setScheduleError("Could not load schedule. Using mock data.");
                 setGames(MOCK_GAMES);
             } finally {
                 setScheduleLoading(false);
@@ -114,626 +113,535 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
         loadSchedule();
     }, []);
 
-    // Check for saved parlays on component mount
+    // Load saved parlays from localStorage on mount
     useEffect(() => {
-        const savedData = localStorage.getItem(SAVED_PARLAYS_LIST_KEY);
-        if (savedData) {
-            try {
-                const parsedParlays = JSON.parse(savedData);
-                if (Array.isArray(parsedParlays)) {
-                    setSavedParlays(parsedParlays);
-                }
-            } catch (e) {
-                console.error("Failed to load saved parlays:", e);
-                setSavedParlays([]);
+        try {
+            const storedParlays = localStorage.getItem(SAVED_PARLAYS_LIST_KEY);
+            if (storedParlays) {
+                setSavedParlays(JSON.parse(storedParlays));
             }
+        } catch (error) {
+            console.error("Failed to load saved parlays from localStorage:", error);
         }
     }, []);
     
-    const enrichedLegs = useMemo((): EnrichedLeg[] => {
-        return legs.map(leg => {
+
+    const resetSelection = (keepPlayer = false) => {
+        if (!keepPlayer) {
+            setSelectedPlayerName(null);
+        }
+        setSelectedPropType(null);
+        setSelectedLine(null);
+        setSelectedPosition(null);
+        setMarketOdds(null);
+    };
+
+    // Derived state for selected items
+    const selectedGame = useMemo(() => games.find(g => g.id === selectedGameId), [games, selectedGameId]);
+    const selectedPlayer = useMemo(() => selectedGame?.players.find(p => p.name === selectedPlayerName), [selectedGame, selectedPlayerName]);
+    const selectedProp = useMemo(() => selectedPlayer?.props.find(p => p.propType === selectedPropType), [selectedPlayer, selectedPropType]);
+    const selectedLineDetails = useMemo(() => selectedProp?.lines.find(l => l.line === selectedLine), [selectedProp, selectedLine]);
+
+    const handleAddLeg = () => {
+        if (!selectedPlayer || !selectedPropType || selectedLine === null || !selectedPosition || marketOdds === null) return;
+        
+        const newLeg: EnrichedLeg = {
+            player: selectedPlayer.name,
+            propType: selectedPropType,
+            line: selectedLine,
+            position: selectedPosition,
+            marketOdds: marketOdds,
+            playerDetails: selectedPlayer,
+            propDetails: selectedProp
+        };
+        setLegs(prev => [...prev, newLeg]);
+        resetSelection(true); // Keep player selected for easier multi-leg add
+    };
+
+    const handleRemoveLeg = (index: number) => {
+        setLegs(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const parlayOdds = useMemo(() => calculateParlayOdds(legs), [legs]);
+
+    const filteredGames = useMemo(() => {
+        if (!searchTerm) return games;
+        const lowerSearchTerm = searchTerm.toLowerCase();
+        return games.filter(game =>
+            game.name.toLowerCase().includes(lowerSearchTerm) ||
+            game.players.some(player => player.name.toLowerCase().includes(lowerSearchTerm))
+        );
+    }, [games, searchTerm]);
+
+    const opponentInfo = useMemo((): OpponentInfo | null => {
+        if (!selectedGame || !selectedPlayer) return null;
+        
+        const gameTeams = selectedGame.name.split(' @ ');
+        const playerTeamName = TEAM_ABBREVIATION_TO_NAME[selectedPlayer.team];
+        const opponentTeamName = gameTeams.find(team => team !== playerTeamName);
+        if (!opponentTeamName) return null;
+
+        const opponentDefensiveStats = DEFENSIVE_STATS[opponentTeamName];
+        const overallRank = opponentDefensiveStats ? opponentDefensiveStats.overall.rank : null;
+
+        return {
+            fullName: opponentTeamName,
+            abbr: TEAM_NAME_TO_ABBREVIATION[opponentTeamName] || 'N/A',
+            overallRank: overallRank,
+        };
+    }, [selectedGame, selectedPlayer]);
+
+    const opponentStat = useMemo((): DisplayableOpponentStat | null => {
+        if (!opponentInfo || !selectedPropType) return null;
+
+        const opponentDefensiveStats = DEFENSIVE_STATS[opponentInfo.fullName];
+        if (!opponentDefensiveStats || !opponentDefensiveStats[selectedPropType]) return null;
+        
+        const statData = opponentDefensiveStats[selectedPropType];
+        
+        if ('value' in statData && 'rank' in statData && 'unit' in statData) {
+            return {
+                opponentAbbr: opponentInfo.abbr,
+                value: statData.value,
+                rank: statData.rank,
+                unit: statData.unit,
+                label: getConciseStatLabel(selectedPropType),
+            };
+        }
+        return null;
+    }, [opponentInfo, selectedPropType]);
+    
+    const advancedPlayerStats = useMemo((): AdvancedStat[] | null => {
+        if (!selectedPlayerName || !selectedPropType) return null;
+        return ADVANCED_STATS[selectedPlayerName]?.[selectedPropType] || null;
+    }, [selectedPlayerName, selectedPropType]);
+
+    const handleSaveParlay = () => {
+        if (legs.length < 1) return;
+        const defaultName = legs.length > 1 ? `My ${legs.length}-Leg Parlay` : `${legs[0].player} Prop`;
+        const parlayName = prompt("Enter a name for this bet:", defaultName);
+        if (parlayName && parlayName.trim()) {
+            const newParlay: SavedParlay = {
+                id: new Date().toISOString() + Math.random(),
+                name: parlayName.trim(),
+                odds: parlayOdds,
+                legs: legs.map(({playerDetails, propDetails, ...leg}) => leg), // Strip enriched data
+                createdAt: new Date().toISOString(),
+            };
+            const updatedParlays = [...savedParlays, newParlay];
+            setSavedParlays(updatedParlays);
+            localStorage.setItem(SAVED_PARLAYS_LIST_KEY, JSON.stringify(updatedParlays));
+        }
+    };
+    
+    const handleDeleteParlay = (id: string) => {
+        if (window.confirm("Are you sure you want to delete this parlay? This action cannot be undone.")) {
+            const updatedParlays = savedParlays.filter(p => p.id !== id);
+            setSavedParlays(updatedParlays);
+            localStorage.setItem(SAVED_PARLAYS_LIST_KEY, JSON.stringify(updatedParlays));
+        }
+    };
+    
+    const handleLoadParlay = (parlay: SavedParlay) => {
+        const enrichedLegs: EnrichedLeg[] = parlay.legs.map(leg => {
             let playerDetails: Player | undefined;
             let propDetails: PlayerProp | undefined;
 
-            for (const game of games) {
-                const foundPlayer = game.players.find(p => p.name === leg.player);
-                if (foundPlayer) {
-                    playerDetails = foundPlayer;
-                    propDetails = foundPlayer.props.find(p => p.propType === leg.propType);
-                    break;
+            const gameWithPlayer = games.find(g => g.players.some(p => p.name === leg.player));
+            if (gameWithPlayer) {
+                playerDetails = gameWithPlayer.players.find(p => p.name === leg.player);
+                if (playerDetails) {
+                    propDetails = playerDetails.props.find(p => p.propType === leg.propType);
                 }
             }
+
             return { ...leg, playerDetails, propDetails };
         });
-    }, [legs, games]);
-
-    const filteredGames = useMemo(() => {
-        if (!searchTerm) {
-            return games;
-        }
-        const lowercasedFilter = searchTerm.toLowerCase();
-        return games.filter(game =>
-            game.name.toLowerCase().includes(lowercasedFilter) ||
-            game.players.some(player => player.name.toLowerCase().includes(lowercasedFilter))
-        );
-    }, [searchTerm, games]);
-
-    // Memoized derived state for cascading dropdowns
-    const selectedGame = useMemo(() => games.find(g => g.id === selectedGameId), [selectedGameId, games]);
-    const availablePlayers = useMemo(() => selectedGame?.players || [], [selectedGame]);
-    const hasAvailablePlayers = availablePlayers.length > 0;
-    const selectedPlayer = useMemo(() => availablePlayers.find(p => p.name === selectedPlayerName), [availablePlayers, selectedPlayerName]);
-    const availableProps = useMemo(() => selectedPlayer?.props || [], [selectedPlayer]);
-    const selectedProp = useMemo(() => availableProps.find(p => p.propType === selectedPropType), [availableProps, selectedPropType]);
-    const availableLines = useMemo(() => selectedProp?.lines || [], [selectedProp]);
-    
-    const selectedLineData = useMemo(() => {
-        if (selectedLineIndex === '') return null;
-        const index = parseInt(selectedLineIndex, 10);
-        return availableLines[index] ?? null;
-    }, [selectedLineIndex, availableLines]);
-    
-    const currentOdds = useMemo(() => {
-        if (!selectedLineData) return null;
-        return selectedPosition === 'Over' ? selectedLineData.overOdds : selectedLineData.underOdds;
-    }, [selectedLineData, selectedPosition]);
-
-    const parlayOdds = useMemo(() => calculateParlayOdds(legs), [legs]);
-    
-    const referenceAverage = useMemo(() => {
-        if (!selectedProp?.historicalContext) return null;
-        if (selectedProp.historicalContext.last5Avg > 0) {
-            return { value: selectedProp.historicalContext.last5Avg, type: 'L5' };
-        }
-        if (selectedProp.historicalContext.seasonAvg > 0) {
-            return { value: selectedProp.historicalContext.seasonAvg, type: 'SZN' };
-        }
-        return null;
-    }, [selectedProp]);
-
-    const closestLineIndex = useMemo(() => {
-        if (!referenceAverage || !availableLines || availableLines.length === 0) return -1;
-        
-        return availableLines.reduce((closestIdx, currentLine, currentIdx, arr) => {
-            const closestDiff = Math.abs(arr[closestIdx].line - referenceAverage.value);
-            const currentDiff = Math.abs(currentLine.line - referenceAverage.value);
-            return currentDiff < closestDiff ? currentIdx : closestIdx;
-        }, 0);
-
-    }, [availableLines, referenceAverage]);
-    
-    // Effect to reset dependent dropdowns when a parent dropdown changes
-    useEffect(() => { 
-        if(searchTerm && selectedGame){
-            const lowercasedFilter = searchTerm.toLowerCase();
-            const matchingPlayer = selectedGame.players.find(p => p.name.toLowerCase().includes(lowercasedFilter));
-            if(matchingPlayer) {
-                setSelectedPlayerName(matchingPlayer.name);
-            } else {
-                setSelectedPlayerName('');
-            }
-        } else {
-           setSelectedPlayerName('');
-        }
-        setSelectedPropType(''); 
-        setSelectedLineIndex(''); 
-    }, [selectedGameId, searchTerm, selectedGame]);
-    useEffect(() => { setSelectedPropType(''); setSelectedLineIndex(''); }, [selectedPlayerName]);
-    useEffect(() => { setSelectedLineIndex(''); }, [selectedPropType]);
-
-    // Effect to determine opponent and their overall defensive rank
-    useEffect(() => {
-        if (!selectedGame || !selectedPlayer) {
-            setOpponentInfo(null);
-            return;
-        }
-
-        const playerTeamFullName = TEAM_ABBREVIATION_TO_NAME[selectedPlayer.team];
-        if (!playerTeamFullName) {
-            setOpponentInfo(null);
-            return;
-        }
-
-        const teams = selectedGame.name.split(' @ ');
-        const opponentFullName = teams.find(t => t.trim() !== playerTeamFullName.trim());
-
-        if (!opponentFullName) {
-            setOpponentInfo(null);
-            return;
-        }
-
-        const opponentAbbr = TEAM_NAME_TO_ABBREVIATION[opponentFullName] || 'OPP';
-        const opponentDefensiveStats = DEFENSIVE_STATS[opponentFullName];
-        const overallRank = opponentDefensiveStats?.overall?.rank ?? null;
-
-        setOpponentInfo({
-            fullName: opponentFullName,
-            abbr: opponentAbbr,
-            overallRank: overallRank,
-        });
-    }, [selectedGame, selectedPlayer]);
-
-    // Effect to fetch and display specific opponent defensive stat
-    useEffect(() => {
-        if (!opponentInfo || !selectedPropType) {
-            setOpponentStat(null);
-            return;
-        }
-
-        const stat = DEFENSIVE_STATS[opponentInfo.fullName]?.[selectedPropType];
-
-        if (stat && 'value' in stat) { // Type guard to ensure it's a DefensiveStat
-            setOpponentStat({
-                opponentAbbr: opponentInfo.abbr,
-                value: stat.value,
-                unit: stat.unit,
-                rank: stat.rank,
-                label: getConciseStatLabel(selectedPropType),
-            });
-        } else {
-            setOpponentStat(null);
-        }
-    }, [opponentInfo, selectedPropType]);
-
-
-    const resetCurrentSelection = () => {
-        setSearchTerm('');
-        setSelectedGameId('');
-        setSelectedPlayerName('');
-        setSelectedPropType('');
-        setSelectedLineIndex('');
-        setSelectedPosition('Over');
-        setOpponentStat(null);
+        setLegs(enrichedLegs);
+        setIsParlayManagerOpen(false);
     };
 
-    const handleAddLeg = () => {
-        if (!selectedPlayer || !selectedProp || !selectedLineData || currentOdds === null) {
-            alert('Please complete all selections for the leg.');
-            return;
-        }
-
-        if (legs.length >= 20) {
-            alert('Maximum of 20 legs per parlay.');
-            return;
-        }
-
-        const newLeg: ExtractedBetLeg = {
-            player: selectedPlayer.name,
-            propType: selectedProp.propType,
-            line: selectedLineData.line,
-            position: selectedPosition,
-            marketOdds: currentOdds,
-        };
-
-        setLegs([...legs, newLeg]);
-        resetCurrentSelection();
-    };
-
-    const handleRemoveLeg = (indexToRemove: number) => {
-        setLegs(legs.filter((_, index) => index !== indexToRemove));
-    };
-
-    const handleSaveParlay = () => {
-        if (legs.length === 0) {
-            alert("Cannot save an empty parlay.");
-            return;
-        }
-        try {
-            const newParlay: SavedParlay = {
-                id: Date.now().toString(),
-                name: `${legs.length}-Leg Parlay`,
-                odds: parlayOdds,
-                legs: legs,
-                createdAt: new Date().toISOString(),
-            };
-
-            const updatedParlays = [...savedParlays, newParlay];
-            localStorage.setItem(SAVED_PARLAYS_LIST_KEY, JSON.stringify(updatedParlays));
-            setSavedParlays(updatedParlays);
-            alert(`Parlay saved successfully!`);
-        } catch (error) {
-            console.error("Failed to save parlay:", error);
-            alert("There was an error saving your parlay.");
-        }
-    };
-
-    const handleLoadParlay = (parlayToLoad: SavedParlay) => {
-        setLegs(parlayToLoad.legs);
-        alert(`Loaded "${parlayToLoad.name}".`);
-    };
-
-    const handleDeleteParlay = (parlayIdToDelete: string) => {
-        if (!window.confirm("Are you sure you want to delete this saved parlay?")) {
-            return;
-        }
-        try {
-            const updatedParlays = savedParlays.filter(p => p.id !== parlayIdToDelete);
-            localStorage.setItem(SAVED_PARLAYS_LIST_KEY, JSON.stringify(updatedParlays));
-            setSavedParlays(updatedParlays);
-            alert("Parlay deleted.");
-        } catch (error) {
-            console.error("Failed to delete parlay:", error);
-            alert("There was an error deleting the parlay.");
-        }
-    };
+    if (scheduleLoading) {
+         return (
+            <div className="flex flex-col items-center justify-center h-full text-center p-4 md:p-8">
+                <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse [animation-delay:-0.3s]"></div>
+                <p className="mt-4 text-gray-300">Loading NFL Schedule...</p>
+            </div>
+         );
+    }
     
-    const isAddLegDisabled = !selectedGameId || !selectedPlayerName || !selectedPropType || selectedLineIndex === '';
-    const opponentOverallRank = opponentInfo?.overallRank ?? null;
-    const rankCategory = getRankCategory(opponentOverallRank);
-    
-    const historicalContext = selectedProp?.historicalContext;
-
     return (
-        <div className="flex flex-col h-full">
-            <header className="flex-shrink-0 p-4 border-b border-gray-700/50 flex items-center justify-between">
-                 <div>
-                     <h2 className="text-xl font-semibold text-gray-200">Bet Builder</h2>
-                     <p className="text-sm text-gray-400">Construct a parlay and manage your saved bets.</p>
-                </div>
-                <button onClick={onBack} className="flex items-center gap-2 rounded-md bg-gray-700/50 px-3 py-1.5 text-sm font-medium text-gray-300 transition-colors hover:bg-gray-700">
+        <div className="relative flex flex-1 flex-col h-full overflow-hidden">
+            <div className="p-4 border-b border-gray-700/50 flex items-center justify-between">
+                 <button onClick={onBack} className="flex items-center gap-2 rounded-md bg-gray-700/50 px-3 py-1.5 text-sm font-medium text-gray-300 transition-colors hover:bg-gray-700">
                     <ChevronLeftIcon className="h-4 w-4" />
                     Back
                 </button>
-            </header>
-
-            <div className="flex-1 overflow-y-auto p-4 space-y-6">
-                {/* Bet Slip Area */}
-                <div className="space-y-3">
-                     {legs.length === 0 ? (
-                        <div className="text-center text-gray-500 p-8 border-2 border-dashed border-gray-700 rounded-lg">
-                            <p>Your bet slip is empty.</p>
-                            <p className="text-sm">Use the controls below to add your first leg.</p>
-                        </div>
-                    ) : (
-                        enrichedLegs.map((leg, index) => {
-                            const isExpanded = expandedLegIndex === index;
-                            const historicalContext = leg.propDetails?.historicalContext;
-
-                            let comparisonData = null;
-                            if (isExpanded && historicalContext && (historicalContext.seasonAvg != null || historicalContext.last5Avg != null)) {
-                                const { seasonAvg, last5Avg } = historicalContext;
-                                const line = leg.line;
-                                const maxValue = Math.max(seasonAvg ?? 0, last5Avg ?? 0, line) * 1.25;
-
-                                comparisonData = {
-                                    seasonAvg: seasonAvg,
-                                    last5Avg: last5Avg,
-                                    line: line,
-                                    seasonAvgPercent: maxValue > 0 && seasonAvg != null ? (seasonAvg / maxValue) * 100 : 0,
-                                    last5AvgPercent: maxValue > 0 && last5Avg != null ? (last5Avg / maxValue) * 100 : 0,
-                                    linePercent: maxValue > 0 ? (line / maxValue) * 100 : 0,
-                                };
-                            }
-
-                            return (
-                                <div 
-                                    key={index} 
-                                    className={`bg-gray-800/70 p-3 rounded-lg animate-fade-in cursor-pointer transition-all duration-300 ${isExpanded ? 'ring-2 ring-cyan-500/50' : 'hover:bg-gray-800'}`}
-                                    onClick={() => setExpandedLegIndex(isExpanded ? null : index)}
-                                >
-                                    <div className="grid grid-cols-3 gap-x-3 gap-y-2">
-                                        {/* Main Info */}
-                                        <div className="col-span-2">
-                                            <div className="flex items-center gap-2">
-                                                <p className="font-semibold text-gray-200 truncate" title={leg.player}>{leg.player}</p>
-                                                {leg.playerDetails && (
-                                                    <span className="flex-shrink-0 text-xs font-mono bg-gray-700 text-cyan-300 px-1.5 py-0.5 rounded">
-                                                        {leg.playerDetails.position} &bull; {leg.playerDetails.team}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <p className="text-sm text-gray-400 truncate" title={`${leg.propType} ${leg.position} ${leg.line}`}>
-                                                {`${leg.propType} ${leg.position} ${leg.line}`}
-                                            </p>
-                                        </div>
-                                
-                                        {/* Controls */}
-                                        <div className="flex justify-end items-center">
-                                            <button onClick={(e) => { e.stopPropagation(); handleRemoveLeg(index); }} className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-full transition-colors">
-                                                <Trash2Icon className="h-4 w-4" />
-                                            </button>
-                                            <ChevronDownIcon className={`h-5 w-5 text-gray-400 ml-1 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
-                                        </div>
-                                
-                                        {/* Stats */}
-                                        <div className="col-span-3 grid grid-cols-3 gap-2 text-center mt-2 border-t border-gray-700/50 pt-2">
-                                            <div>
-                                                <div className="text-xs text-gray-500 uppercase">Odds</div>
-                                                <div className="font-mono text-cyan-400 font-semibold">{formatAmericanOdds(leg.marketOdds)}</div>
-                                            </div>
-                                            <div>
-                                                <div className="text-xs text-gray-500 uppercase">SZN Avg</div>
-                                                <div className="font-mono text-gray-200">
-                                                    {leg.propDetails?.historicalContext?.seasonAvg?.toFixed(1) ?? '-'}
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <div className="text-xs text-gray-500 uppercase">L5 Avg</div>
-                                                <div className="font-mono text-gray-200">
-                                                    {leg.propDetails?.historicalContext?.last5Avg?.toFixed(1) ?? '-'}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    {isExpanded && historicalContext && (comparisonData || (historicalContext.gameLog && historicalContext.gameLog.length > 0)) && (
-                                        <div className="mt-3 pt-3 border-t border-gray-700/50 space-y-3 animate-fade-in-slow">
-                                            {comparisonData && (
-                                            <>
-                                                <h4 className="text-xs font-semibold text-gray-400 uppercase">Performance vs. Line ({comparisonData.line})</h4>
-                                                
-                                                {comparisonData.seasonAvg != null && (
-                                                    <div>
-                                                        <div className="flex justify-between items-center text-xs mb-1">
-                                                            <span className="text-gray-300">Season Avg.</span>
-                                                            <span className={`font-mono font-semibold ${comparisonData.seasonAvg > comparisonData.line ? 'text-green-400' : 'text-red-400'}`}>
-                                                                {comparisonData.seasonAvg.toFixed(1)}
-                                                            </span>
-                                                        </div>
-                                                        <div className="relative h-2 bg-gray-700 rounded-full overflow-hidden">
-                                                            <div 
-                                                                className="absolute h-full bg-cyan-500 rounded-full transition-all duration-500"
-                                                                style={{ width: `${comparisonData.seasonAvgPercent}%` }}
-                                                            ></div>
-                                                            <div
-                                                                title={`Line: ${comparisonData.line}`}
-                                                                className="absolute top-0 bottom-0 border-l-2 border-dashed border-yellow-300"
-                                                                style={{ left: `${comparisonData.linePercent}%` }}
-                                                            ></div>
-                                                        </div>
-                                                    </div>
-                                                )}
-
-                                                {comparisonData.last5Avg != null && (
-                                                    <div>
-                                                        <div className="flex justify-between items-center text-xs mb-1">
-                                                            <span className="text-gray-300">Last 5 Avg.</span>
-                                                            <span className={`font-mono font-semibold ${comparisonData.last5Avg > comparisonData.line ? 'text-green-400' : 'text-red-400'}`}>
-                                                                {comparisonData.last5Avg.toFixed(1)}
-                                                            </span>
-                                                        </div>
-                                                        <div className="relative h-2 bg-gray-700 rounded-full overflow-hidden">
-                                                            <div 
-                                                                className="absolute h-full bg-cyan-500 rounded-full transition-all duration-500"
-                                                                style={{ width: `${comparisonData.last5AvgPercent}%` }}
-                                                            ></div>
-                                                            <div
-                                                                title={`Line: ${comparisonData.line}`}
-                                                                className="absolute top-0 bottom-0 border-l-2 border-dashed border-yellow-300"
-                                                                style={{ left: `${comparisonData.linePercent}%` }}
-                                                            ></div>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </>
-                                            )}
-                                            {historicalContext?.gameLog && historicalContext.gameLog.length > 0 && (
-                                                <HistoricalPerformanceChart
-                                                    gameLog={historicalContext.gameLog}
-                                                    selectedLine={leg.line}
-                                                    seasonAvg={historicalContext.seasonAvg ?? null}
-                                                    last5Avg={historicalContext.last5Avg ?? null}
-                                                />
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })
-                    )}
-                </div>
-
-                {/* Saved Parlays Section */}
-                <div>
-                    <h3 className="flex items-center gap-2 text-lg font-semibold text-gray-300 mb-3">
-                        <FolderOpenIcon className="h-5 w-5 text-cyan-400" />
-                        Saved Parlays
-                    </h3>
-                    <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
-                        {savedParlays.length === 0 ? (
-                            <div className="text-center text-gray-500 py-6">
-                                <p>No saved parlays yet.</p>
-                            </div>
-                        ) : (
-                            [...savedParlays].reverse().map(parlay => (
-                                <div key={parlay.id} className="bg-gray-800/50 p-3 rounded-lg flex items-center justify-between gap-2">
-                                    <div className="flex-1">
-                                        <p className="font-semibold text-gray-200">{parlay.name} ({formatAmericanOdds(parlay.odds)})</p>
-                                        <p className="text-xs text-gray-500">Saved on {new Date(parlay.createdAt).toLocaleDateString()}</p>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <button onClick={() => handleLoadParlay(parlay)} className="px-3 py-1 text-xs font-semibold text-cyan-300 bg-cyan-500/10 rounded-md hover:bg-cyan-500/20 transition-colors">
-                                            Load
-                                        </button>
-                                        <button onClick={() => handleDeleteParlay(parlay.id)} className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors">
-                                            <Trash2Icon className="h-4 w-4" />
-                                        </button>
-                                    </div>
-                                </div>
-                            ))
-                        )}
-                    </div>
-                </div>
+                <h2 className="text-xl font-semibold text-gray-200">Bet Builder</h2>
+                <div></div>
             </div>
 
-            {/* Bet Builder Controls */}
-            <div className="flex-shrink-0 p-4 border-t border-gray-700/50 bg-gray-900/50">
-                {scheduleLoading && (
-                    <div className="text-center text-gray-400 p-2">Loading NFL schedule...</div>
-                )}
-                {scheduleError && (
-                    <div className="text-center text-yellow-400 bg-yellow-500/10 p-2 rounded-md mb-3 text-sm">{scheduleError}</div>
-                )}
-                 <div className="relative mb-3">
-                     <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                     <input
-                         type="text"
-                         value={searchTerm}
-                         onChange={e => setSearchTerm(e.target.value)}
-                         placeholder="Search for game or player..."
-                         className="w-full rounded-md border border-gray-600 bg-gray-700 py-2.5 pl-10 pr-4 text-gray-200 placeholder-gray-400 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
-                         disabled={scheduleLoading}
-                     />
-                 </div>
-                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-3">
-                     <select value={selectedGameId} onChange={e => setSelectedGameId(e.target.value)} className="form-select" disabled={scheduleLoading || games.length === 0}>
-                         <option value="">{scheduleLoading ? "Loading..." : "Select Game"}</option>
-                         {filteredGames.map(game => <option key={game.id} value={game.id}>{game.name}</option>)}
-                     </select>
-                     <div className="relative">
-                        <select
-                            value={selectedPlayerName}
-                            onChange={e => setSelectedPlayerName(e.target.value)}
-                            className={`form-select ${selectedPlayer ? '!pr-20' : ''}`}
-                            disabled={!selectedGameId || !hasAvailablePlayers}
-                        >
-                            <option value="">{selectedGameId && !hasAvailablePlayers ? 'No props available' : 'Select Player'}</option>
-                            {availablePlayers.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
-                        </select>
-                        {selectedPlayer && (
-                            <div className="absolute right-10 top-1/2 -translate-y-1/2 text-xs font-mono bg-gray-600/80 text-gray-200 px-2 py-0.5 rounded-full pointer-events-none backdrop-blur-sm">
-                                {selectedPlayer.position} &bull; {selectedPlayer.team}
-                            </div>
-                        )}
+            <div className="flex flex-1 overflow-hidden">
+                {/* Left: Selection Panel */}
+                <div className="w-1/2 border-r border-gray-700/50 flex flex-col overflow-y-auto p-4">
+                     {/* Game/Player Search */}
+                    <div className="relative mb-4">
+                        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Search games or players..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full rounded-lg border border-gray-600 bg-gray-900 py-2 pl-10 pr-4 text-gray-200 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                        />
                     </div>
-                     <select value={selectedPropType} onChange={e => setSelectedPropType(e.target.value)} className="form-select" disabled={!selectedPlayerName}>
-                         <option value="">Select Prop</option>
-                         {availableProps.map(p => <option key={p.propType} value={p.propType}>{p.propType}</option>)}
-                     </select>
-                 </div>
-                 
-                {historicalContext && (
-                    <div className="p-3 bg-gray-700/50 rounded-lg animate-fade-in mb-3 border border-cyan-500/20">
-                        <h4 className="flex items-center gap-2 text-sm font-semibold mb-3 text-gray-300">
-                            <BarChartIcon className="h-5 w-5 text-cyan-400" />
-                            Historical Performance Context
-                        </h4>
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                            <span className="text-gray-400">Prop Type</span>
-                            <span className="font-semibold text-right text-gray-200">{selectedProp?.propType}</span>
-                            
-                            <span className="text-gray-400">Season Avg</span>
-                            <span className="font-mono text-right text-white">
-                                {historicalContext.seasonAvg?.toFixed(1) ?? 'N/A'}
-                            </span>
+                    
+                    {/* Game List */}
+                    <div className="space-y-2">
+                        {filteredGames.map(game => (
+                            <div key={game.id} className={`rounded-lg transition-colors ${selectedGameId === game.id ? 'bg-gray-800' : 'bg-gray-900/50'}`}>
+                                <button onClick={() => { setSelectedGameId(game.id); resetSelection(); }} className="w-full text-left p-3 font-semibold text-gray-300 hover:bg-gray-800/70 rounded-t-lg">
+                                    {game.name}
+                                </button>
+                                {selectedGameId === game.id && (
+                                    <div className="p-3 border-t border-gray-700 space-y-2">
+                                        {game.players.map(player => {
+                                            const lowerSearchTerm = searchTerm.trim().toLowerCase();
+                                            const isPlayerMatch = lowerSearchTerm && player.name.toLowerCase().includes(lowerSearchTerm);
 
-                            <span className="text-gray-400">Last 5 Avg</span>
-                            <span className="font-mono text-right text-white">
-                                {historicalContext.last5Avg?.toFixed(1) ?? 'N/A'}
-                            </span>
-                        </div>
+                                            return (
+                                                <button
+                                                    key={player.name}
+                                                    onClick={() => {setSelectedPlayerName(player.name); resetSelection(true);}}
+                                                    className={`w-full text-left p-2 rounded-md transition-colors ${selectedPlayerName === player.name ? 'bg-cyan-500/10' : 'hover:bg-gray-700/50'}`}
+                                                >
+                                                    <span className="font-medium text-gray-200">
+                                                        {isPlayerMatch ? (
+                                                            <>
+                                                                {player.name.split(new RegExp(`(${searchTerm.trim()})`, 'gi')).filter(Boolean).map((part, index) =>
+                                                                    part.toLowerCase() === lowerSearchTerm ? (
+                                                                        <span key={index} className="bg-yellow-500/20 text-yellow-300 rounded-sm px-0.5">{part}</span>
+                                                                    ) : (
+                                                                        part
+                                                                    )
+                                                                )}
+                                                            </>
+                                                        ) : (
+                                                            player.name
+                                                        )}
+                                                    </span>
+                                                    <span className="text-xs text-gray-500 ml-2">{player.position} - {player.team}</span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
                     </div>
-                )}
-                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
-                     {availableLines.length > 0 && (
-                         <div className="p-3 bg-gray-700/50 rounded-lg">
-                             <label htmlFor="line-select" className="block text-sm font-medium text-gray-300 mb-2">Select Line & Position</label>
-                              <div className="grid grid-cols-2 gap-2 mb-2">
-                                  <div className="relative">
-                                    <select id="line-select" value={selectedLineIndex} onChange={e => setSelectedLineIndex(e.target.value)} className="form-select !pr-8">
-                                        <option value="" disabled>Choose Line</option>
-                                        {availableLines.map((l, index) => (
-                                            <option key={`${l.line}-${index}`} value={index}>
-                                                {l.line} (O: {formatAmericanOdds(l.overOdds)} / U: {formatAmericanOdds(l.underOdds)})
-                                            </option>
-                                        ))}
-                                    </select>
-                                    {referenceAverage && (
-                                        <div
-                                            onClick={() => setSelectedLineIndex(closestLineIndex.toString())}
-                                            className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center text-xs bg-yellow-500/20 text-yellow-300 px-2 py-1 rounded-full cursor-pointer hover:bg-yellow-500/30"
-                                            title={`Closest line to ${referenceAverage.type} avg (${referenceAverage.value.toFixed(1)})`}
+                </div>
+
+                {/* Right: Bet Slip & Context */}
+                <div className="w-1/2 flex flex-col overflow-y-auto">
+                    {/* Prop Selection Form */}
+                    {selectedPlayer && (
+                        <div className="p-4 border-b border-gray-700/50 bg-gray-900/80">
+                            <h3 className="font-semibold text-lg text-gray-200 mb-2">Build Leg for {selectedPlayer.name}</h3>
+                            
+                             <div className="mb-3">
+                                <label className="text-sm font-medium text-gray-400 block mb-1">Select Prop</label>
+                                <select 
+                                    value={selectedPropType || ''} 
+                                    onChange={e => { setSelectedPropType(e.target.value); setSelectedLine(null); setSelectedPosition(null); }}
+                                    className="w-full rounded-md border-gray-600 bg-gray-800 text-white focus:border-cyan-500 focus:ring-cyan-500"
+                                >
+                                    <option value="" disabled>Choose a market</option>
+                                    {selectedPlayer.props.map(p => <option key={p.propType} value={p.propType}>{p.propType}</option>)}
+                                </select>
+                            </div>
+
+                            {selectedProp && (
+                                <div className="p-3 rounded-md bg-gray-800/70">
+                                    <label className="text-sm font-medium text-gray-400 block mb-2">Select Line & Position</label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <select 
+                                            value={selectedLine || ''} 
+                                            onChange={e => { setSelectedLine(parseFloat(e.target.value)); setSelectedPosition(null); }}
+                                            className="w-full rounded-md border-gray-600 bg-gray-700 text-white focus:border-cyan-500 focus:ring-cyan-500"
                                         >
-                                            <TargetIcon className="h-3 w-3 mr-1" />
-                                            {referenceAverage.type}
-                                        </div>
-                                    )}
-                                  </div>
-                                  <div className="grid grid-cols-2 gap-1">
-                                      <button onClick={() => setSelectedPosition('Over')} className={`position-btn ${selectedPosition === 'Over' ? 'position-btn-active' : ''}`}>Over</button>
-                                      <button onClick={() => setSelectedPosition('Under')} className={`position-btn ${selectedPosition === 'Under' ? 'position-btn-active' : ''}`}>Under</button>
-                                  </div>
-                              </div>
-                             {selectedLineData && (
-                                 <div className="mt-3">
-                                     <OddsLineChart data={generateHistoricalOdds(currentOdds!)} />
-                                 </div>
+                                            <option value="" disabled>Select line</option>
+                                            {selectedProp.lines.map(l => <option key={l.line} value={l.line}>{l.line}</option>)}
+                                        </select>
+                                        
+                                        {selectedLineDetails && (
+                                             <div className="grid grid-cols-2 gap-2">
+                                                <button 
+                                                    onClick={() => { setSelectedPosition('Over'); setMarketOdds(selectedLineDetails.overOdds); }}
+                                                    className={`p-2 rounded-md text-sm font-semibold transition-colors ${selectedPosition === 'Over' ? 'bg-cyan-500 text-white' : 'bg-gray-600 hover:bg-gray-500'}`}
+                                                >
+                                                    Over <span className="font-mono">{formatAmericanOdds(selectedLineDetails.overOdds)}</span>
+                                                </button>
+                                                <button 
+                                                    onClick={() => { setSelectedPosition('Under'); setMarketOdds(selectedLineDetails.underOdds); }}
+                                                    className={`p-2 rounded-md text-sm font-semibold transition-colors ${selectedPosition === 'Under' ? 'bg-cyan-500 text-white' : 'bg-gray-600 hover:bg-gray-500'}`}
+                                                >
+                                                    Under <span className="font-mono">{formatAmericanOdds(selectedLineDetails.underOdds)}</span>
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                             {selectedProp && opponentInfo && (
+                                <div className="mt-4 p-3 rounded-lg border border-gray-700 bg-gray-900/50">
+                                    <h4 className="flex items-center gap-2 text-sm font-semibold text-cyan-400 mb-3">
+                                        <CrosshairIcon className="h-4 w-4" />
+                                        Contextual HUD
+                                    </h4>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {selectedProp.historicalContext ? (
+                                            <>
+                                                <div className="text-center bg-gray-800/50 p-2 rounded-md">
+                                                    <p className="text-xs text-gray-400">Season Avg</p>
+                                                    <p className="font-mono text-lg font-semibold text-gray-200">{selectedProp.historicalContext.seasonAvg.toFixed(1)}</p>
+                                                </div>
+                                                <div className="text-center bg-gray-800/50 p-2 rounded-md">
+                                                    <p className="text-xs text-gray-400">Last 5 Avg</p>
+                                                    <p className="font-mono text-lg font-semibold text-gray-200">{selectedProp.historicalContext.last5Avg.toFixed(1)}</p>
+                                                </div>
+                                            </>
+                                        ) : null}
+                                        
+                                        {selectedPropType && opponentStat && opponentInfo && (
+                                            <div className="col-span-2">
+                                                { selectedLine === null ? (
+                                                    // State 1: Neutral opponent info display
+                                                    <div className="p-3 rounded-lg border border-gray-700 bg-gray-800/50">
+                                                        <h5 className="font-semibold text-gray-200 text-center mb-2">Matchup vs. {opponentInfo.abbr}</h5>
+                                                        <div className="flex justify-around items-center text-center">
+                                                            <div>
+                                                                 <p className="text-xs text-gray-400">Overall D Rank</p>
+                                                                 <p className="font-mono text-xl font-bold text-gray-200">#{opponentInfo.overallRank}</p>
+                                                            </div>
+                                                             <div>
+                                                                <p className="text-xs text-gray-400">{getConciseStatLabel(selectedPropType)}</p>
+                                                                <div className="flex items-baseline justify-center gap-2">
+                                                                    <p className="font-mono text-xl font-bold text-gray-200">{opponentStat.value.toFixed(1)}</p>
+                                                                    <div className={`text-xs font-semibold px-1.5 py-0.5 rounded-full inline-block ${getRankCategory(opponentStat.rank).bgColor} ${getRankCategory(opponentStat.rank).color}`}>
+                                                                        (Rank #{opponentStat.rank})
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                         <p className="text-center text-xs text-yellow-400 mt-3 pt-2 border-t border-gray-700">Select a line to see detailed matchup analysis.</p>
+                                                    </div>
+                                                ) : (
+                                                    // State 2: Full comparison display
+                                                    (() => {
+                                                        const diff = selectedLine - opponentStat.value;
+                                                        const isFavorable = (selectedPosition === 'Over' && diff < 0) || (selectedPosition === 'Under' && diff > 0);
+                                                        
+                                                        let style, icon, assessmentText;
+                                
+                                                        if (!selectedPosition) {
+                                                            style = {
+                                                                borderColor: 'border-yellow-500/30',
+                                                                bgColor: 'bg-yellow-500/10',
+                                                                textColor: 'text-yellow-300',
+                                                                innerBgColor: 'bg-yellow-500/10',
+                                                            };
+                                                            assessmentText = "Select Over/Under to assess matchup";
+                                                        } else if (isFavorable) {
+                                                            style = {
+                                                                borderColor: 'border-green-500/30',
+                                                                bgColor: 'bg-green-500/10',
+                                                                textColor: 'text-green-300',
+                                                                innerBgColor: 'bg-green-500/20',
+                                                            };
+                                                            icon = <TrendingDownIcon className="h-4 w-4 mr-1.5" />;
+                                                            assessmentText = `Favorable matchup for ${selectedPosition}`;
+                                                        } else { // isHarder
+                                                            style = {
+                                                                borderColor: 'border-red-500/30',
+                                                                bgColor: 'bg-red-500/10',
+                                                                textColor: 'text-red-300',
+                                                                innerBgColor: 'bg-red-500/20',
+                                                            };
+                                                            icon = <TrendingUpIcon className="h-4 w-4 mr-1.5" />;
+                                                            assessmentText = `Tougher matchup for ${selectedPosition}`;
+                                                        }
+                                
+                                                        return (
+                                                            <div className={`p-3 rounded-lg border ${style.borderColor} ${style.bgColor}`}>
+                                                                <div className="grid grid-cols-3 items-center text-center">
+                                                                     <div>
+                                                                        <p className="text-xs text-gray-400">Selected Line</p>
+                                                                        <p className="font-mono text-2xl font-bold text-white">{selectedLine}</p>
+                                                                    </div>
+                                                                    
+                                                                    <div className={`text-center font-mono font-bold text-lg ${style.textColor}`}>
+                                                                        <div className="leading-tight">{diff === 0 ? '–' : (diff > 0 ? '▲' : '▼')}</div>
+                                                                        <div>{Math.abs(diff).toFixed(1)}</div>
+                                                                    </div>
+                                
+                                                                    <div>
+                                                                        <p className="text-xs text-gray-400">Opponent Avg</p>
+                                                                        <p className="font-mono text-2xl font-bold text-gray-300">{opponentStat.value.toFixed(1)}</p>
+                                                                    </div>
+                                                                </div>
+                                                                
+                                                                <div className={`mt-2 flex items-center justify-center text-xs font-semibold p-1.5 rounded ${style.innerBgColor} ${style.textColor}`}>
+                                                                    {icon}
+                                                                    <span>{assessmentText}</span>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })()
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                             <button 
+                                onClick={handleAddLeg}
+                                disabled={!selectedPosition || !marketOdds}
+                                className="w-full mt-4 flex items-center justify-center gap-2 rounded-md bg-cyan-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cyan-700 disabled:bg-gray-600 disabled:cursor-not-allowed"
+                            >
+                                <PlusIcon className="h-5 w-5" />
+                                Add to Slip
+                            </button>
+                        </div>
+                    )}
+
+                     {selectedPropType && (
+                         <div className="p-4 space-y-4">
+                            {advancedPlayerStats && (
+                                <div className="p-3 rounded-lg border border-gray-700 bg-gray-900/50">
+                                    <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-2"><TrendingUpIcon className="h-5 w-5 text-cyan-400"/> Advanced Player Metrics</h4>
+                                    <div className="space-y-2">
+                                        {advancedPlayerStats.map(stat => (
+                                            <div key={stat.abbreviation} className="text-xs group relative">
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-gray-400">{stat.name} ({stat.abbreviation})</span>
+                                                    <span className="font-mono text-gray-200">{stat.value.toFixed(2)}</span>
+                                                </div>
+                                                <div className="w-full bg-gray-700 rounded-full h-1.5 mt-1">
+                                                    <div className="bg-cyan-500 h-1.5 rounded-full" style={{ width: `${stat.percentile}%`}}></div>
+                                                </div>
+                                                <div className="absolute bottom-full left-1/2 z-10 mb-2 w-56 -translate-x-1/2 rounded-md border border-gray-700 bg-gray-950 p-2 text-xs text-gray-300 shadow-lg opacity-0 transition-opacity group-hover:opacity-100 pointer-events-none">
+                                                    <strong className="font-semibold text-cyan-400">{stat.name}</strong>
+                                                    <p className="text-gray-400 mt-1">{stat.description}</p>
+                                                    <p className="mt-1 font-mono">Rank: #{stat.rank} | PCTL: {stat.percentile}th</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {selectedProp?.historicalContext?.gameLog && selectedLine !== null && (
+                                <div className="p-3 rounded-lg border border-gray-700 bg-gray-900/50">
+                                    <HistoricalPerformanceChart 
+                                        gameLog={selectedProp.historicalContext.gameLog}
+                                        selectedLine={selectedLine}
+                                        seasonAvg={selectedProp.historicalContext.seasonAvg || null}
+                                        last5Avg={selectedProp.historicalContext.last5Avg || null}
+                                    />
+                                </div>
                              )}
                          </div>
                      )}
 
-                     {opponentInfo && (
-                        <div className="grid grid-cols-3 gap-3 animate-fade-in">
-                            <div className="col-span-2 p-3 bg-gray-700/50 rounded-lg text-sm border border-cyan-500/20">
-                                <div className="flex items-center gap-2 font-semibold mb-2 text-gray-300">
-                                    <ShieldIcon className="h-5 w-5 text-cyan-400" />
-                                    <span>Opponent Profile (vs {opponentInfo.abbr})</span>
-                                </div>
-                                {opponentStat ? (
-                                    <div className="grid grid-cols-2 gap-x-4">
-                                        <span className="text-gray-400">{opponentStat.label}:</span>
-                                        <span className="font-mono text-right text-white">{opponentStat.value.toFixed(1)} {opponentStat.unit}</span>
-                                        <span className="text-gray-400">League Rank:</span>
-                                        <span className="font-mono text-right text-white">#{opponentStat.rank}</span>
+                    <div className="flex-1 p-4 bg-gray-800/30">
+                        <h3 className="font-semibold text-lg text-gray-200 mb-3">Bet Slip</h3>
+                        {legs.length === 0 ? (
+                            <div className="text-center text-gray-500 py-8 border-2 border-dashed border-gray-700 rounded-lg">
+                                <p>Your bet slip is empty.</p>
+                                <p className="text-sm">Add legs from the panel on the left.</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                {legs.map((leg, index) => (
+                                    <div key={index} className="flex items-center justify-between p-2 bg-gray-900/50 rounded-md">
+                                        <div>
+                                            <p className="font-medium text-gray-200">{leg.player}</p>
+                                            <p className="text-xs text-gray-400">{leg.position} {leg.line} {leg.propType}</p>
+                                        </div>
+                                        <div className="flex items-center gap-4">
+                                            <span className="font-mono text-sm text-yellow-300">{formatAmericanOdds(leg.marketOdds)}</span>
+                                            <button onClick={() => handleRemoveLeg(index)} className="text-gray-500 hover:text-red-400"><Trash2Icon className="h-4 w-4" /></button>
+                                        </div>
                                     </div>
-                                ) : (
-                                    <div className="text-center text-gray-500 py-4">
-                                        <p>Select a prop to see specific defensive stats.</p>
+                                ))}
+                                {legs.length > 1 && (
+                                    <div className="pt-3 mt-3 border-t border-gray-700/50 flex justify-between items-center">
+                                        <span className="font-semibold text-gray-300">{legs.length}-Leg Parlay</span>
+                                        <span className="font-mono text-xl font-bold text-yellow-300">{formatAmericanOdds(parlayOdds)}</span>
                                     </div>
                                 )}
+
+                                <div className="pt-4 flex gap-2">
+                                     <button 
+                                        onClick={() => onAnalyze(legs)}
+                                        disabled={legs.length === 0}
+                                        className="w-full flex items-center justify-center gap-2 rounded-md bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed"
+                                    >
+                                        <SendIcon className="h-5 w-5" />
+                                        Analyze {legs.length} Leg(s)
+                                    </button>
+                                    <button
+                                        onClick={handleSaveParlay}
+                                        disabled={legs.length === 0}
+                                        className="p-2.5 rounded-md bg-gray-600 text-white transition-colors hover:bg-gray-500 disabled:bg-gray-700 disabled:cursor-not-allowed"
+                                        title="Save Bet"
+                                    >
+                                        <SaveIcon className="h-5 w-5" />
+                                    </button>
+                                    <button
+                                        onClick={() => setIsParlayManagerOpen(true)}
+                                        className="p-2.5 rounded-md bg-gray-600 text-white transition-colors hover:bg-gray-500"
+                                        title="Load Saved Bet"
+                                    >
+                                        <FolderOpenIcon className="h-5 w-5" />
+                                    </button>
+                                </div>
                             </div>
-
-                            <div className={`col-span-1 p-3 rounded-lg text-center flex flex-col justify-center items-center ${rankCategory.bgColor} border ${rankCategory.borderColor}`}>
-                                 <div className="text-sm font-semibold text-gray-300 mb-1 flex items-center gap-2">
-                                    <ShieldIcon className="h-4 w-4" />
-                                    Overall Defense
-                                </div>
-                                 <div className={`text-3xl font-bold font-mono ${rankCategory.color}`}>
-                                    {opponentOverallRank !== null ? `#${opponentOverallRank}` : 'N/A'}
-                                </div>
-                                <div className={`mt-1 text-xs font-semibold px-2 py-0.5 rounded-full ${rankCategory.bgColor} border ${rankCategory.borderColor}`}>
-                                     {rankCategory.text}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                 </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
-                     {selectedProp?.historicalContext?.gameLog && selectedProp.historicalContext.gameLog.length > 0 && (
-                         <div className="p-3 bg-gray-700/50 rounded-lg">
-                            <HistoricalPerformanceChart
-                                gameLog={selectedProp.historicalContext.gameLog}
-                                selectedLine={selectedLineData?.line ?? 0}
-                                seasonAvg={selectedProp.historicalContext.seasonAvg ?? null}
-                                last5Avg={selectedProp.historicalContext.last5Avg ?? null}
-                            />
-                         </div>
-                     )}
-
-                    <div className="p-3 bg-gray-700/50 rounded-lg flex flex-col justify-between">
-                         <div className="flex justify-between items-start">
-                             <div>
-                                <h3 className="text-md font-semibold text-gray-200">Parlay Summary</h3>
-                                <p className="text-sm text-gray-400">{legs.length} Leg(s) Selected</p>
-                             </div>
-                             <div className="text-right">
-                                <p className="text-sm text-gray-400">Total Odds</p>
-                                <p className="text-3xl font-bold font-mono text-yellow-300">{formatAmericanOdds(parlayOdds)}</p>
-                             </div>
-                         </div>
-                         <div className="flex gap-2 mt-3">
-                             <button onClick={handleAddLeg} disabled={isAddLegDisabled} className="btn-primary w-full gap-2"><PlusIcon className="h-5 w-5"/> Add Leg</button>
-                             <button onClick={handleSaveParlay} disabled={legs.length === 0} className="btn-secondary px-3" aria-label="Save Parlay"><SaveIcon className="h-5 w-5"/></button>
-                         </div>
+                        )}
                     </div>
                 </div>
-
-                 <button onClick={() => onAnalyze(legs)} disabled={legs.length === 0} className="btn-primary w-full text-lg py-3 gap-2">
-                     <SendIcon className="h-5 w-5" />
-                     Analyze {legs.length > 0 ? `${legs.length}-Leg Parlay` : ''}
-                 </button>
             </div>
+
+            {isParlayManagerOpen && (
+                <div className="absolute inset-0 bg-gray-900/80 backdrop-blur-sm z-10 flex items-center justify-center p-4">
+                    <div className="w-full max-w-lg rounded-xl border border-gray-700 bg-gray-800 p-6">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-xl font-semibold text-gray-200">Saved Bets</h3>
+                             <button onClick={() => setIsParlayManagerOpen(false)} className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 transition-colors">
+                                <XIcon className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        <div className="space-y-2 max-h-96 overflow-y-auto pr-2">
+                            {savedParlays.length > 0 ? savedParlays.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map(p => (
+                                <div key={p.id} className="p-3 bg-gray-700/50 rounded-md flex justify-between items-center gap-2">
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-semibold text-gray-200 truncate">{p.name}</p>
+                                        <p className="text-xs text-gray-400">{p.legs.length} Leg(s) | {formatAmericanOdds(p.odds)} | {new Date(p.createdAt).toLocaleDateString()}</p>
+                                    </div>
+                                    <div className="flex gap-2 flex-shrink-0">
+                                        <button onClick={() => handleLoadParlay(p)} className="px-3 py-1 text-sm bg-cyan-600 rounded-md hover:bg-cyan-700 text-white font-semibold">Load</button>
+                                        <button onClick={() => handleDeleteParlay(p.id)} className="p-1.5 text-gray-400 hover:text-red-400" title="Delete Parlay"><Trash2Icon className="h-4 w-4" /></button>
+                                    </div>
+                                </div>
+                            )) : <p className="text-gray-500 text-center py-8 border-2 border-dashed border-gray-600 rounded-lg">No saved bets found.</p>}
+                        </div>
+                        <button onClick={() => setIsParlayManagerOpen(false)} className="mt-6 w-full py-2 bg-gray-600 rounded-md hover:bg-gray-500 text-white font-semibold">Close</button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

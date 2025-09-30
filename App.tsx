@@ -1,9 +1,9 @@
 
 import React from 'react';
 import Sidebar from './components/Sidebar';
-import SynopticLens from './components/SynopticLens';
 import SystemStatusPanel from './components/SystemStatusPanel';
 import { BrainCircuitIcon } from './components/icons/BrainCircuitIcon';
+import MainPanel from './components/MainPanel';
 
 const App: React.FC = () => {
   return (
@@ -19,8 +19,7 @@ const App: React.FC = () => {
           </div>
         </header>
         <div className="flex flex-1 overflow-hidden">
-          <SynopticLens />
-          {/* FIX: The SystemStatusPanel component was used without being imported, causing a compilation error. The import has been added. */}
+          <MainPanel />
           <SystemStatusPanel />
         </div>
       </main>

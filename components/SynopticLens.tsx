@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AnalyzedBetLeg, ExtractedBetLeg } from '../types';
 import { getAnalysis } from '../services/geminiService';
 import ImageUpload from './ImageUpload';
@@ -12,11 +12,23 @@ import { FilePlusIcon } from './icons/FilePlusIcon';
 
 const SynopticLens: React.FC = () => {
   const [analyzedLegs, setAnalyzedLegs] = useState<AnalyzedBetLeg[] | null>(null);
+  const [originalLegs, setOriginalLegs] = useState<ExtractedBetLeg[] | null>(null);
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
+  const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [partialError, setPartialError] = useState<string | null>(null);
   const [mode, setMode] = useState<'home' | 'upload' | 'build'>('home');
+
+  useEffect(() => {
+    // Clean up the object URL when the component unmounts or the URL changes
+    return () => {
+      if (uploadedImageUrl) {
+        URL.revokeObjectURL(uploadedImageUrl);
+      }
+    };
+  }, [uploadedImageUrl]);
 
   const runAnalysisOnLegs = async (legs: ExtractedBetLeg[]) => {
     if (legs.length === 0) {
@@ -77,10 +89,14 @@ const SynopticLens: React.FC = () => {
     setError(null);
     setAnalyzedLegs(null);
     setPartialError(null);
+    setOriginalLegs(null);
+    if (uploadedImageUrl) {
+      URL.revokeObjectURL(uploadedImageUrl);
+    }
+    setUploadedImageUrl(URL.createObjectURL(file));
     setLoadingMessage('Extracting bet data from image...');
 
     try {
-      // file to base64 is not a service call, so we can do it before calling runAnalysisOnLegs
       const { fileToBase64 } = await import('../utils');
       const base64Image = await fileToBase64(file);
       const { extractBetsFromImage } = await import('../services/geminiService');
@@ -88,6 +104,8 @@ const SynopticLens: React.FC = () => {
         data: base64Image,
         mimeType: file.type,
       });
+
+      setOriginalLegs(extractedLegs);
 
       if (extractedLegs.length === 0) {
         throw new Error("No valid bet legs could be extracted from the image. Please check the screenshot quality.");
@@ -109,6 +127,12 @@ const SynopticLens: React.FC = () => {
     setError(null);
     setPartialError(null);
     setIsLoading(false);
+    setOriginalLegs(null);
+    if (uploadedImageUrl) {
+      URL.revokeObjectURL(uploadedImageUrl);
+    }
+    setUploadedImageUrl(null);
+    setIsImageViewerOpen(false);
     setMode('home');
   };
 
@@ -151,7 +175,13 @@ const SynopticLens: React.FC = () => {
               </button>
             </div>
           )}
-          <AnalysisTable legs={analyzedLegs} onReset={handleReset} />
+          <AnalysisTable 
+            legs={analyzedLegs}
+            originalLegs={originalLegs || undefined}
+            imageUrl={uploadedImageUrl}
+            onViewImage={() => setIsImageViewerOpen(true)}
+            onReset={handleReset} 
+          />
         </>
       );
     }
@@ -193,6 +223,27 @@ const SynopticLens: React.FC = () => {
   return (
     <div className="flex flex-1 flex-col bg-gray-800/30">
       {renderContent()}
+      {isImageViewerOpen && uploadedImageUrl && (
+        <div 
+            className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/80 backdrop-blur-sm"
+            onClick={() => setIsImageViewerOpen(false)}
+        >
+            <div className="relative p-4" onClick={(e) => e.stopPropagation()}>
+                <button 
+                    onClick={() => setIsImageViewerOpen(false)} 
+                    className="absolute -top-2 -right-2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-gray-700 text-white transition-colors hover:bg-gray-600"
+                    aria-label="Close image viewer"
+                >
+                    <XIcon className="h-5 w-5" />
+                </button>
+                <img 
+                    src={uploadedImageUrl} 
+                    alt="Uploaded bet slip full view"
+                    className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain shadow-2xl" 
+                />
+            </div>
+        </div>
+      )}
     </div>
   );
 };
