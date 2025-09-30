@@ -1,6 +1,7 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { ExtractedBetLeg, Game, Player, PlayerProp } from '../types';
-import { calculateParlayOdds, formatAmericanOdds } from '../utils';
+import { calculateParlayOdds, formatAmericanOdds, generateHistoricalOdds } from '../utils';
 import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
 import { SendIcon } from './icons/SendIcon';
 import { PlusIcon } from './icons/PlusIcon';
@@ -18,6 +19,8 @@ import { TrendingUpIcon } from './icons/TrendingUpIcon';
 import { XIcon } from './icons/XIcon';
 import { CrosshairIcon } from './icons/CrosshairIcon';
 import { TrendingDownIcon } from './icons/TrendingDownIcon';
+import { LineChartIcon } from './icons/LineChartIcon';
+import { OddsLineChart } from './OddsLineChart';
 
 
 interface BetBuilderProps {
@@ -93,6 +96,7 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
     const [selectedLine, setSelectedLine] = useState<number | null>(null);
     const [selectedPosition, setSelectedPosition] = useState<'Over' | 'Under' | null>(null);
     const [marketOdds, setMarketOdds] = useState<number | null>(null);
+    const [historicalOdds, setHistoricalOdds] = useState<number[] | null>(null);
 
     // Fetch schedule data on mount
     useEffect(() => {
@@ -125,6 +129,14 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
         }
     }, []);
     
+    // Generate historical odds when market odds are selected
+    useEffect(() => {
+        if (marketOdds !== null) {
+            setHistoricalOdds(generateHistoricalOdds(marketOdds));
+        } else {
+            setHistoricalOdds(null);
+        }
+    }, [marketOdds]);
 
     const resetSelection = (keepPlayer = false) => {
         if (!keepPlayer) {
@@ -502,6 +514,15 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                                             </div>
                                         )}
                                     </div>
+                                    {historicalOdds && marketOdds !== null && (
+                                        <div className="mt-4 pt-4 border-t border-gray-700/50">
+                                            <h5 className="flex items-center gap-2 text-xs font-semibold text-gray-400 uppercase mb-2">
+                                                <LineChartIcon className="h-4 w-4" />
+                                                7-Day Odds Movement
+                                            </h5>
+                                            <OddsLineChart data={historicalOdds} />
+                                        </div>
+                                    )}
                                 </div>
                             )}
 

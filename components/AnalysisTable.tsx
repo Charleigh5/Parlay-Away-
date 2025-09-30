@@ -395,7 +395,16 @@ const AnalysisTable: React.FC<AnalysisTableProps> = ({ legs, originalLegs, image
                                    <span className="font-mono text-green-400">{leg.analysis.quantitative.expectedValue.toFixed(2)}%</span>
                                </div>
                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-2 bg-gray-950 text-xs text-gray-300 border border-gray-700 rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                                   <strong className="font-semibold text-cyan-400">{metricDefinitions.ev.title}</strong><p>{metricDefinitions.ev.content}</p>
+                                   <strong className="font-semibold text-cyan-400">{metricDefinitions.ev.title}</strong>
+                                   <p>
+                                     {metricDefinitions.ev.content.split(/(KM_\d{2})/).map((part, i) =>
+                                       /KM_\d{2}/.test(part) ? (
+                                         <span key={i} className="inline rounded font-mono bg-gray-700 text-cyan-300 px-1.5 py-0.5 mx-0.5">{part}</span>
+                                       ) : (
+                                         <Fragment key={i}>{part}</Fragment>
+                                       )
+                                     )}
+                                   </p>
                                </div>
                            </div>
                            <div className="group relative">
@@ -404,7 +413,16 @@ const AnalysisTable: React.FC<AnalysisTableProps> = ({ legs, originalLegs, image
                                    <span className="font-mono text-yellow-400">{leg.analysis.quantitative.kellyCriterionStake.toFixed(2)}%</span>
                                </div>
                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-2 bg-gray-950 text-xs text-gray-300 border border-gray-700 rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                                   <strong className="font-semibold text-cyan-400">{metricDefinitions.kelly.title}</strong><p>{metricDefinitions.kelly.content}</p>
+                                   <strong className="font-semibold text-cyan-400">{metricDefinitions.kelly.title}</strong>
+                                   <p>
+                                     {metricDefinitions.kelly.content.split(/(KM_\d{2})/).map((part, i) =>
+                                       /KM_\d{2}/.test(part) ? (
+                                         <span key={i} className="inline rounded font-mono bg-gray-700 text-cyan-300 px-1.5 py-0.5 mx-0.5">{part}</span>
+                                       ) : (
+                                         <Fragment key={i}>{part}</Fragment>
+                                       )
+                                     )}
+                                   </p>
                                </div>
                            </div>
                            <div className="group relative">
@@ -413,7 +431,16 @@ const AnalysisTable: React.FC<AnalysisTableProps> = ({ legs, originalLegs, image
                                     <div className="bg-cyan-500 h-2 rounded-full" style={{ width: `${leg.analysis.quantitative.confidenceScore * 100}%` }}></div>
                                 </div>
                                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-2 bg-gray-950 text-xs text-gray-300 border border-gray-700 rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                                   <strong className="font-semibold text-cyan-400">{metricDefinitions.confidence.title}</strong><p>{metricDefinitions.confidence.content}</p>
+                                   <strong className="font-semibold text-cyan-400">{metricDefinitions.confidence.title}</strong>
+                                   <p>
+                                     {metricDefinitions.confidence.content.split(/(KM_\d{2})/).map((part, i) =>
+                                       /KM_\d{2}/.test(part) ? (
+                                         <span key={i} className="inline rounded font-mono bg-gray-700 text-cyan-300 px-1.5 py-0.5 mx-0.5">{part}</span>
+                                       ) : (
+                                         <Fragment key={i}>{part}</Fragment>
+                                       )
+                                     )}
+                                   </p>
                                </div>
                            </div>
                         </div>
