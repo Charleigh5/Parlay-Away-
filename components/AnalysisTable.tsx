@@ -13,18 +13,17 @@ import { KNOWLEDGE_MODULES } from '../constants';
 import { LineChartIcon } from './icons/LineChartIcon';
 import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
 import { ChevronRightIcon } from './icons/ChevronRightIcon';
+import { formatAmericanOdds, calculateParlayOdds, calculateParlayEV, calculateParlayConfidence, generateHistoricalOdds } from '../utils';
+import RadialProgress from './RadialProgress';
+import { TargetIcon } from './icons/TargetIcon';
+import { LayersIcon } from './icons/LayersIcon';
+import { OddsLineChart } from './OddsLineChart';
 
 
 interface AnalysisTableProps {
   legs: AnalyzedBetLeg[];
   onReset: () => void;
 }
-
-// Helper function to format American odds
-const formatAmericanOdds = (odds: number): string => {
-  const roundedOdds = Math.round(odds);
-  return roundedOdds > 0 ? `+${roundedOdds}` : `${roundedOdds}`;
-};
 
 const getStatus = (quantitative: QuantitativeAnalysis) => {
   const { expectedValue, confidenceScore } = quantitative;
@@ -154,136 +153,38 @@ const RenderReasoningText: React.FC<{ text: string; legIndex: number; onModuleCl
     );
 };
 
-// Generates plausible-looking historical odds for demonstration
-const generateHistoricalOdds = (currentOdds: number): number[] => {
-  const oddsHistory = [currentOdds];
-  let lastOdd = currentOdds;
-  for (let i = 0; i < 6; i++) {
-    const change = (Math.floor(Math.random() * 3) - 1) * 5; // Fluctuate by -5, 0, or 5
-    let nextOdd = lastOdd + change;
-    if (Math.random() > 0.7) { // Add occasional larger shifts
-      nextOdd += (Math.floor(Math.random() * 3) - 1) * 5;
-    }
-    oddsHistory.unshift(nextOdd);
-    lastOdd = nextOdd;
-  }
-  return oddsHistory; // Returns 7 days of data, ending with current
-};
-
-const OddsLineChart: React.FC<{ data: number[] }> = ({ data }) => {
-  const [tooltip, setTooltip] = useState<{ x: number; y: number; value: number; index: number } | null>(null);
-  const width = 200;
-  const height = 60;
-  const paddingTop = 10;
-  const paddingBottom = 15;
-  const paddingX = 5;
-
-  const points = useMemo(() => {
-    const maxVal = Math.max(...data);
-    const minVal = Math.min(...data);
-    const valueRange = maxVal - minVal;
-
-    return data.map((d, i) => {
-      const x = (i / (data.length - 1)) * (width - paddingX * 2) + paddingX;
-      const y = height - (((d - minVal) / (valueRange || 1)) * (height - paddingTop - paddingBottom) + paddingBottom);
-      return { x, y, value: d };
-    });
-  }, [data]);
-
-  const path = points.map(p => `${p.x},${p.y}`).join(' ');
-  
-  const handleMouseMove = (event: React.MouseEvent<SVGSVGElement>) => {
-    const svg = event.currentTarget;
-    const rect = svg.getBoundingClientRect();
-    const mouseX = event.clientX - rect.left;
-    const svgX = (mouseX / rect.width) * width; // Convert to SVG coordinate space
-
-    let closestPointIndex = -1;
-    let minDistance = Infinity;
-
-    points.forEach((point, index) => {
-        const distance = Math.abs(point.x - svgX);
-        if (distance < minDistance) {
-            minDistance = distance;
-            closestPointIndex = index;
-        }
-    });
-
-    if (closestPointIndex !== -1) {
-        const p = points[closestPointIndex];
-        setTooltip({ x: p.x, y: p.y, value: p.value, index: closestPointIndex });
-    }
-  };
-
-  const handleMouseLeave = () => {
-    setTooltip(null);
-  };
-  
-  const getDayLabel = (index: number) => {
-    const daysAgo = data.length - 1 - index;
-    if (daysAgo === 0) return "Today";
-    if (daysAgo === 1) return "1d ago";
-    return `${daysAgo}d ago`;
-  };
-
-  return (
-    <div className="relative">
-      {tooltip && (
-        <div 
-          className="absolute z-10 p-2 text-xs font-semibold text-gray-200 bg-gray-950 border border-gray-700 rounded-md shadow-lg pointer-events-none"
-          style={{
-            left: `${(tooltip.x / width) * 100}%`,
-            top: `${tooltip.y}px`,
-            transform: 'translate(-50%, -120%)',
-          }}
-        >
-            <div className="font-mono text-cyan-400">{formatAmericanOdds(tooltip.value)}</div>
-            <div className="text-gray-500 text-center">{getDayLabel(tooltip.index)}</div>
-        </div>
-      )}
-      <svg 
-        viewBox={`0 0 ${width} ${height}`} 
-        className="w-full h-auto cursor-crosshair text-cyan-500"
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
-      >
-        <defs>
-          <linearGradient id="sparkline-gradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="currentColor" stopOpacity="0.25" />
-            <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <polygon
-          fill="url(#sparkline-gradient)"
-          points={`${points[0].x},${height} ${path} ${points[points.length - 1].x},${height}`}
-        />
-        <polyline
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          points={path}
-        />
-        {tooltip ? (
-            <circle cx={tooltip.x} cy={tooltip.y} r="3" fill="currentColor" className="text-cyan-300" stroke="rgba(107, 222, 237, 0.3)" strokeWidth="2" />
-        ) : (
-            <circle cx={points[points.length-1].x} cy={points[points.length-1].y} r="2.5" fill="currentColor" className="text-cyan-400" />
-        )}
-      </svg>
-      <div className="flex justify-between text-xs text-gray-500 font-mono" style={{ paddingLeft: `${paddingX}px`, paddingRight: `${paddingX}px` }}>
-        <span>{formatAmericanOdds(Math.min(...data))}</span>
-        <span>{formatAmericanOdds(Math.max(...data))}</span>
-      </div>
-    </div>
-  );
-};
-
-
 const AnalysisTable: React.FC<AnalysisTableProps> = ({ legs, onReset }) => {
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [highlightedSteps, setHighlightedSteps] = useState<Set<number>>(new Set());
   
   const historicalOddsData = useMemo(() => {
     return legs.map(leg => generateHistoricalOdds(leg.marketOdds));
+  }, [legs]);
+
+  const parlayMetrics = useMemo(() => {
+    if (legs.length < 2) return null;
+
+    const parlayOdds = calculateParlayOdds(legs);
+    const parlayEV = calculateParlayEV(legs);
+    const parlayConfidence = calculateParlayConfidence(legs);
+    
+    let summaryText = '';
+    if (parlayEV <= 0) {
+      summaryText = "The combined odds do not justify the risk. This parlay is likely unprofitable in the long run and should be avoided.";
+    } else if (parlayEV > 0 && parlayEV <= 5) {
+      summaryText = "This combination shows a slight edge. While profitable long-term, consider the risk associated with multi-leg bets.";
+    } else if (parlayEV > 5 && parlayConfidence < 0.65) {
+        summaryText = "A potentially valuable parlay, but with moderate uncertainty. The model identifies a significant edge, but confidence is tempered by market factors or data limitations."
+    } else {
+      summaryText = "A high-value parlay where all legs show a strong analytical edge and high confidence. This represents a prime betting opportunity according to the model.";
+    }
+
+    return {
+      odds: parlayOdds,
+      ev: parlayEV,
+      confidence: parlayConfidence,
+      summary: summaryText
+    };
   }, [legs]);
 
   const handleToggleRow = (index: number) => {
@@ -336,9 +237,40 @@ const AnalysisTable: React.FC<AnalysisTableProps> = ({ legs, onReset }) => {
         </button>
       </div>
 
-      <div className="w-full min-w-[700px] rounded-lg border border-gray-700 bg-gray-900/50">
-        {/* Table Header */}
-        <div className="grid grid-cols-12 gap-4 border-b border-gray-700 p-3 text-xs font-semibold uppercase text-gray-400">
+      {parlayMetrics && (
+        <div className="mb-6 rounded-lg border border-cyan-500/30 bg-gray-950 p-4">
+          <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-cyan-400">
+            <LayersIcon className="h-5 w-5" />
+            Parlay Analysis Summary ({legs.length} Legs)
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+            {/* Metrics */}
+            <div className="md:col-span-2 grid grid-cols-2 gap-4">
+              <div className="flex flex-col items-center justify-center rounded-lg bg-gray-800/50 p-4">
+                <span className="text-sm text-gray-400">Parlay Odds</span>
+                <span className="font-mono text-3xl font-bold text-yellow-300">{formatAmericanOdds(parlayMetrics.odds)}</span>
+              </div>
+              <div className="flex flex-col items-center justify-center rounded-lg bg-gray-800/50 p-4">
+                <span className="text-sm text-gray-400">Combined +EV</span>
+                <span className={`font-mono text-3xl font-bold ${parlayMetrics.ev > 0 ? 'text-green-400' : 'text-red-400'}`}>{parlayMetrics.ev.toFixed(2)}%</span>
+              </div>
+              <div className="col-span-2 text-sm text-gray-300 bg-gray-800/50 p-3 rounded-lg">
+                <strong className="text-gray-200">Model Verdict:</strong> {parlayMetrics.summary}
+              </div>
+            </div>
+
+            {/* Confidence */}
+            <div className="flex flex-col items-center justify-center gap-2">
+                <span className="text-sm font-semibold text-gray-300 flex items-center gap-2"><TargetIcon className="h-4 w-4 text-cyan-400"/> Parlay Confidence</span>
+                <RadialProgress progress={parlayMetrics.confidence} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="w-full rounded-lg border border-gray-700 bg-gray-900/50">
+        {/* Table Header for Desktop */}
+        <div className="hidden md:grid grid-cols-12 gap-4 border-b border-gray-700 p-3 text-xs font-semibold uppercase text-gray-400">
           <div className="col-span-4">Proposition</div>
           <div className="col-span-2 text-center">Market Odds</div>
           <div className="col-span-2 text-center">+EV</div>
@@ -354,38 +286,71 @@ const AnalysisTable: React.FC<AnalysisTableProps> = ({ legs, onReset }) => {
             
             return (
             <Fragment key={index}>
-              {/* Collapsed Row */}
               <div
                 onClick={() => handleToggleRow(index)}
-                className={`grid cursor-pointer grid-cols-12 items-center gap-4 p-3 transition-colors ${
+                className={`cursor-pointer transition-colors ${
                   !expandedRows.has(index) ? 'hover:bg-gray-800/50' : 'bg-gray-800/60'
                 } ${index < legs.length - 1 ? 'border-b border-gray-700/70' : ''}`}
               >
-                <div className="col-span-4">
-                  <p className="font-semibold text-gray-100">{leg.player}</p>
-                  <p className="text-sm text-gray-400">
-                    {leg.position} {leg.line} {leg.propType}
-                  </p>
-                </div>
-                <div className="col-span-2 text-center font-mono text-gray-200">{formatAmericanOdds(leg.marketOdds)}</div>
-                <div className={`col-span-2 text-center font-mono font-semibold ${leg.analysis.quantitative.expectedValue > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {leg.analysis.quantitative.expectedValue.toFixed(2)}%
-                </div>
-                <div className="col-span-2 text-center font-mono text-yellow-400">
-                  {leg.analysis.quantitative.kellyCriterionStake.toFixed(2)}%
-                </div>
-                <div className="col-span-2 flex justify-center">
-                  <div className="group relative flex items-center">
-                    <span className={`rounded-full px-2 py-1 text-xs font-semibold ${status.className}`}>
-                      {status.label}
-                    </span>
-                    {verdictDef && (
-                        <div className="absolute bottom-full left-1/2 z-10 mb-2 w-64 -translate-x-1/2 rounded-md border border-gray-700 bg-gray-950 p-2 text-xs text-gray-300 shadow-lg opacity-0 transition-opacity group-hover:opacity-100 pointer-events-none">
-                            <strong className="font-semibold text-cyan-400">{verdictDef.title}</strong>
-                            <p>{verdictDef.content}</p>
+                {/* Mobile Card Layout */}
+                <div className="p-3 md:hidden">
+                    <div className="flex justify-between items-start mb-2">
+                        <div>
+                            <p className="font-semibold text-gray-100">{leg.player}</p>
+                            <p className="text-sm text-gray-400">{leg.position} {leg.line} {leg.propType}</p>
                         </div>
-                    )}
-                  </div>
+                         <div className="group relative flex items-center">
+                             <span className={`rounded-full px-2 py-1 text-xs font-semibold ${status.className}`}>
+                               {status.label}
+                             </span>
+                         </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center text-xs border-t border-gray-700/50 pt-2 mt-2">
+                        <div>
+                            <p className="text-gray-500 uppercase">Odds</p>
+                            <p className="font-mono text-gray-200 mt-1">{formatAmericanOdds(leg.marketOdds)}</p>
+                        </div>
+                        <div>
+                            <p className="text-gray-500 uppercase">+EV</p>
+                            <p className={`font-mono font-semibold mt-1 ${leg.analysis.quantitative.expectedValue > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                {leg.analysis.quantitative.expectedValue.toFixed(2)}%
+                            </p>
+                        </div>
+                        <div>
+                            <p className="text-gray-500 uppercase">Kelly</p>
+                            <p className="font-mono text-yellow-400 mt-1">{leg.analysis.quantitative.kellyCriterionStake.toFixed(2)}%</p>
+                        </div>
+                    </div>
+                </div>
+                
+                {/* Desktop Grid Layout */}
+                <div className="hidden md:grid grid-cols-12 items-center gap-4 p-3">
+                    <div className="col-span-4">
+                      <p className="font-semibold text-gray-100">{leg.player}</p>
+                      <p className="text-sm text-gray-400">
+                        {leg.position} {leg.line} {leg.propType}
+                      </p>
+                    </div>
+                    <div className="col-span-2 text-center font-mono text-gray-200">{formatAmericanOdds(leg.marketOdds)}</div>
+                    <div className={`col-span-2 text-center font-mono font-semibold ${leg.analysis.quantitative.expectedValue > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {leg.analysis.quantitative.expectedValue.toFixed(2)}%
+                    </div>
+                    <div className="col-span-2 text-center font-mono text-yellow-400">
+                      {leg.analysis.quantitative.kellyCriterionStake.toFixed(2)}%
+                    </div>
+                    <div className="col-span-2 flex justify-center">
+                      <div className="group relative flex items-center">
+                        <span className={`rounded-full px-2 py-1 text-xs font-semibold ${status.className}`}>
+                          {status.label}
+                        </span>
+                        {verdictDef && (
+                            <div className="absolute bottom-full left-1/2 z-10 mb-2 w-64 -translate-x-1/2 rounded-md border border-gray-700 bg-gray-950 p-2 text-xs text-gray-300 shadow-lg opacity-0 transition-opacity group-hover:opacity-100 pointer-events-none">
+                                <strong className="font-semibold text-cyan-400">{verdictDef.title}</strong>
+                                <p>{verdictDef.content}</p>
+                            </div>
+                        )}
+                      </div>
+                    </div>
                 </div>
               </div>
 
@@ -472,61 +437,55 @@ const AnalysisTable: React.FC<AnalysisTableProps> = ({ legs, onReset }) => {
                                         <div className="space-y-1.5">
                                             {tooltipData.steps.map(step => (
                                                 <div key={step.step}>
-                                                    <button onClick={(e) => { e.stopPropagation(); handleJumpToStep(index, step.step); }} className="font-semibold text-gray-200 hover:underline">
-                                                        Step {step.step}:
+                                                    <button onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        e.preventDefault();
+                                                        handleJumpToStep(index, step.step);
+                                                      }}
+                                                      className="text-left text-cyan-400 hover:underline w-full pointer-events-auto"
+                                                    >
+                                                        <strong className="font-semibold">Step {step.step}:</strong> <span className="text-gray-400">{step.description.substring(0, 40)}...</span>
                                                     </button>
-                                                    <p className="text-gray-400 text-xs">{step.description}</p>
                                                 </div>
                                             ))}
                                         </div>
                                     </div>
                                 </div>
-                            ))}
+                           ))}
                         </div>
                     </div>
 
                     {/* Column 3: Reasoning Deep-Dive */}
-                     <div id={`reasoning-section-${index}`} className="col-span-1 bg-gray-800 p-4 flex flex-col">
-                        <h3 className="text-md font-semibold text-cyan-400 mb-3 shrink-0">Reasoning Deep-Dive</h3>
-                        <div className="overflow-y-auto space-y-3 pr-2 flex-grow max-h-96">
-                            {leg.analysis.reasoning.map(step => {
-                                const isHighlighted = highlightedSteps.has(step.step);
-                                return (
-                                    <div key={step.step} id={`step-${index}-${step.step}`} className={`p-2 rounded-md transition-colors duration-300 ${isHighlighted ? 'bg-cyan-900/50' : 'bg-gray-900/50'}`}>
-                                        <div className="text-sm text-gray-300 leading-relaxed">
-                                            <strong className="text-gray-300 block mb-1">Step {step.step}:</strong>
-                                            <RenderReasoningText 
-                                                text={step.description}
-                                                legIndex={index}
-                                                onModuleClick={handleScrollToDriver}
-                                            />
-                                            {step.activatedModules.length > 0 && (
-                                                <div className="mt-2 flex flex-wrap gap-1.5">
-                                                    {step.activatedModules.map(modId => (
-                                                        <button
-                                                            key={modId}
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleScrollToDriver(index, modId);
-                                                            }}
-                                                            className="text-xs font-mono bg-gray-700 text-cyan-300 px-2 py-0.5 rounded-full transition-colors hover:bg-gray-600 hover:text-cyan-200 focus:outline-none focus:ring-1 focus:ring-cyan-400"
-                                                            title={`Jump to driver ${modId}`}
-                                                        >
-                                                            {modId}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                    <div className="col-span-1 bg-gray-800 p-4 overflow-y-auto" style={{maxHeight: '400px'}}>
+                        <h3 className="text-md font-semibold text-cyan-400 mb-3">Reasoning Deep-Dive</h3>
+                         <div className="relative">
+                            {/* Dotted line connecting steps */}
+                            <div className="absolute left-4 top-2 bottom-2 w-px bg-gray-600 border-l border-dashed border-gray-600"></div>
+
+                            <ul className="space-y-4">
+                            {leg.analysis.reasoning.slice().reverse().map(step => (
+                                <li 
+                                    key={step.step}
+                                    id={`step-${index}-${step.step}`}
+                                    className={`relative pl-10 text-sm transition-all duration-300 rounded-md p-2 -ml-2
+                                        ${highlightedSteps.has(step.step) ? 'bg-cyan-500/10' : ''}
+                                    `}
+                                >
+                                <div className={`absolute left-4 top-4 -translate-x-1/2 h-2 w-2 rounded-full bg-gray-500 ring-4 ring-gray-800 transition-colors duration-300 ${highlightedSteps.has(step.step) ? 'bg-cyan-400' : ''}`}></div>
+                                <strong className="text-gray-300">Step {step.step}:</strong> 
+                                <span className="text-gray-400">
+                                    <RenderReasoningText text={step.description} legIndex={index} onModuleClick={handleScrollToDriver} />
+                                </span>
+                                </li>
+                            ))}
+                            </ul>
                         </div>
                     </div>
                 </div>
               )}
             </Fragment>
-          )})}
+            );
+          })}
         </div>
       </div>
     </div>
