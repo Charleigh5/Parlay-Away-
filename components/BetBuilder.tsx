@@ -13,6 +13,8 @@ import { fetchNFLEvents } from '../services/sportsDataService';
 import { TargetIcon } from './icons/TargetIcon';
 import { ShieldIcon } from './icons/ShieldIcon';
 import { DEFENSIVE_STATS, TEAM_ABBREVIATION_TO_NAME, TEAM_NAME_TO_ABBREVIATION } from '../data/mockDefensiveStats';
+import { BarChartIcon } from './icons/BarChartIcon';
+import { ChevronDownIcon } from './icons/ChevronDownIcon';
 
 
 interface BetBuilderProps {
@@ -73,6 +75,7 @@ const SAVED_PARLAYS_LIST_KEY = 'synopticEdge_savedParlaysList';
 const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
     const [legs, setLegs] = useState<ExtractedBetLeg[]>([]);
     const [savedParlays, setSavedParlays] = useState<SavedParlay[]>([]);
+    const [expandedLegIndex, setExpandedLegIndex] = useState<number | null>(null);
     
     // State for live schedule data
     const [games, setGames] = useState<Game[]>([]);
@@ -126,14 +129,6 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
             }
         }
     }, []);
-
-    const calculateGameLogStats = (gameLog: number[], line: number, position: 'Over' | 'Under') => {
-      if (!gameLog || gameLog.length === 0) {
-          return null;
-      }
-      const count = gameLog.filter(stat => position === 'Over' ? stat > line : stat < line).length;
-      return `${position} in ${count} of last ${gameLog.length} games`;
-    };
     
     const enrichedLegs = useMemo((): EnrichedLeg[] => {
         return legs.map(leg => {
@@ -365,6 +360,10 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
     const isAddLegDisabled = !selectedGameId || !selectedPlayerName || !selectedPropType || selectedLineIndex === '';
     const opponentOverallRank = opponentInfo?.overallRank ?? null;
     const rankCategory = getRankCategory(opponentOverallRank);
+    
+    const historicalContext = selectedProp?.historicalContext;
+    const gameLog = historicalContext?.gameLog ?? [];
+    const maxGameLogStat = gameLog.length > 0 ? Math.max(...gameLog, selectedLineData?.line ?? 0) : 0;
 
     return (
         <div className="flex flex-col h-full">
@@ -389,38 +388,124 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                         </div>
                     ) : (
                         enrichedLegs.map((leg, index) => {
-                            const gameLogStats = leg.propDetails?.historicalContext?.gameLog
-                                ? calculateGameLogStats(leg.propDetails.historicalContext.gameLog, leg.line, leg.position)
-                                : null;
+                            const isExpanded = expandedLegIndex === index;
+                            const historicalContext = leg.propDetails?.historicalContext;
+
+                            let comparisonData = null;
+                            if (isExpanded && historicalContext && (historicalContext.seasonAvg != null || historicalContext.last5Avg != null)) {
+                                const { seasonAvg, last5Avg } = historicalContext;
+                                const line = leg.line;
+                                const maxValue = Math.max(seasonAvg ?? 0, last5Avg ?? 0, line) * 1.25;
+
+                                comparisonData = {
+                                    seasonAvg: seasonAvg,
+                                    last5Avg: last5Avg,
+                                    line: line,
+                                    seasonAvgPercent: maxValue > 0 && seasonAvg != null ? (seasonAvg / maxValue) * 100 : 0,
+                                    last5AvgPercent: maxValue > 0 && last5Avg != null ? (last5Avg / maxValue) * 100 : 0,
+                                    linePercent: maxValue > 0 ? (line / maxValue) * 100 : 0,
+                                };
+                            }
 
                             return (
-                                <div key={index} className="bg-gray-800/70 p-3 rounded-lg flex items-center justify-between gap-2 animate-fade-in">
-                                    <div className="flex-1">
-                                        <div className="flex items-center gap-2">
-                                            <p className="font-semibold text-gray-200">{leg.player}</p>
-                                            {leg.playerDetails && (
-                                                 <span className="text-xs font-mono bg-gray-700 text-cyan-300 px-1.5 py-0.5 rounded">
-                                                    {leg.playerDetails.position} &bull; {leg.playerDetails.team}
-                                                </span>
+                                <div 
+                                    key={index} 
+                                    className={`bg-gray-800/70 p-3 rounded-lg animate-fade-in cursor-pointer transition-all duration-300 ${isExpanded ? 'ring-2 ring-cyan-500/50' : 'hover:bg-gray-800'}`}
+                                    onClick={() => setExpandedLegIndex(isExpanded ? null : index)}
+                                >
+                                    <div className="grid grid-cols-3 gap-x-3 gap-y-2">
+                                        {/* Main Info */}
+                                        <div className="col-span-2">
+                                            <div className="flex items-center gap-2">
+                                                <p className="font-semibold text-gray-200 truncate" title={leg.player}>{leg.player}</p>
+                                                {leg.playerDetails && (
+                                                    <span className="flex-shrink-0 text-xs font-mono bg-gray-700 text-cyan-300 px-1.5 py-0.5 rounded">
+                                                        {leg.playerDetails.position} &bull; {leg.playerDetails.team}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="text-sm text-gray-400 truncate" title={`${leg.propType} ${leg.position} ${leg.line}`}>
+                                                {`${leg.propType} ${leg.position} ${leg.line}`}
+                                            </p>
+                                        </div>
+                                
+                                        {/* Controls */}
+                                        <div className="flex justify-end items-center">
+                                            <button onClick={(e) => { e.stopPropagation(); handleRemoveLeg(index); }} className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-full transition-colors">
+                                                <Trash2Icon className="h-4 w-4" />
+                                            </button>
+                                            <ChevronDownIcon className={`h-5 w-5 text-gray-400 ml-1 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
+                                        </div>
+                                
+                                        {/* Stats */}
+                                        <div className="col-span-3 grid grid-cols-3 gap-2 text-center mt-2 border-t border-gray-700/50 pt-2">
+                                            <div>
+                                                <div className="text-xs text-gray-500 uppercase">Odds</div>
+                                                <div className="font-mono text-cyan-400 font-semibold">{formatAmericanOdds(leg.marketOdds)}</div>
+                                            </div>
+                                            <div>
+                                                <div className="text-xs text-gray-500 uppercase">SZN Avg</div>
+                                                <div className="font-mono text-gray-200">
+                                                    {leg.propDetails?.historicalContext?.seasonAvg?.toFixed(1) ?? '-'}
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div className="text-xs text-gray-500 uppercase">L5 Avg</div>
+                                                <div className="font-mono text-gray-200">
+                                                    {leg.propDetails?.historicalContext?.last5Avg?.toFixed(1) ?? '-'}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {isExpanded && comparisonData && (
+                                        <div className="mt-3 pt-3 border-t border-gray-700/50 space-y-3 animate-fade-in-slow">
+                                            <h4 className="text-xs font-semibold text-gray-400 uppercase">Performance vs. Line ({comparisonData.line})</h4>
+                                            
+                                            {comparisonData.seasonAvg != null && (
+                                                <div>
+                                                    <div className="flex justify-between items-center text-xs mb-1">
+                                                        <span className="text-gray-300">Season Avg.</span>
+                                                        <span className={`font-mono font-semibold ${comparisonData.seasonAvg > comparisonData.line ? 'text-green-400' : 'text-red-400'}`}>
+                                                            {comparisonData.seasonAvg.toFixed(1)}
+                                                        </span>
+                                                    </div>
+                                                    <div className="relative h-2 bg-gray-700 rounded-full overflow-hidden">
+                                                        <div 
+                                                            className="absolute h-full bg-cyan-500 rounded-full transition-all duration-500"
+                                                            style={{ width: `${comparisonData.seasonAvgPercent}%` }}
+                                                        ></div>
+                                                        <div
+                                                            title={`Line: ${comparisonData.line}`}
+                                                            className="absolute top-0 bottom-0 border-l-2 border-dashed border-yellow-300"
+                                                            style={{ left: `${comparisonData.linePercent}%` }}
+                                                        ></div>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {comparisonData.last5Avg != null && (
+                                                <div>
+                                                    <div className="flex justify-between items-center text-xs mb-1">
+                                                        <span className="text-gray-300">Last 5 Avg.</span>
+                                                        <span className={`font-mono font-semibold ${comparisonData.last5Avg > comparisonData.line ? 'text-green-400' : 'text-red-400'}`}>
+                                                            {comparisonData.last5Avg.toFixed(1)}
+                                                        </span>
+                                                    </div>
+                                                    <div className="relative h-2 bg-gray-700 rounded-full overflow-hidden">
+                                                        <div 
+                                                            className="absolute h-full bg-cyan-500 rounded-full transition-all duration-500"
+                                                            style={{ width: `${comparisonData.last5AvgPercent}%` }}
+                                                        ></div>
+                                                        <div
+                                                            title={`Line: ${comparisonData.line}`}
+                                                            className="absolute top-0 bottom-0 border-l-2 border-dashed border-yellow-300"
+                                                            style={{ left: `${comparisonData.linePercent}%` }}
+                                                        ></div>
+                                                    </div>
+                                                </div>
                                             )}
                                         </div>
-                                        <p className="text-sm text-gray-400">{`${leg.propType} ${leg.position} ${leg.line}`}</p>
-                                        {leg.propDetails?.historicalContext && (
-                                            <p className="text-xs text-gray-500 mt-1">
-                                                Season Avg: {leg.propDetails.historicalContext.seasonAvg.toFixed(1)} | Last 5 Avg: {leg.propDetails.historicalContext.last5Avg.toFixed(1)}
-                                            </p>
-                                        )}
-                                        {gameLogStats && (
-                                            <p className="text-xs text-cyan-300/80 mt-1 font-mono bg-cyan-900/20 inline-block px-2 py-0.5 rounded">
-                                                <TargetIcon className="inline h-3 w-3 mr-1" />
-                                                {gameLogStats}
-                                            </p>
-                                        )}
-                                    </div>
-                                    <div className="font-mono text-cyan-400 text-lg">{formatAmericanOdds(leg.marketOdds)}</div>
-                                     <button onClick={() => handleRemoveLeg(index)} className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-full transition-colors">
-                                        <Trash2Icon className="h-4 w-4" />
-                                    </button>
+                                    )}
                                 </div>
                             );
                         })
@@ -484,187 +569,221 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                          <option value="">{scheduleLoading ? "Loading..." : "Select Game"}</option>
                          {filteredGames.map(game => <option key={game.id} value={game.id}>{game.name}</option>)}
                      </select>
-                     <select value={selectedPlayerName} onChange={e => setSelectedPlayerName(e.target.value)} className="form-select" disabled={!selectedGameId || !hasAvailablePlayers}>
-                         <option value="">{selectedGameId && !hasAvailablePlayers ? 'No props available' : 'Select Player'}</option>
-                         {availablePlayers.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
-                     </select>
+                     <div className="relative">
+                        <select
+                            value={selectedPlayerName}
+                            onChange={e => setSelectedPlayerName(e.target.value)}
+                            className={`form-select ${selectedPlayer ? '!pr-20' : ''}`}
+                            disabled={!selectedGameId || !hasAvailablePlayers}
+                        >
+                            <option value="">{selectedGameId && !hasAvailablePlayers ? 'No props available' : 'Select Player'}</option>
+                            {availablePlayers.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
+                        </select>
+                        {selectedPlayer && (
+                            <div className="absolute right-10 top-1/2 -translate-y-1/2 text-xs font-mono bg-gray-600/80 text-gray-200 px-2 py-0.5 rounded-full pointer-events-none backdrop-blur-sm">
+                                {selectedPlayer.position} &bull; {selectedPlayer.team}
+                            </div>
+                        )}
+                    </div>
                      <select value={selectedPropType} onChange={e => setSelectedPropType(e.target.value)} className="form-select" disabled={!selectedPlayerName}>
                          <option value="">Select Prop</option>
                          {availableProps.map(p => <option key={p.propType} value={p.propType}>{p.propType}</option>)}
                      </select>
                  </div>
                  
-                {opponentInfo && (
-                    <div className="my-3 grid grid-cols-3 gap-3 animate-fade-in">
-                        <div className="col-span-2 p-3 bg-gray-700/50 rounded-lg text-sm border border-cyan-500/20">
-                            <div className="flex items-center gap-2 font-semibold mb-2 text-gray-300">
-                                <ShieldIcon className="h-5 w-5 text-cyan-400" />
-                                <span>Opponent Profile (vs {opponentInfo.abbr})</span>
-                            </div>
-                            {opponentStat ? (
-                                <div className="grid grid-cols-2 gap-x-4">
-                                    <span className="text-gray-400">{opponentStat.label}:</span>
-                                    <span className="font-mono text-right text-white">{opponentStat.value.toFixed(1)} {opponentStat.unit}</span>
-                                    <span className="text-gray-400">League Rank:</span>
-                                    <span className="font-mono text-right text-white">#{opponentStat.rank}</span>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
+                    {historicalContext && (
+                        <div className="p-3 bg-gray-700/50 rounded-lg animate-fade-in border border-cyan-500/20">
+                            <h4 className="flex items-center gap-2 text-sm font-semibold mb-3 text-gray-300">
+                                <BarChartIcon className="h-5 w-5 text-cyan-400" />
+                                Historical Performance: {selectedPlayer?.name}
+                            </h4>
+                            <div className="grid grid-cols-2 gap-2 text-center mb-3">
+                                <div className="bg-gray-800/60 p-2 rounded-md">
+                                    <div className="text-xs text-gray-400">Season Avg</div>
+                                    <div className="text-lg font-bold text-gray-100">{historicalContext.seasonAvg.toFixed(1)}</div>
                                 </div>
-                            ) : (
-                                <div className="text-center text-gray-500 py-4">
-                                    <p>Select a prop to see specific defensive stats.</p>
+                                <div className="bg-gray-800/60 p-2 rounded-md">
+                                    <div className="text-xs text-gray-400">Last 5 Avg</div>
+                                    <div className="text-lg font-bold text-gray-100">{historicalContext.last5Avg.toFixed(1)}</div>
+                                </div>
+                            </div>
+                            {selectedLineData && gameLog.length > 0 && (
+                                <div className="mb-3">
+                                    <h5 className="text-xs text-gray-400 px-1 mb-1 font-semibold">
+                                        Hit Rate vs. Line ({selectedLineData.line})
+                                    </h5>
+                                    <div className="grid grid-cols-2 gap-2 text-center">
+                                        <div className="bg-gray-800/60 p-2 rounded-md">
+                                            <div className="text-xs text-green-400 font-semibold">OVER HITS</div>
+                                            <div className="text-base lg:text-lg font-bold text-gray-100">
+                                                {gameLog.filter(s => s > selectedLineData.line).length}
+                                                <span className="text-sm text-gray-400"> / {gameLog.length}</span>
+                                            </div>
+                                            <div className="text-xs text-gray-400 font-mono">
+                                                ({((gameLog.filter(s => s > selectedLineData.line).length / gameLog.length) * 100).toFixed(0)}%)
+                                            </div>
+                                        </div>
+                                        <div className="bg-gray-800/60 p-2 rounded-md">
+                                            <div className="text-xs text-cyan-400 font-semibold">UNDER HITS</div>
+                                            <div className="text-base lg:text-lg font-bold text-gray-100">
+                                                {gameLog.filter(s => s < selectedLineData.line).length}
+                                                <span className="text-sm text-gray-400"> / {gameLog.length}</span>
+                                            </div>
+                                            <div className="text-xs text-gray-400 font-mono">
+                                                ({((gameLog.filter(s => s < selectedLineData.line).length / gameLog.length) * 100).toFixed(0)}%)
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             )}
+                            <div className="space-y-1">
+                                <h5 className="text-xs text-gray-400 px-1">
+                                    Recent Game Log {selectedLineData ? `(vs. Line ${selectedLineData.line})` : ''}
+                                </h5>
+                                {gameLog.length > 0 ? gameLog.map((stat, index) => {
+                                    const isOver = selectedLineData ? stat > selectedLineData.line : false;
+                                    const barWidth = maxGameLogStat > 0 ? (stat / maxGameLogStat) * 100 : 0;
+                                    return (
+                                        <div key={index} className="flex items-center gap-2 group p-1 hover:bg-gray-800/50 rounded-md">
+                                            <div className="w-10 text-xs font-mono text-right text-gray-300">{stat.toFixed(1)}</div>
+                                            <div className="flex-1 bg-gray-600/50 rounded-sm h-4 relative">
+                                                <div
+                                                    style={{ width: `${barWidth > 100 ? 100 : barWidth}%` }}
+                                                    className={`h-full rounded-sm transition-all duration-300 ${isOver ? 'bg-green-500' : 'bg-cyan-600'}`}
+                                                ></div>
+                                                {selectedLineData && (
+                                                     <div 
+                                                        className="absolute top-0 bottom-0 border-l-2 border-dashed border-yellow-300"
+                                                        style={{ left: `${(selectedLineData.line / maxGameLogStat) * 100}%` }}
+                                                        title={`Line: ${selectedLineData.line}`}
+                                                    ></div>
+                                                )}
+                                            </div>
+                                            <div className={`w-10 text-xs font-semibold text-center opacity-0 group-hover:opacity-100 transition-opacity ${isOver ? 'text-green-400' : 'text-cyan-400'}`}>
+                                                {selectedLineData ? (isOver ? 'Over' : 'Under') : ''}
+                                            </div>
+                                        </div>
+                                    );
+                                }) : <p className="text-xs text-gray-500 text-center py-2">No game log data available.</p>}
+                            </div>
                         </div>
+                    )}
 
-                        <div className={`col-span-1 p-3 rounded-lg text-center flex flex-col justify-center items-center ${rankCategory.bgColor} border ${rankCategory.borderColor}`}>
-                             <div className="text-sm font-semibold text-gray-300 mb-1 flex items-center gap-2">
-                                <ShieldIcon className="h-4 w-4" />
-                                Overall Defense
+                    {opponentInfo && (
+                        <div className="grid grid-cols-3 gap-3 animate-fade-in">
+                            <div className="col-span-2 p-3 bg-gray-700/50 rounded-lg text-sm border border-cyan-500/20">
+                                <div className="flex items-center gap-2 font-semibold mb-2 text-gray-300">
+                                    <ShieldIcon className="h-5 w-5 text-cyan-400" />
+                                    <span>Opponent Profile (vs {opponentInfo.abbr})</span>
+                                </div>
+                                {opponentStat ? (
+                                    <div className="grid grid-cols-2 gap-x-4">
+                                        <span className="text-gray-400">{opponentStat.label}:</span>
+                                        <span className="font-mono text-right text-white">{opponentStat.value.toFixed(1)} {opponentStat.unit}</span>
+                                        <span className="text-gray-400">League Rank:</span>
+                                        <span className="font-mono text-right text-white">#{opponentStat.rank}</span>
+                                    </div>
+                                ) : (
+                                    <div className="text-center text-gray-500 py-4">
+                                        <p>Select a prop to see specific defensive stats.</p>
+                                    </div>
+                                )}
                             </div>
-                             <div className={`text-3xl font-bold font-mono ${rankCategory.color}`}>
-                                {opponentOverallRank !== null ? `#${opponentOverallRank}` : 'N/A'}
-                            </div>
-                            <div className={`mt-1 text-xs font-semibold px-2 py-0.5 rounded-full inline-block ${rankCategory.bgColor} ${rankCategory.color}`}>
-                                {rankCategory.text}
+
+                            <div className={`col-span-1 p-3 rounded-lg text-center flex flex-col justify-center items-center ${rankCategory.bgColor} border ${rankCategory.borderColor}`}>
+                                 <div className="text-sm font-semibold text-gray-300 mb-1 flex items-center gap-2">
+                                    <ShieldIcon className="h-4 w-4" />
+                                    Overall Defense
+                                </div>
+                                 <div className={`text-3xl font-bold font-mono ${rankCategory.color}`}>
+                                    {opponentOverallRank !== null ? `#${opponentOverallRank}` : 'N/A'}
+                                </div>
+                                <div className={`mt-1 text-xs font-semibold px-2 py-0.5 rounded-full ${rankCategory.bgColor} border ${rankCategory.borderColor}`}>
+                                     {rankCategory.text}
+                                </div>
                             </div>
                         </div>
-                    </div>
-                )}
+                    )}
+                </div>
 
-
-                {availableLines.length > 0 && (
-                    <div className="space-y-2 mb-3 max-h-48 overflow-y-auto pr-2 border-t border-b border-gray-700/50 py-3">
-                        <h4 className="text-sm font-semibold text-gray-400 px-1">Select Line:</h4>
-                        {availableLines.map((line, index) => {
-                            const isSelected = selectedLineIndex === index.toString();
-                            const isClosestToAverage = index === closestLineIndex && referenceAverage !== null;
-                            const overOddsHistory = generateHistoricalOdds(line.overOdds);
-                            const underOddsHistory = generateHistoricalOdds(line.underOdds);
-
-                            let averageIndicator: React.ReactNode = null;
-                            if (referenceAverage) {
-                                const isLineAboveAvg = line.line > referenceAverage.value;
-                                const indicatorColor = isLineAboveAvg ? 'text-red-400' : 'text-green-400';
-                                const indicatorSymbol = isLineAboveAvg ? '▲' : '▼';
-                                averageIndicator = (
-                                    <span className={`text-xs font-mono ml-2 ${indicatorColor}`}>
-                                        {indicatorSymbol} vs {referenceAverage.type} Avg ({referenceAverage.value.toFixed(1)})
-                                    </span>
-                                );
-                            }
-                            
-                            const containerClasses = ['p-2', 'rounded-lg', 'border', 'cursor-pointer', 'transition-all', 'relative'];
-                            if (isSelected) {
-                                containerClasses.push('bg-cyan-500/10', 'border-cyan-500', 'ring-2', 'ring-cyan-500/50');
-                            } else if (isClosestToAverage) {
-                                containerClasses.push('bg-yellow-500/10', 'border-yellow-500/80');
-                            } else {
-                                containerClasses.push('bg-gray-800/50', 'border-gray-700', 'hover:border-gray-600');
-                            }
-
-                            return (
-                                <div 
-                                    key={index}
-                                    onClick={() => setSelectedLineIndex(index.toString())}
-                                    className={containerClasses.join(' ')}
-                                >
-                                    {isClosestToAverage && (
-                                        <div className="absolute -top-2.5 -right-2.5 text-yellow-300 bg-gray-800 rounded-full p-1 leading-none border border-yellow-500/50" title={`Closest line to ${referenceAverage?.type} average of ${referenceAverage?.value.toFixed(1)}`}>
-                                            <TargetIcon className="h-4 w-4" />
+                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
+                     {availableLines.length > 0 && (
+                         <div className="p-3 bg-gray-700/50 rounded-lg">
+                             <label htmlFor="line-select" className="block text-sm font-medium text-gray-300 mb-2">Select Line & Position</label>
+                              <div className="grid grid-cols-2 gap-2 mb-2">
+                                  <div className="relative">
+                                    <select id="line-select" value={selectedLineIndex} onChange={e => setSelectedLineIndex(e.target.value)} className="form-select !pr-8">
+                                        <option value="" disabled>Choose Line</option>
+                                        {availableLines.map((l, index) => (
+                                            <option key={`${l.line}-${index}`} value={index}>
+                                                {l.line} (O: {formatAmericanOdds(l.overOdds)} / U: {formatAmericanOdds(l.underOdds)})
+                                            </option>
+                                        ))}
+                                    </select>
+                                    {referenceAverage && (
+                                        <div
+                                            onClick={() => setSelectedLineIndex(closestLineIndex.toString())}
+                                            className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center text-xs bg-yellow-500/20 text-yellow-300 px-2 py-1 rounded-full cursor-pointer hover:bg-yellow-500/30"
+                                            title={`Closest line to ${referenceAverage.type} avg (${referenceAverage.value.toFixed(1)})`}
+                                        >
+                                            <TargetIcon className="h-3 w-3 mr-1" />
+                                            Auto
                                         </div>
                                     )}
+                                  </div>
+                                 <div className="grid grid-cols-2 gap-1">
+                                     <button onClick={() => setSelectedPosition('Over')} className={`toggle-button ${selectedPosition === 'Over' ? 'active' : ''}`}>
+                                        Over {selectedLineData && <span className="odds">{formatAmericanOdds(selectedLineData.overOdds)}</span>}
+                                    </button>
+                                     <button onClick={() => setSelectedPosition('Under')} className={`toggle-button ${selectedPosition === 'Under' ? 'active' : ''}`}>
+                                        Under {selectedLineData && <span className="odds">{formatAmericanOdds(selectedLineData.underOdds)}</span>}
+                                    </button>
+                                 </div>
+                              </div>
+                         </div>
+                     )}
+                     {currentOdds !== null && <OddsLineChart data={generateHistoricalOdds(currentOdds)} />}
+                 </div>
 
-                                    <div className="flex justify-between items-center">
-                                        <div className="font-semibold text-gray-200 flex items-center flex-wrap">
-                                            <span>{line.line}</span>
-                                            {averageIndicator}
-                                        </div>
-                                        <div className="flex gap-4 font-mono text-xs">
-                                            <span>Over: {formatAmericanOdds(line.overOdds)}</span>
-                                            <span>Under: {formatAmericanOdds(line.underOdds)}</span>
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4 mt-2 pt-2 border-t border-gray-700/50">
-                                        <div>
-                                            <OddsLineChart data={overOddsHistory} />
-                                        </div>
-                                        <div>
-                                            <OddsLineChart data={underOddsHistory} />
-                                        </div>
-                                    </div>
-                                </div>
-                            )
-                        })}
-                    </div>
-                )}
-
-                 <div className="flex items-center gap-3 mb-4">
-                    <div className="flex rounded-md bg-gray-700 border border-gray-600">
-                        <button onClick={() => setSelectedPosition('Over')} className={`px-4 py-2 text-sm font-semibold rounded-l-md transition-colors ${selectedPosition === 'Over' ? 'bg-cyan-500 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>Over</button>
-                        <button onClick={() => setSelectedPosition('Under')} className={`px-4 py-2 text-sm font-semibold rounded-r-md transition-colors ${selectedPosition === 'Under' ? 'bg-cyan-500 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>Under</button>
-                    </div>
-                    <div className="text-gray-400 text-sm">Odds: <span className="font-mono font-semibold text-lg text-cyan-300">{currentOdds ? formatAmericanOdds(currentOdds) : '...'}</span></div>
-                    <button onClick={handleAddLeg} disabled={isAddLegDisabled} className="ml-auto flex items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cyan-600 disabled:bg-gray-600 disabled:cursor-not-allowed">
+                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <button onClick={handleAddLeg} disabled={isAddLegDisabled} className="col-span-1 md:col-span-1 flex items-center justify-center gap-2 action-button bg-cyan-500 hover:bg-cyan-600 disabled:bg-gray-600">
                         <PlusIcon className="h-5 w-5" />
                         Add Leg
                     </button>
-                </div>
-                 <div className="border-t border-gray-700 pt-4 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-                    <div className="flex-1 grid grid-cols-2 gap-2 items-center">
-                        <div>
-                            <span className="text-gray-400">Parlay Odds: </span>
-                            <span className="font-mono text-2xl font-bold text-yellow-300">{parlayOdds ? formatAmericanOdds(parlayOdds) : '-'}</span>
+                    <div className="col-span-1 md:col-span-2 flex items-center justify-between rounded-lg bg-gray-800/60 p-3">
+                        <div className="flex items-center gap-4">
+                            <button onClick={handleSaveParlay} disabled={legs.length === 0} className="flex items-center gap-2 text-sm font-semibold text-gray-300 hover:text-cyan-400 disabled:opacity-50 transition-colors">
+                                <SaveIcon className="h-4 w-4" /> Save
+                            </button>
+                            <div>
+                                <span className="text-sm text-gray-400">Total Odds:</span>
+                                <span className="ml-2 font-mono text-lg font-bold text-yellow-300">{formatAmericanOdds(parlayOdds)}</span>
+                            </div>
                         </div>
-                        <button onClick={handleSaveParlay} disabled={legs.length === 0} className="flex w-full items-center justify-center gap-2 rounded-md bg-gray-700 px-4 py-3 text-base font-semibold text-white transition-colors hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed">
-                            <SaveIcon className="h-5 w-5" />
-                            Save Parlay
+                        <button onClick={() => onAnalyze(legs)} disabled={legs.length === 0} className="action-button bg-green-500 hover:bg-green-600 disabled:bg-gray-600 h-full text-base px-6">
+                            <SendIcon className="h-5 w-5" />
+                            Analyze
                         </button>
                     </div>
-                    <button
-                        onClick={() => onAnalyze(legs)}
-                        disabled={legs.length < 2}
-                        title={legs.length < 2 ? "A parlay requires at least 2 legs for analysis." : "Analyze the constructed parlay"}
-                        className="flex w-full sm:flex-1 items-center justify-center gap-2 rounded-md bg-green-600 px-4 py-3 text-base font-semibold text-white transition-colors hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed"
-                    >
-                         <SendIcon className="h-5 w-5" />
-                         Analyze Bet
-                     </button>
-                 </div>
+                </div>
+
+                 <style>{`
+                     .form-select { appearance: none; background-image: url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%239ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3e%3cpolyline points="6 9 12 15 18 9"/%3e%3c/svg%3e'); background-position: right 0.5rem center; background-repeat: no-repeat; background-size: 1.5em 1.5em; padding-right: 2.5rem; }
+                     .form-select:disabled { background-image: none; }
+                     .action-button { padding: 0.625rem 1rem; border-radius: 0.375rem; font-weight: 600; color: white; transition: background-color 0.2s; }
+                     .action-button:disabled { cursor: not-allowed; opacity: 0.6; }
+                     .toggle-button { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; padding: 0.5rem; font-size: 0.875rem; font-weight: 600; text-align: center; border: 1px solid #4b5563; border-radius: 0.375rem; color: #d1d5db; transition: all 0.2s; }
+                     .toggle-button:hover { background-color: #374151; }
+                     .toggle-button.active { background-color: #0891b2; border-color: #06b6d4; color: white; }
+                     .toggle-button .odds { display: block; font-size: 0.75rem; font-weight: 400; color: #9ca3af; }
+                     .toggle-button.active .odds { color: #cffafe; }
+                     @keyframes fade-in { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+                     .animate-fade-in { animation: fade-in 0.3s ease-out forwards; }
+                     @keyframes fade-in-slow { from { opacity: 0; } to { opacity: 1; } }
+                     .animate-fade-in-slow { animation: fade-in-slow 0.4s ease-out forwards; }
+                 `}</style>
             </div>
-            <style>{`
-                @keyframes fade-in {
-                    from { opacity: 0; transform: translateY(-10px); }
-                    to { opacity: 1; transform: translateY(0); }
-                }
-                .animate-fade-in {
-                    animation: fade-in 0.3s ease-out forwards;
-                }
-                .form-select {
-                    -webkit-appearance: none;
-                    -moz-appearance: none;
-                    appearance: none;
-                    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
-                    background-position: right 0.5rem center;
-                    background-repeat: no-repeat;
-                    background-size: 1.5em 1.5em;
-                    padding-right: 2.5rem;
-                    width: 100%;
-                    border-radius: 0.375rem;
-                    border: 1px solid rgb(75 85 99);
-                    background-color: rgb(55 65 81);
-                    padding: 0.75rem 1rem;
-                    color: rgb(229 231 235);
-                }
-                .form-select:disabled {
-                    opacity: 0.5;
-                    cursor: not-allowed;
-                }
-                .form-select:focus {
-                     outline: 2px solid transparent;
-                     outline-offset: 2px;
-                     border-color: rgb(34 211 238);
-                     box-shadow: 0 0 0 1px rgb(34 211 238);
-                }
-            `}</style>
         </div>
     );
 };
