@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Message as MessageType, AnalysisResponse } from '../types';
 import { UserIcon } from './icons/UserIcon';
@@ -11,7 +10,7 @@ const Message: React.FC<{ message: MessageType }> = ({ message }) => {
   if (message.role === 'user') {
     return (
       <div className="flex justify-end">
-        <div className="flex items-start gap-3 rounded-lg bg-cyan-500/10 p-4 max-w-2xl border border-cyan-500/30">
+        <div className="flex items-start gap-3 rounded-lg bg-cyan-500/10 p-4 max-w-full sm:max-w-xl md:max-w-2xl border border-cyan-500/30">
           <div className="prose prose-invert text-gray-200">{message.content as string}</div>
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-cyan-500/20 text-cyan-400">
             <UserIcon className="h-5 w-5" />
@@ -36,7 +35,7 @@ const Message: React.FC<{ message: MessageType }> = ({ message }) => {
 
   return (
     <div className="flex justify-start">
-      <div className="flex items-start gap-4 max-w-3xl">
+      <div className="flex items-start gap-4 w-full max-w-full sm:max-w-xl md:max-w-2xl lg:max-w-3xl">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-700 text-cyan-400">
           <BrainCircuitIcon className="h-5 w-5" />
         </div>

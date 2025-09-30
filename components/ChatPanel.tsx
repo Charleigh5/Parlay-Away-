@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Message as MessageType, AnalysisResponse } from '../types';
 import { getAnalysis } from '../services/geminiService';
@@ -55,7 +54,7 @@ const ChatPanel: React.FC = () => {
 
   return (
     <div className="flex flex-1 flex-col bg-gray-800/30">
-      <div className="flex-1 overflow-y-auto p-6" ref={scrollRef}>
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6" ref={scrollRef}>
         <div className="flex flex-col gap-4">
           {messages.map((msg) => (
             <Message key={msg.id} message={msg} />

@@ -53,3 +53,52 @@ export interface ExtractedBetLeg {
 export interface AnalyzedBetLeg extends ExtractedBetLeg {
   analysis: AnalysisResponse;
 }
+
+// Data structures for Bet Builder
+export interface LineOdds {
+  line: number;
+  overOdds: number;
+  underOdds: number;
+}
+
+export interface PlayerProp {
+  propType: string;
+  lines: LineOdds[];
+  historicalContext?: {
+    last5Avg: number;
+    seasonAvg: number;
+    gameLog?: number[];
+  };
+}
+
+export interface Player {
+  name: string;
+  position: string;
+  team: string;
+  props: PlayerProp[];
+}
+
+export interface Game {
+  id: string;
+  name: string; // e.g., "Kansas City Chiefs @ Baltimore Ravens"
+  players: Player[];
+}
+
+// Types for TheSportsDB API
+export interface SportsDBEvent {
+  idEvent: string;
+  strEvent: string;
+  idHomeTeam: string;
+  strHomeTeam: string;
+  idAwayTeam: string;
+  strAwayTeam: string;
+  intHomeScore: string | null;
+  intAwayScore: string | null;
+  strStatus: string;
+  dateEvent: string;
+  strTime: string;
+}
+
+export interface SportsDBResponse {
+  events: SportsDBEvent[] | null;
+}
