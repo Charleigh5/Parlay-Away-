@@ -21,6 +21,8 @@ import { CrosshairIcon } from './icons/CrosshairIcon';
 import { TrendingDownIcon } from './icons/TrendingDownIcon';
 import { LineChartIcon } from './icons/LineChartIcon';
 import { OddsLineChart } from './OddsLineChart';
+import { ArrowDownCircleIcon } from './icons/ArrowDownCircleIcon';
+import { ArrowUpCircleIcon } from './icons/ArrowUpCircleIcon';
 
 
 interface BetBuilderProps {
@@ -204,24 +206,34 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
     }, [selectedGame, selectedPlayer]);
 
     const opponentStat = useMemo((): DisplayableOpponentStat | null => {
-        if (!opponentInfo || !selectedPropType) return null;
-
+        if (!opponentInfo || !selectedPlayer || !selectedPropType) return null;
+    
         const opponentDefensiveStats = DEFENSIVE_STATS[opponentInfo.fullName];
-        if (!opponentDefensiveStats || !opponentDefensiveStats[selectedPropType]) return null;
+        if (!opponentDefensiveStats) return null;
+    
+        // Determine the positional key, e.g., 'vsTE', 'vsWR'
+        let positionalKey;
+        const playerPosition = selectedPlayer.position;
+        if (['Receiving Yards', 'Receptions'].includes(selectedPropType)) {
+             if (playerPosition === 'TE') positionalKey = 'vsTE';
+             // A more complex system could determine WR1/WR2, but for now we'll use a general key
+             else if (playerPosition === 'WR') positionalKey = 'vsWR'; 
+        }
         
-        const statData = opponentDefensiveStats[selectedPropType];
-        
-        if ('value' in statData && 'rank' in statData && 'unit' in statData) {
+        const statKey = positionalKey && opponentDefensiveStats[positionalKey] ? positionalKey : selectedPropType;
+        const statData = opponentDefensiveStats[statKey];
+
+        if (statData && 'value' in statData && 'rank' in statData && 'unit' in statData) {
             return {
                 opponentAbbr: opponentInfo.abbr,
                 value: statData.value,
                 rank: statData.rank,
                 unit: statData.unit,
-                label: getConciseStatLabel(selectedPropType),
+                label: positionalKey ? `Yards Allowed (${playerPosition})` : getConciseStatLabel(selectedPropType),
             };
         }
         return null;
-    }, [opponentInfo, selectedPropType]);
+    }, [opponentInfo, selectedPlayer, selectedPropType]);
     
     const advancedPlayerStats = useMemo((): AdvancedStat[] | null => {
         if (!selectedPlayerName || !selectedPropType) return null;
@@ -435,67 +447,59 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                                             <OddsLineChart data={historicalOdds} />
                                         </div>
                                     )}
-
-                                    {advancedPlayerStats && (
-                                        <div className="mt-4 pt-4 border-t border-gray-700/50">
-                                            <h5 className="flex items-center gap-2 text-xs font-semibold text-gray-400 uppercase mb-2">
-                                                <TrendingUpIcon className="h-4 w-4"/>
-                                                Advanced Player Metrics
-                                            </h5>
-                                            <div className="space-y-2">
-                                                {advancedPlayerStats.map(stat => (
-                                                    <div key={stat.abbreviation} className="text-xs group relative">
-                                                        <div className="flex justify-between items-center">
-                                                            <span className="text-gray-400">{stat.name} ({stat.abbreviation})</span>
-                                                            <span className="font-mono text-gray-200">{stat.value.toFixed(2)}</span>
-                                                        </div>
-                                                        <div className="w-full bg-gray-700 rounded-full h-1.5 mt-1">
-                                                            <div className="bg-cyan-500 h-1.5 rounded-full" style={{ width: `${stat.percentile}%`}}></div>
-                                                        </div>
-                                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-2 bg-gray-950 text-xs text-gray-300 border border-gray-700 rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                                                           <strong className="font-semibold text-cyan-400">{stat.name} ({stat.abbreviation})</strong>
-                                                           <p className="mt-1">{stat.description}</p>
-                                                           <p className="mt-1 text-gray-400">Rank: {stat.rank} | Percentile: {stat.percentile}th</p>
-                                                       </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
                                 </div>
                             )}
 
-                            {selectedProp && opponentInfo && (
+                            {advancedPlayerStats && (
                                 <div className="mt-4 p-3 rounded-lg border border-gray-700 bg-gray-900/50">
                                     <h4 className="flex items-center gap-2 text-sm font-semibold text-cyan-400 mb-3">
-                                        <ShieldIcon className="h-4 w-4" />
-                                        Defensive Matchup vs {opponentInfo.abbr}
+                                        <TrendingUpIcon className="h-4 w-4"/>
+                                        Advanced Player Metrics
                                     </h4>
+                                    <div className="space-y-2">
+                                        {advancedPlayerStats.map(stat => (
+                                            <div key={stat.abbreviation} className="text-xs group relative">
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-gray-400">{stat.name} ({stat.abbreviation})</span>
+                                                    <span className="font-mono text-gray-200">{stat.value.toFixed(2)}</span>
+                                                </div>
+                                                <div className="w-full bg-gray-700 rounded-full h-1.5 mt-1">
+                                                    <div className="bg-cyan-500 h-1.5 rounded-full" style={{ width: `${stat.percentile}%`}}></div>
+                                                </div>
+                                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-2 bg-gray-950 text-xs text-gray-300 border border-gray-700 rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                                                   <strong className="font-semibold text-cyan-400">{stat.name} ({stat.abbreviation})</strong>
+                                                   <p className="mt-1">{stat.description}</p>
+                                                   <p className="mt-1 text-gray-400">Rank: {stat.rank} | Percentile: {stat.percentile}th</p>
+                                               </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                           {selectedProp && opponentInfo && (
+                                <div className="mt-4 p-3 rounded-lg border border-gray-700 bg-gray-900/50">
+                                    <div className="flex justify-between items-center mb-3">
+                                        <h4 className="flex items-center gap-2 text-sm font-semibold text-cyan-400">
+                                            <ShieldIcon className="h-4 w-4" />
+                                            Defensive Matchup
+                                        </h4>
+                                        <div className={`text-xs font-semibold px-2 py-0.5 rounded-full ${getRankCategory(opponentInfo.overallRank).bgColor} ${getRankCategory(opponentInfo.overallRank).color}`}>
+                                            #{opponentInfo.overallRank || 'N/A'} Overall D
+                                        </div>
+                                    </div>
+                                    
                                     {(() => {
                                         if (!opponentStat) {
-                                            return (
-                                                <div className="p-3 rounded-lg bg-gray-800/50 text-center">
-                                                    <p className="text-xs text-gray-500">No specific defensive data available for {selectedPropType}.</p>
-                                                </div>
-                                            );
+                                            return <p className="text-xs text-gray-500 text-center py-2">No specific defensive data for this prop.</p>;
                                         }
 
-                                        if (selectedLine === null) {
+                                        if (selectedLine === null || selectedPosition === null) {
                                             return (
-                                                <div className="grid grid-cols-2 gap-3 text-center">
-                                                    <div className="bg-gray-800/50 p-2 rounded-md">
-                                                        <p className="text-xs text-gray-400">Overall D Rank</p>
-                                                        <p className="font-mono text-lg font-semibold text-gray-200">#{opponentInfo.overallRank}</p>
-                                                    </div>
-                                                    <div className="bg-gray-800/50 p-2 rounded-md">
-                                                        <p className="text-xs text-gray-400">{opponentStat.label}</p>
-                                                        <div className={`text-xs font-semibold px-1.5 py-0.5 rounded-full inline-block mt-1 ${getRankCategory(opponentStat.rank).bgColor} ${getRankCategory(opponentStat.rank).color}`}>
-                                                            Rank #{opponentStat.rank}
-                                                        </div>
-                                                    </div>
-                                                    <div className="col-span-2 text-xs text-yellow-300 mt-2">
-                                                        Select a line to see favorability analysis.
-                                                    </div>
+                                                <div className="text-center p-3 rounded-md bg-gray-800/50">
+                                                    <p className="font-semibold text-gray-200">{opponentStat.value.toFixed(1)} {opponentStat.unit}</p>
+                                                    <p className="text-xs text-gray-400">{opponentStat.label} (Rank #{opponentStat.rank})</p>
+                                                    <p className="text-xs text-yellow-300/80 mt-2">Select a line and position to analyze favorability.</p>
                                                 </div>
                                             );
                                         }
@@ -503,58 +507,46 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                                         const diff = selectedLine - opponentStat.value;
                                         const isFavorable = (selectedPosition === 'Over' && diff < 0) || (selectedPosition === 'Under' && diff > 0);
                                         
-                                        let style, icon, assessmentText;
-                
-                                        if (!selectedPosition) {
-                                            style = {
-                                                borderColor: 'border-yellow-500/30',
-                                                bgColor: 'bg-yellow-500/10',
-                                                textColor: 'text-yellow-300',
-                                                innerBgColor: 'bg-yellow-500/10',
-                                            };
-                                            assessmentText = "Select Over/Under to assess matchup";
-                                        } else if (isFavorable) {
-                                            style = {
-                                                borderColor: 'border-green-500/30',
-                                                bgColor: 'bg-green-500/10',
-                                                textColor: 'text-green-300',
-                                                innerBgColor: 'bg-green-500/20',
-                                            };
-                                            icon = <TrendingDownIcon className="h-4 w-4 mr-1.5" />;
-                                            assessmentText = `Favorable matchup for ${selectedPosition}`;
-                                        } else { // isHarder
-                                            style = {
-                                                borderColor: 'border-red-500/30',
-                                                bgColor: 'bg-red-500/10',
-                                                textColor: 'text-red-300',
-                                                innerBgColor: 'bg-red-500/20',
-                                            };
-                                            icon = <TrendingUpIcon className="h-4 w-4 mr-1.5" />;
-                                            assessmentText = `Tougher matchup for ${selectedPosition}`;
-                                        }
-                
+                                        const favorableStyle = {
+                                            verdict: 'Favorable',
+                                            icon: <ArrowDownCircleIcon className="h-5 w-5 text-green-300" />,
+                                            textColor: 'text-green-300',
+                                            barColor: 'bg-green-500/80'
+                                        };
+                                        const toughStyle = {
+                                            verdict: 'Tough',
+                                            icon: <ArrowUpCircleIcon className="h-5 w-5 text-red-300" />,
+                                            textColor: 'text-red-300',
+                                            barColor: 'bg-red-500/80'
+                                        };
+
+                                        const style = isFavorable ? favorableStyle : toughStyle;
+
                                         return (
-                                            <div className={`p-3 rounded-lg border ${style.borderColor} ${style.bgColor}`}>
-                                                <div className="grid grid-cols-3 items-center text-center">
-                                                        <div>
-                                                        <p className="text-xs text-gray-400">Selected Line</p>
-                                                        <p className="font-mono text-2xl font-bold text-white">{selectedLine}</p>
+                                            <div className="space-y-3">
+                                                <div className={`p-2 rounded-md bg-gray-800/50 flex items-center justify-between`}>
+                                                    <div className="flex items-center gap-2">
+                                                        {style.icon}
+                                                        <span className={`font-semibold text-sm ${style.textColor}`}>{style.verdict} Matchup for {selectedPosition}</span>
                                                     </div>
-                                                    
-                                                    <div className={`text-center font-mono font-bold text-lg ${style.textColor}`}>
-                                                        <div className="leading-tight">{diff === 0 ? '–' : (diff > 0 ? '▲' : '▼')}</div>
-                                                        <div>{Math.abs(diff).toFixed(1)}</div>
-                                                    </div>
-                
-                                                        <div>
-                                                        <p className="text-xs text-gray-400">Opponent Avg</p>
-                                                        <p className="font-mono text-2xl font-bold text-gray-300">{opponentStat.value.toFixed(1)}</p>
+                                                     <div className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${getRankCategory(opponentStat.rank).bgColor} ${getRankCategory(opponentStat.rank).color}`}>
+                                                        #{opponentStat.rank} vs {selectedPlayer.position}s
                                                     </div>
                                                 </div>
                                                 
-                                                <div className={`mt-2 flex items-center justify-center text-xs font-semibold p-1.5 rounded ${style.innerBgColor} ${style.textColor}`}>
-                                                    {icon}
-                                                    <span>{assessmentText}</span>
+                                                <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                                                    <div>
+                                                        <p className="text-gray-400">Player Line</p>
+                                                        <p className="font-mono text-lg font-bold text-white">{selectedLine}</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-gray-400">Difference</p>
+                                                        <p className={`font-mono text-lg font-bold ${style.textColor}`}>{diff > 0 ? '+' : ''}{diff.toFixed(1)}</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-gray-400">D Allowed</p>
+                                                        <p className="font-mono text-lg font-bold text-gray-300">{opponentStat.value.toFixed(1)}</p>
+                                                    </div>
                                                 </div>
                                             </div>
                                         );

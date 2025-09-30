@@ -101,7 +101,27 @@ export const OddsLineChart: React.FC<{ data: number[] }> = ({ data }) => {
         {tooltip ? (
             <circle cx={tooltip.x} cy={tooltip.y} r="3" fill="currentColor" className="text-cyan-300" stroke="rgba(107, 222, 237, 0.3)" strokeWidth="2" />
         ) : (
-            <circle cx={points[points.length-1].x} cy={points[points.length-1].y} r="2.5" fill="currentColor" className="text-cyan-400" />
+            <g>
+                <circle cx={points[points.length - 1].x} cy={points[points.length - 1].y} r="4" fill="currentColor" className="text-cyan-400 opacity-25">
+                    <animate
+                        attributeName="r"
+                        from="4"
+                        to="8"
+                        dur="1.5s"
+                        begin="0s"
+                        repeatCount="indefinite"
+                    />
+                    <animate
+                        attributeName="opacity"
+                        from="0.25"
+                        to="0"
+                        dur="1.5s"
+                        begin="0s"
+                        repeatCount="indefinite"
+                    />
+                </circle>
+                <circle cx={points[points.length - 1].x} cy={points[points.length - 1].y} r="2.5" fill="currentColor" className="text-cyan-400" />
+            </g>
         )}
       </svg>
       <div className="flex justify-between text-xs text-gray-500 font-mono" style={{ paddingLeft: `${paddingX}px`, paddingRight: `${paddingX}px` }}>

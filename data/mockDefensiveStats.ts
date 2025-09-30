@@ -32,6 +32,8 @@ export const DEFENSIVE_STATS: Record<string, TeamDefensiveStats> = {
     'Rushing Yards': { value: 112.9, rank: 18, unit: 'YPG' },
     'Receiving Yards': { value: 205.1, rank: 4, unit: 'YPG' },
     'Receptions': { value: 15.3, rank: 2, unit: 'Allowed PG' },
+    'vsTE': { value: 55.2, rank: 12, unit: 'YPG' },
+    'vsWR': { value: 149.9, rank: 3, unit: 'YPG' },
   },
   'Baltimore Ravens': {
     overall: { rank: 1 },
@@ -40,15 +42,21 @@ export const DEFENSIVE_STATS: Record<string, TeamDefensiveStats> = {
     'Rushing Yards': { value: 105.2, rank: 12, unit: 'YPG' },
     'Receiving Yards': { value: 220.4, rank: 6, unit: 'YPG' },
     'Receptions': { value: 16.1, rank: 5, unit: 'Allowed PG' },
+    'vsTE': { value: 48.5, rank: 4, unit: 'YPG' },
+    'vsWR': { value: 161.9, rank: 9, unit: 'YPG' },
   },
   'Green Bay Packers': {
     overall: { rank: 22 },
     'Passing Yards': { value: 231.2, rank: 15, unit: 'YPG' },
     'Rushing Yards': { value: 128.9, rank: 28, unit: 'YPG' },
+    'vsTE': { value: 65.8, rank: 25, unit: 'YPG' },
+    'vsWR': { value: 165.4, rank: 14, unit: 'YPG' },
   },
   'Philadelphia Eagles': {
     overall: { rank: 17 },
     'Passing Yards': { value: 252.7, rank: 29, unit: 'YPG' },
     'Rushing Yards': { value: 92.4, rank: 8, unit: 'YPG' },
+    'vsTE': { value: 58.1, rank: 15, unit: 'YPG' },
+    'vsWR': { value: 194.6, rank: 30, unit: 'YPG' },
   },
 };
