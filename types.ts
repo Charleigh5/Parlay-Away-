@@ -72,11 +72,18 @@ export interface PlayerProp {
   };
 }
 
+export interface InjuryStatus {
+  status: 'Healthy' | 'Questionable' | 'Probable' | 'Out';
+  news: string;
+  impact: string;
+}
+
 export interface Player {
   name: string;
   position: string;
   team: string;
   props: PlayerProp[];
+  injuryStatus?: InjuryStatus;
 }
 
 export interface Game {

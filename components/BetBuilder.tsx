@@ -1,5 +1,7 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+
+import React from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { ExtractedBetLeg, Game, Player, PlayerProp } from '../types';
 import { calculateParlayOdds, formatAmericanOdds, generateHistoricalOdds } from '../utils';
 import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
@@ -23,6 +25,7 @@ import { LineChartIcon } from './icons/LineChartIcon';
 import { OddsLineChart } from './OddsLineChart';
 import { ArrowDownCircleIcon } from './icons/ArrowDownCircleIcon';
 import { ArrowUpCircleIcon } from './icons/ArrowUpCircleIcon';
+import { StethoscopeIcon } from './icons/StethoscopeIcon';
 
 
 interface BetBuilderProps {
@@ -60,6 +63,37 @@ const getRankCategory = (rank: number | null) => {
     if (rank <= 10) return { text: `Top 10`, color: 'text-yellow-300', bgColor: 'bg-yellow-500/10', borderColor: 'border-yellow-500/30' };
     if (rank >= 23) return { text: `Bottom 10`, color: 'text-red-300', bgColor: 'bg-red-500/10', borderColor: 'border-red-500/30' };
     return { text: `Mid-tier`, color: 'text-gray-300', bgColor: 'bg-gray-700/50', borderColor: 'border-gray-600' };
+};
+
+const getInjuryStatusStyle = (status: 'Healthy' | 'Questionable' | 'Probable' | 'Out') => {
+    switch (status) {
+        case 'Healthy':
+            return { text: 'Healthy', color: 'text-green-300', bgColor: 'bg-green-500/10' };
+        case 'Questionable':
+            return { text: 'Questionable', color: 'text-yellow-300', bgColor: 'bg-yellow-500/10' };
+        case 'Probable':
+             return { text: 'Probable', color: 'text-blue-300', bgColor: 'bg-blue-500/10' };
+        case 'Out':
+             return { text: 'Out', color: 'text-red-300', bgColor: 'bg-red-500/10' };
+    }
+};
+
+const RenderImpactText: React.FC<{ text: string; }> = ({ text }) => {
+    const parts = text.split(/(KM_\d{2})/g);
+    return (
+        <span>
+            {parts.map((part, i) => {
+                if (/KM_\d{2}/.test(part)) {
+                    return (
+                        <span key={i} className="font-mono text-xs bg-gray-700 text-cyan-300 px-1.5 py-0.5 rounded-full ml-1">
+                            {part}
+                        </span>
+                    );
+                }
+                return <React.Fragment key={i}>{part}</React.Fragment>;
+            })}
+        </span>
+    );
 };
 
 interface DisplayableOpponentStat {
@@ -368,193 +402,271 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                 {/* Right: Bet Slip & Context */}
                 <div className="w-1/2 flex flex-col overflow-y-auto">
                     {/* Prop Selection Form */}
-                    {selectedPlayer && (
-                        <div className="p-4 border-b border-gray-700/50 bg-gray-900/80">
-                            <h3 className="font-semibold text-lg text-gray-200 mb-2">Build Leg for {selectedPlayer.name}</h3>
-                            
-                             <div className="mb-3">
-                                <label className="text-sm font-medium text-gray-400 block mb-1">Select Prop</label>
-                                <select 
-                                    value={selectedPropType || ''} 
-                                    onChange={e => { setSelectedPropType(e.target.value); setSelectedLine(null); setSelectedPosition(null); }}
-                                    className="w-full rounded-md border-gray-600 bg-gray-800 text-white focus:border-cyan-500 focus:ring-cyan-500"
-                                >
-                                    <option value="" disabled>Choose a market</option>
-                                    {selectedPlayer.props.map(p => <option key={p.propType} value={p.propType}>{p.propType}</option>)}
-                                </select>
+                    <div className="p-4 border-b border-gray-700/50 bg-gray-900/80 space-y-4">
+                        {selectedPlayer && (
+                            <div>
+                                <h3 className="font-semibold text-lg text-gray-200 mb-2">Build Leg for {selectedPlayer.name}</h3>
+                                
+                                <div className="mb-3">
+                                    <label className="text-sm font-medium text-gray-400 block mb-1">Select Prop</label>
+                                    <select 
+                                        value={selectedPropType || ''} 
+                                        onChange={e => { setSelectedPropType(e.target.value); setSelectedLine(null); setSelectedPosition(null); }}
+                                        className="w-full rounded-md border-gray-600 bg-gray-800 text-white focus:border-cyan-500 focus:ring-cyan-500"
+                                    >
+                                        <option value="" disabled>Choose a market</option>
+                                        {selectedPlayer.props.map(p => <option key={p.propType} value={p.propType}>{p.propType}</option>)}
+                                    </select>
+                                </div>
+
+                                {selectedProp && (
+                                    <div className="p-3 rounded-md bg-gray-800/70">
+                                        <label className="text-sm font-medium text-gray-400 block mb-2">Select Line & Position</label>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <select 
+                                                value={selectedLine || ''} 
+                                                onChange={e => { setSelectedLine(parseFloat(e.target.value)); setSelectedPosition(null); }}
+                                                className="w-full rounded-md border-gray-600 bg-gray-700 text-white focus:border-cyan-500 focus:ring-cyan-500"
+                                            >
+                                                <option value="" disabled>Select line</option>
+                                                {selectedProp.lines.map(l => <option key={l.line} value={l.line}>{l.line}</option>)}
+                                            </select>
+                                            
+                                            {selectedLineDetails && (
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <button 
+                                                        onClick={() => { setSelectedPosition('Over'); setMarketOdds(selectedLineDetails.overOdds); }}
+                                                        className={`p-2 rounded-md text-sm font-semibold transition-colors ${selectedPosition === 'Over' ? 'bg-cyan-500 text-white' : 'bg-gray-600 hover:bg-gray-500'}`}
+                                                    >
+                                                        Over <span className="font-mono">{formatAmericanOdds(selectedLineDetails.overOdds)}</span>
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => { setSelectedPosition('Under'); setMarketOdds(selectedLineDetails.underOdds); }}
+                                                        className={`p-2 rounded-md text-sm font-semibold transition-colors ${selectedPosition === 'Under' ? 'bg-cyan-500 text-white' : 'bg-gray-600 hover:bg-gray-500'}`}
+                                                    >
+                                                        Under <span className="font-mono">{formatAmericanOdds(selectedLineDetails.underOdds)}</span>
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
+                        )}
 
-                            {selectedProp && (
-                                <div className="p-3 rounded-md bg-gray-800/70">
-                                    <label className="text-sm font-medium text-gray-400 block mb-2">Select Line & Position</label>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <select 
-                                            value={selectedLine || ''} 
-                                            onChange={e => { setSelectedLine(parseFloat(e.target.value)); setSelectedPosition(null); }}
-                                            className="w-full rounded-md border-gray-600 bg-gray-700 text-white focus:border-cyan-500 focus:ring-cyan-500"
-                                        >
-                                            <option value="" disabled>Select line</option>
-                                            {selectedProp.lines.map(l => <option key={l.line} value={l.line}>{l.line}</option>)}
-                                        </select>
-                                        
-                                        {selectedLineDetails && (
-                                             <div className="grid grid-cols-2 gap-2">
-                                                <button 
-                                                    onClick={() => { setSelectedPosition('Over'); setMarketOdds(selectedLineDetails.overOdds); }}
-                                                    className={`p-2 rounded-md text-sm font-semibold transition-colors ${selectedPosition === 'Over' ? 'bg-cyan-500 text-white' : 'bg-gray-600 hover:bg-gray-500'}`}
-                                                >
-                                                    Over <span className="font-mono">{formatAmericanOdds(selectedLineDetails.overOdds)}</span>
-                                                </button>
-                                                <button 
-                                                    onClick={() => { setSelectedPosition('Under'); setMarketOdds(selectedLineDetails.underOdds); }}
-                                                    className={`p-2 rounded-md text-sm font-semibold transition-colors ${selectedPosition === 'Under' ? 'bg-cyan-500 text-white' : 'bg-gray-600 hover:bg-gray-500'}`}
-                                                >
-                                                    Under <span className="font-mono">{formatAmericanOdds(selectedLineDetails.underOdds)}</span>
-                                                </button>
+                        {selectedProp && opponentInfo && (
+                            <div className="space-y-3 p-3 rounded-lg border border-gray-700 bg-gray-900/50">
+                                <h4 className="flex items-center gap-2 text-sm font-semibold text-cyan-400">
+                                    <CrosshairIcon className="h-4 w-4" />
+                                    Contextual HUD
+                                </h4>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {selectedProp.historicalContext ? (
+                                        <>
+                                            <div className="text-center bg-gray-800/50 p-2 rounded-md">
+                                                <p className="text-xs text-gray-400">Season Avg</p>
+                                                <p className="font-mono text-lg font-semibold text-gray-200">{selectedProp.historicalContext.seasonAvg.toFixed(1)}</p>
                                             </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
-                            {selectedProp && opponentInfo && (
-                                <div className="mt-4 p-3 rounded-lg border border-gray-700 bg-gray-900/50">
-                                    <h4 className="flex items-center gap-2 text-sm font-semibold text-cyan-400 mb-3">
-                                        <CrosshairIcon className="h-4 w-4" />
-                                        Contextual HUD
-                                    </h4>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        {selectedProp.historicalContext ? (
-                                            <>
-                                                <div className="text-center bg-gray-800/50 p-2 rounded-md">
-                                                    <p className="text-xs text-gray-400">Season Avg</p>
-                                                    <p className="font-mono text-lg font-semibold text-gray-200">{selectedProp.historicalContext.seasonAvg.toFixed(1)}</p>
-                                                </div>
-                                                <div className="text-center bg-gray-800/50 p-2 rounded-md">
-                                                    <p className="text-xs text-gray-400">Last 5 Avg</p>
-                                                    <p className="font-mono text-lg font-semibold text-gray-200">{selectedProp.historicalContext.last5Avg.toFixed(1)}</p>
-                                                </div>
-                                            </>
-                                        ) : null}
-                                    </div>
-
-                                    {historicalOdds && marketOdds !== null && (
-                                        <div className="mt-4 pt-4 border-t border-gray-700/50">
-                                            <h5 className="flex items-center gap-2 text-xs font-semibold text-gray-400 uppercase mb-2">
-                                                <LineChartIcon className="h-4 w-4" />
-                                                7-Day Odds Movement
-                                            </h5>
-                                            <OddsLineChart data={historicalOdds} />
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            {advancedPlayerStats && (
-                                <div className="mt-4 p-3 rounded-lg border border-gray-700 bg-gray-900/50">
-                                    <h4 className="flex items-center gap-2 text-sm font-semibold text-cyan-400 mb-3">
-                                        <TrendingUpIcon className="h-4 w-4"/>
-                                        Advanced Player Metrics
-                                    </h4>
-                                    <div className="space-y-2">
-                                        {advancedPlayerStats.map(stat => (
-                                            <div key={stat.abbreviation} className="text-xs group relative">
-                                                <div className="flex justify-between items-center">
-                                                    <span className="text-gray-400">{stat.name} ({stat.abbreviation})</span>
-                                                    <span className="font-mono text-gray-200">{stat.value.toFixed(2)}</span>
-                                                </div>
-                                                <div className="w-full bg-gray-700 rounded-full h-1.5 mt-1">
-                                                    <div className="bg-cyan-500 h-1.5 rounded-full" style={{ width: `${stat.percentile}%`}}></div>
-                                                </div>
-                                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-2 bg-gray-950 text-xs text-gray-300 border border-gray-700 rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                                                   <strong className="font-semibold text-cyan-400">{stat.name} ({stat.abbreviation})</strong>
-                                                   <p className="mt-1">{stat.description}</p>
-                                                   <p className="mt-1 text-gray-400">Rank: {stat.rank} | Percentile: {stat.percentile}th</p>
-                                               </div>
+                                            <div className="text-center bg-gray-800/50 p-2 rounded-md">
+                                                <p className="text-xs text-gray-400">Last 5 Avg</p>
+                                                <p className="font-mono text-lg font-semibold text-gray-200">{selectedProp.historicalContext.last5Avg.toFixed(1)}</p>
                                             </div>
-                                        ))}
+                                        </>
+                                    ) : null}
+                                </div>
+
+                                {historicalOdds && marketOdds !== null && (
+                                    <div className="pt-4 border-t border-gray-700/50">
+                                        <h5 className="flex items-center gap-2 text-xs font-semibold text-gray-400 uppercase mb-2">
+                                            <LineChartIcon className="h-4 w-4" />
+                                            7-Day Odds Movement
+                                        </h5>
+                                        <OddsLineChart data={historicalOdds} />
+                                    </div>
+                                )}
+
+                                {selectedProp?.historicalContext?.gameLog && selectedLine !== null && (
+                                    <div className="pt-4 border-t border-gray-700/50">
+                                        <HistoricalPerformanceChart 
+                                            gameLog={selectedProp.historicalContext.gameLog}
+                                            selectedLine={selectedLine}
+                                            seasonAvg={selectedProp.historicalContext.seasonAvg}
+                                            last5Avg={selectedProp.historicalContext.last5Avg}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {advancedPlayerStats && (
+                            <div className="p-3 rounded-lg border border-gray-700 bg-gray-900/50">
+                                <h4 className="flex items-center gap-2 text-sm font-semibold text-cyan-400 mb-3">
+                                    <TrendingUpIcon className="h-4 w-4"/>
+                                    Advanced Player Metrics
+                                </h4>
+                                <div className="space-y-2">
+                                    {advancedPlayerStats.map(stat => (
+                                        <div key={stat.abbreviation} className="text-xs group relative">
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-gray-400">{stat.name} ({stat.abbreviation})</span>
+                                                <span className="font-mono text-gray-200">{stat.value.toFixed(2)}</span>
+                                            </div>
+                                            <div className="w-full bg-gray-700 rounded-full h-1.5 mt-1">
+                                                <div className="bg-cyan-500 h-1.5 rounded-full" style={{ width: `${stat.percentile}%`}}></div>
+                                            </div>
+                                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-2 bg-gray-950 text-xs text-gray-300 border border-gray-700 rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                                               <strong className="font-semibold text-cyan-400">{stat.name} ({stat.abbreviation})</strong>
+                                               <p className="mt-1">{stat.description}</p>
+                                               <p className="mt-1 text-gray-400">Rank: {stat.rank} | Percentile: {stat.percentile}th</p>
+                                           </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {selectedPlayer?.injuryStatus && (
+                            <div className="p-3 rounded-lg border border-gray-700 bg-gray-900/50">
+                                <div className="flex justify-between items-center mb-3">
+                                    <h4 className="flex items-center gap-2 text-sm font-semibold text-cyan-400">
+                                        <StethoscopeIcon className="h-4 w-4" />
+                                        Injury Status
+                                    </h4>
+                                    <div className={`text-xs font-semibold px-2 py-0.5 rounded-full ${getInjuryStatusStyle(selectedPlayer.injuryStatus.status).bgColor} ${getInjuryStatusStyle(selectedPlayer.injuryStatus.status).color}`}>
+                                        {selectedPlayer.injuryStatus.status}
                                     </div>
                                 </div>
-                            )}
-
-                           {selectedProp && opponentInfo && (
-                                <div className="mt-4 p-3 rounded-lg border border-gray-700 bg-gray-900/50">
-                                    <div className="flex justify-between items-center mb-3">
-                                        <h4 className="flex items-center gap-2 text-sm font-semibold text-cyan-400">
-                                            <ShieldIcon className="h-4 w-4" />
-                                            Defensive Matchup
-                                        </h4>
-                                        <div className={`text-xs font-semibold px-2 py-0.5 rounded-full ${getRankCategory(opponentInfo.overallRank).bgColor} ${getRankCategory(opponentInfo.overallRank).color}`}>
-                                            #{opponentInfo.overallRank || 'N/A'} Overall D
-                                        </div>
+                                <div className="space-y-2 text-xs">
+                                    <div>
+                                        <strong className="text-gray-400 block">Recent News:</strong>
+                                        <p className="text-gray-300">{selectedPlayer.injuryStatus.news}</p>
                                     </div>
-                                    
-                                    {(() => {
-                                        if (!opponentStat) {
-                                            return <p className="text-xs text-gray-500 text-center py-2">No specific defensive data for this prop.</p>;
-                                        }
+                                    <div>
+                                        <strong className="text-gray-400 block">Impact Analysis:</strong>
+                                        <p className="text-gray-300">
+                                            <RenderImpactText text={selectedPlayer.injuryStatus.impact} />
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
-                                        if (selectedLine === null || selectedPosition === null) {
-                                            return (
-                                                <div className="text-center p-3 rounded-md bg-gray-800/50">
-                                                    <p className="font-semibold text-gray-200">{opponentStat.value.toFixed(1)} {opponentStat.unit}</p>
-                                                    <p className="text-xs text-gray-400">{opponentStat.label} (Rank #{opponentStat.rank})</p>
-                                                    <p className="text-xs text-yellow-300/80 mt-2">Select a line and position to analyze favorability.</p>
-                                                </div>
-                                            );
-                                        }
+                        {selectedProp && opponentInfo && (
+                            <div className="p-3 rounded-lg border border-gray-700 bg-gray-900/50">
+                                <div className="flex justify-between items-center mb-3">
+                                    <h4 className="flex items-center gap-2 text-sm font-semibold text-cyan-400">
+                                        <ShieldIcon className="h-4 w-4" />
+                                        Defensive Matchup
+                                    </h4>
+                                    <div className={`text-xs font-semibold px-2 py-0.5 rounded-full ${getRankCategory(opponentInfo.overallRank).bgColor} ${getRankCategory(opponentInfo.overallRank).color}`}>
+                                        #{opponentInfo.overallRank || 'N/A'} Overall D
+                                    </div>
+                                </div>
+                                
+                                {(() => {
+                                    if (!opponentStat) {
+                                        return <p className="text-xs text-gray-500 text-center py-2">No specific defensive data for this prop.</p>;
+                                    }
 
-                                        const diff = selectedLine - opponentStat.value;
-                                        const isFavorable = (selectedPosition === 'Over' && diff < 0) || (selectedPosition === 'Under' && diff > 0);
-                                        
-                                        const favorableStyle = {
-                                            verdict: 'Favorable',
-                                            icon: <ArrowDownCircleIcon className="h-5 w-5 text-green-300" />,
-                                            textColor: 'text-green-300',
-                                            barColor: 'bg-green-500/80'
-                                        };
-                                        const toughStyle = {
-                                            verdict: 'Tough',
-                                            icon: <ArrowUpCircleIcon className="h-5 w-5 text-red-300" />,
-                                            textColor: 'text-red-300',
-                                            barColor: 'bg-red-500/80'
-                                        };
-
-                                        const style = isFavorable ? favorableStyle : toughStyle;
-
+                                    if (selectedLine === null || selectedPosition === null) {
                                         return (
-                                            <div className="space-y-3">
-                                                <div className={`p-2 rounded-md bg-gray-800/50 flex items-center justify-between`}>
-                                                    <div className="flex items-center gap-2">
-                                                        {style.icon}
-                                                        <span className={`font-semibold text-sm ${style.textColor}`}>{style.verdict} Matchup for {selectedPosition}</span>
+                                            <div className="text-center p-3 rounded-md bg-gray-800/50">
+                                                <p className="font-semibold text-gray-200">{opponentStat.value.toFixed(1)} {opponentStat.unit}</p>
+                                                <p className="text-xs text-gray-400">{opponentStat.label} (Rank #{opponentStat.rank})</p>
+                                                <p className="text-xs text-yellow-300/80 mt-2">Select a line and position to analyze favorability.</p>
+                                            </div>
+                                        );
+                                    }
+
+                                    const diff = selectedLine - opponentStat.value;
+                                    const isFavorable = (selectedPosition === 'Over' && diff < 0) || (selectedPosition === 'Under' && diff > 0);
+                                    
+                                    const favorableStyle = {
+                                        verdict: 'Favorable',
+                                        icon: <ArrowDownCircleIcon className="h-5 w-5 text-green-300" />,
+                                        textColor: 'text-green-300',
+                                    };
+                                    const toughStyle = {
+                                        verdict: 'Tough',
+                                        icon: <ArrowUpCircleIcon className="h-5 w-5 text-red-300" />,
+                                        textColor: 'text-red-300',
+                                    };
+
+                                    const style = isFavorable ? favorableStyle : toughStyle;
+
+                                    // --- Comparison Bar Logic ---
+                                    const line = selectedLine;
+                                    const allowed = opponentStat.value;
+                                    const buffer = Math.abs(line - allowed) * 0.2; // 20% buffer
+                                    const rangeMin = Math.min(line, allowed) - buffer;
+                                    const rangeMax = Math.max(line, allowed) + buffer;
+                                    const range = rangeMax - rangeMin;
+
+                                    let playerLinePercentage = 50;
+                                    let dAllowedPercentage = 50;
+
+                                    if (range > 0) {
+                                      playerLinePercentage = Math.max(0, Math.min(100, ((line - rangeMin) / range) * 100));
+                                      dAllowedPercentage = Math.max(0, Math.min(100, ((allowed - rangeMin) / range) * 100));
+                                    }
+                                    
+                                    const gradientClass = selectedPosition === 'Over'
+                                        ? 'from-green-500/70 via-yellow-500/70 to-red-500/70'
+                                        : 'from-red-500/70 via-yellow-500/70 to-green-500/70';
+
+                                    const getLabelStyle = (percentage: number) => {
+                                      let transform = 'translateX(-50%)';
+                                      if (percentage < 15) transform = 'translateX(0)';
+                                      if (percentage > 85) transform = 'translateX(-100%)';
+                                      return { left: `${percentage}%`, transform };
+                                    };
+
+                                    return (
+                                        <div className="space-y-3">
+                                            <div className={`p-2 rounded-md bg-gray-800/50 flex items-center justify-between`}>
+                                                <div className="flex items-center gap-2">
+                                                    {style.icon}
+                                                    <span className={`font-semibold text-sm ${style.textColor}`}>{style.verdict} Matchup for {selectedPosition}</span>
+                                                </div>
+                                                 <div className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${getRankCategory(opponentStat.rank).bgColor} ${getRankCategory(opponentStat.rank).color}`}>
+                                                    #{opponentStat.rank} vs {selectedPlayer.position}s
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="pt-8 pb-6 px-2 relative">
+                                                <div className={`relative h-2 w-full rounded-full bg-gradient-to-r ${gradientClass}`}>
+                                                    {/* D Allowed Marker */}
+                                                    <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 h-4 w-4" style={{ left: `${dAllowedPercentage}%` }}>
+                                                       <div className="h-3 w-3 rounded-full bg-gray-400 border-2 border-gray-900 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"></div>
                                                     </div>
-                                                     <div className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${getRankCategory(opponentStat.rank).bgColor} ${getRankCategory(opponentStat.rank).color}`}>
-                                                        #{opponentStat.rank} vs {selectedPlayer.position}s
+                                                    {/* Player Line Marker */}
+                                                    <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2" style={{ left: `${playerLinePercentage}%` }}>
+                                                        <div className="h-4 w-4 rounded-full bg-white ring-2 ring-gray-900 shadow-lg"></div>
                                                     </div>
                                                 </div>
                                                 
-                                                <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                                                    <div>
-                                                        <p className="text-gray-400">Player Line</p>
-                                                        <p className="font-mono text-lg font-bold text-white">{selectedLine}</p>
+                                                {/* Labels */}
+                                                <div className="absolute -top-1 w-full">
+                                                    <div className="absolute text-center" style={getLabelStyle(playerLinePercentage)}>
+                                                        <p className="font-bold text-white text-sm leading-none">{selectedLine}</p>
+                                                        <p className="text-gray-400 text-[10px] leading-tight">Player Line</p>
                                                     </div>
-                                                    <div>
-                                                        <p className="text-gray-400">Difference</p>
-                                                        <p className={`font-mono text-lg font-bold ${style.textColor}`}>{diff > 0 ? '+' : ''}{diff.toFixed(1)}</p>
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-gray-400">D Allowed</p>
-                                                        <p className="font-mono text-lg font-bold text-gray-300">{opponentStat.value.toFixed(1)}</p>
+                                                </div>
+                                                <div className="absolute top-8 w-full">
+                                                     <div className="absolute text-center" style={getLabelStyle(dAllowedPercentage)}>
+                                                        <p className="font-bold text-gray-300 text-sm leading-none">{allowed.toFixed(1)}</p>
+                                                        <p className="text-gray-500 text-[10px] leading-tight">D Allowed</p>
                                                     </div>
                                                 </div>
                                             </div>
-                                        );
-                                    })()}
-                                </div>
-                            )}
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        )}
 
-                             <button 
+                        {selectedPlayer && (
+                            <button 
                                 onClick={handleAddLeg}
                                 disabled={!selectedPosition || !marketOdds}
                                 className="w-full mt-4 flex items-center justify-center gap-2 rounded-md bg-cyan-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cyan-700 disabled:bg-gray-600 disabled:cursor-not-allowed"
@@ -562,21 +674,9 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                                 <PlusIcon className="h-5 w-5" />
                                 Add to Slip
                             </button>
-                        </div>
-                    )}
-
-                     {selectedPropType && (
-                         <div className="p-4 space-y-4">
-                            {selectedProp?.historicalContext?.gameLog && selectedLine !== null && (
-                                <HistoricalPerformanceChart 
-                                    gameLog={selectedProp.historicalContext.gameLog}
-                                    selectedLine={selectedLine}
-                                    seasonAvg={selectedProp.historicalContext.seasonAvg}
-                                    last5Avg={selectedProp.historicalContext.last5Avg}
-                                />
-                            )}
-                         </div>
-                     )}
+                        )}
+                    </div>
+                    
 
                     {/* Bet Slip Display */}
                     <div className="flex-1 p-4 bg-gray-900/50">

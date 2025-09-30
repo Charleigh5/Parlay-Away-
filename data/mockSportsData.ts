@@ -9,6 +9,11 @@ export const MOCK_GAMES: Game[] = [
         name: 'Patrick Mahomes',
         position: 'QB',
         team: 'KC',
+        injuryStatus: {
+          status: 'Healthy',
+          news: 'No recent injury concerns reported. Participated fully in all recent practices.',
+          impact: 'Player is at full capacity. No negative performance impact is expected from an injury standpoint. (KM_05)'
+        },
         props: [
           {
             propType: 'Passing Yards',
@@ -41,6 +46,11 @@ export const MOCK_GAMES: Game[] = [
         name: 'Lamar Jackson',
         position: 'QB',
         team: 'BAL',
+        injuryStatus: {
+          status: 'Healthy',
+          news: 'Cleared from the injury report this week after dealing with a minor calf issue.',
+          impact: 'Returns to 100% health. No physical limitations anticipated, which is critical for his dual-threat ability. (KM_05)'
+        },
         props: [
           {
             propType: 'Passing Yards',
@@ -72,6 +82,11 @@ export const MOCK_GAMES: Game[] = [
           name: 'Travis Kelce',
           position: 'TE',
           team: 'KC',
+          injuryStatus: {
+              status: 'Questionable',
+              news: 'Listed as questionable with a minor ankle sprain sustained in last week\'s game.',
+              impact: 'Practiced in a limited capacity this week. While expected to play, explosiveness might be slightly hampered on deep routes. Monitor in-game usage. (KM_05)'
+          },
           props: [
               {
                   propType: 'Receiving Yards',
