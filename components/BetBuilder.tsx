@@ -15,6 +15,8 @@ import { ShieldIcon } from './icons/ShieldIcon';
 import { DEFENSIVE_STATS, TEAM_ABBREVIATION_TO_NAME, TEAM_NAME_TO_ABBREVIATION } from '../data/mockDefensiveStats';
 import { BarChartIcon } from './icons/BarChartIcon';
 import { ChevronDownIcon } from './icons/ChevronDownIcon';
+import { MOCK_GAMES } from '../data/mockSportsData';
+import HistoricalPerformanceChart from './HistoricalPerformanceChart';
 
 
 interface BetBuilderProps {
@@ -100,13 +102,11 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                 setScheduleLoading(true);
                 setScheduleError(null);
                 const fetchedGames = await fetchNFLEvents();
-                 if (fetchedGames.length === 0) {
-                   setScheduleError("Could not load the NFL schedule.");
-                }
                 setGames(fetchedGames);
             } catch (error) {
                 const message = error instanceof Error ? error.message : 'An unknown error occurred';
                 setScheduleError(`Failed to load schedule: ${message}. Using fallback data.`);
+                setGames(MOCK_GAMES);
             } finally {
                 setScheduleLoading(false);
             }
@@ -362,8 +362,6 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
     const rankCategory = getRankCategory(opponentOverallRank);
     
     const historicalContext = selectedProp?.historicalContext;
-    const gameLog = historicalContext?.gameLog ?? [];
-    const maxGameLogStat = gameLog.length > 0 ? Math.max(...gameLog, selectedLineData?.line ?? 0) : 0;
 
     return (
         <div className="flex flex-col h-full">
@@ -457,52 +455,64 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                                             </div>
                                         </div>
                                     </div>
-                                    {isExpanded && comparisonData && (
+                                    {isExpanded && historicalContext && (comparisonData || (historicalContext.gameLog && historicalContext.gameLog.length > 0)) && (
                                         <div className="mt-3 pt-3 border-t border-gray-700/50 space-y-3 animate-fade-in-slow">
-                                            <h4 className="text-xs font-semibold text-gray-400 uppercase">Performance vs. Line ({comparisonData.line})</h4>
-                                            
-                                            {comparisonData.seasonAvg != null && (
-                                                <div>
-                                                    <div className="flex justify-between items-center text-xs mb-1">
-                                                        <span className="text-gray-300">Season Avg.</span>
-                                                        <span className={`font-mono font-semibold ${comparisonData.seasonAvg > comparisonData.line ? 'text-green-400' : 'text-red-400'}`}>
-                                                            {comparisonData.seasonAvg.toFixed(1)}
-                                                        </span>
+                                            {comparisonData && (
+                                            <>
+                                                <h4 className="text-xs font-semibold text-gray-400 uppercase">Performance vs. Line ({comparisonData.line})</h4>
+                                                
+                                                {comparisonData.seasonAvg != null && (
+                                                    <div>
+                                                        <div className="flex justify-between items-center text-xs mb-1">
+                                                            <span className="text-gray-300">Season Avg.</span>
+                                                            <span className={`font-mono font-semibold ${comparisonData.seasonAvg > comparisonData.line ? 'text-green-400' : 'text-red-400'}`}>
+                                                                {comparisonData.seasonAvg.toFixed(1)}
+                                                            </span>
+                                                        </div>
+                                                        <div className="relative h-2 bg-gray-700 rounded-full overflow-hidden">
+                                                            <div 
+                                                                className="absolute h-full bg-cyan-500 rounded-full transition-all duration-500"
+                                                                style={{ width: `${comparisonData.seasonAvgPercent}%` }}
+                                                            ></div>
+                                                            <div
+                                                                title={`Line: ${comparisonData.line}`}
+                                                                className="absolute top-0 bottom-0 border-l-2 border-dashed border-yellow-300"
+                                                                style={{ left: `${comparisonData.linePercent}%` }}
+                                                            ></div>
+                                                        </div>
                                                     </div>
-                                                    <div className="relative h-2 bg-gray-700 rounded-full overflow-hidden">
-                                                        <div 
-                                                            className="absolute h-full bg-cyan-500 rounded-full transition-all duration-500"
-                                                            style={{ width: `${comparisonData.seasonAvgPercent}%` }}
-                                                        ></div>
-                                                        <div
-                                                            title={`Line: ${comparisonData.line}`}
-                                                            className="absolute top-0 bottom-0 border-l-2 border-dashed border-yellow-300"
-                                                            style={{ left: `${comparisonData.linePercent}%` }}
-                                                        ></div>
-                                                    </div>
-                                                </div>
-                                            )}
+                                                )}
 
-                                            {comparisonData.last5Avg != null && (
-                                                <div>
-                                                    <div className="flex justify-between items-center text-xs mb-1">
-                                                        <span className="text-gray-300">Last 5 Avg.</span>
-                                                        <span className={`font-mono font-semibold ${comparisonData.last5Avg > comparisonData.line ? 'text-green-400' : 'text-red-400'}`}>
-                                                            {comparisonData.last5Avg.toFixed(1)}
-                                                        </span>
+                                                {comparisonData.last5Avg != null && (
+                                                    <div>
+                                                        <div className="flex justify-between items-center text-xs mb-1">
+                                                            <span className="text-gray-300">Last 5 Avg.</span>
+                                                            <span className={`font-mono font-semibold ${comparisonData.last5Avg > comparisonData.line ? 'text-green-400' : 'text-red-400'}`}>
+                                                                {comparisonData.last5Avg.toFixed(1)}
+                                                            </span>
+                                                        </div>
+                                                        <div className="relative h-2 bg-gray-700 rounded-full overflow-hidden">
+                                                            <div 
+                                                                className="absolute h-full bg-cyan-500 rounded-full transition-all duration-500"
+                                                                style={{ width: `${comparisonData.last5AvgPercent}%` }}
+                                                            ></div>
+                                                            <div
+                                                                title={`Line: ${comparisonData.line}`}
+                                                                className="absolute top-0 bottom-0 border-l-2 border-dashed border-yellow-300"
+                                                                style={{ left: `${comparisonData.linePercent}%` }}
+                                                            ></div>
+                                                        </div>
                                                     </div>
-                                                    <div className="relative h-2 bg-gray-700 rounded-full overflow-hidden">
-                                                        <div 
-                                                            className="absolute h-full bg-cyan-500 rounded-full transition-all duration-500"
-                                                            style={{ width: `${comparisonData.last5AvgPercent}%` }}
-                                                        ></div>
-                                                        <div
-                                                            title={`Line: ${comparisonData.line}`}
-                                                            className="absolute top-0 bottom-0 border-l-2 border-dashed border-yellow-300"
-                                                            style={{ left: `${comparisonData.linePercent}%` }}
-                                                        ></div>
-                                                    </div>
-                                                </div>
+                                                )}
+                                            </>
+                                            )}
+                                            {historicalContext?.gameLog && historicalContext.gameLog.length > 0 && (
+                                                <HistoricalPerformanceChart
+                                                    gameLog={historicalContext.gameLog}
+                                                    selectedLine={leg.line}
+                                                    seasonAvg={historicalContext.seasonAvg ?? null}
+                                                    last5Avg={historicalContext.last5Avg ?? null}
+                                                />
                                             )}
                                         </div>
                                     )}
@@ -591,86 +601,67 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                      </select>
                  </div>
                  
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
-                    {historicalContext && (
-                        <div className="p-3 bg-gray-700/50 rounded-lg animate-fade-in border border-cyan-500/20">
-                            <h4 className="flex items-center gap-2 text-sm font-semibold mb-3 text-gray-300">
-                                <BarChartIcon className="h-5 w-5 text-cyan-400" />
-                                Historical Performance: {selectedPlayer?.name}
-                            </h4>
-                            <div className="grid grid-cols-2 gap-2 text-center mb-3">
-                                <div className="bg-gray-800/60 p-2 rounded-md">
-                                    <div className="text-xs text-gray-400">Season Avg</div>
-                                    <div className="text-lg font-bold text-gray-100">{historicalContext.seasonAvg.toFixed(1)}</div>
-                                </div>
-                                <div className="bg-gray-800/60 p-2 rounded-md">
-                                    <div className="text-xs text-gray-400">Last 5 Avg</div>
-                                    <div className="text-lg font-bold text-gray-100">{historicalContext.last5Avg.toFixed(1)}</div>
-                                </div>
-                            </div>
-                            {selectedLineData && gameLog.length > 0 && (
-                                <div className="mb-3">
-                                    <h5 className="text-xs text-gray-400 px-1 mb-1 font-semibold">
-                                        Hit Rate vs. Line ({selectedLineData.line})
-                                    </h5>
-                                    <div className="grid grid-cols-2 gap-2 text-center">
-                                        <div className="bg-gray-800/60 p-2 rounded-md">
-                                            <div className="text-xs text-green-400 font-semibold">OVER HITS</div>
-                                            <div className="text-base lg:text-lg font-bold text-gray-100">
-                                                {gameLog.filter(s => s > selectedLineData.line).length}
-                                                <span className="text-sm text-gray-400"> / {gameLog.length}</span>
-                                            </div>
-                                            <div className="text-xs text-gray-400 font-mono">
-                                                ({((gameLog.filter(s => s > selectedLineData.line).length / gameLog.length) * 100).toFixed(0)}%)
-                                            </div>
-                                        </div>
-                                        <div className="bg-gray-800/60 p-2 rounded-md">
-                                            <div className="text-xs text-cyan-400 font-semibold">UNDER HITS</div>
-                                            <div className="text-base lg:text-lg font-bold text-gray-100">
-                                                {gameLog.filter(s => s < selectedLineData.line).length}
-                                                <span className="text-sm text-gray-400"> / {gameLog.length}</span>
-                                            </div>
-                                            <div className="text-xs text-gray-400 font-mono">
-                                                ({((gameLog.filter(s => s < selectedLineData.line).length / gameLog.length) * 100).toFixed(0)}%)
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                            <div className="space-y-1">
-                                <h5 className="text-xs text-gray-400 px-1">
-                                    Recent Game Log {selectedLineData ? `(vs. Line ${selectedLineData.line})` : ''}
-                                </h5>
-                                {gameLog.length > 0 ? gameLog.map((stat, index) => {
-                                    const isOver = selectedLineData ? stat > selectedLineData.line : false;
-                                    const barWidth = maxGameLogStat > 0 ? (stat / maxGameLogStat) * 100 : 0;
-                                    return (
-                                        <div key={index} className="flex items-center gap-2 group p-1 hover:bg-gray-800/50 rounded-md">
-                                            <div className="w-10 text-xs font-mono text-right text-gray-300">{stat.toFixed(1)}</div>
-                                            <div className="flex-1 bg-gray-600/50 rounded-sm h-4 relative">
-                                                <div
-                                                    style={{ width: `${barWidth > 100 ? 100 : barWidth}%` }}
-                                                    className={`h-full rounded-sm transition-all duration-300 ${isOver ? 'bg-green-500' : 'bg-cyan-600'}`}
-                                                ></div>
-                                                {selectedLineData && (
-                                                     <div 
-                                                        className="absolute top-0 bottom-0 border-l-2 border-dashed border-yellow-300"
-                                                        style={{ left: `${(selectedLineData.line / maxGameLogStat) * 100}%` }}
-                                                        title={`Line: ${selectedLineData.line}`}
-                                                    ></div>
-                                                )}
-                                            </div>
-                                            <div className={`w-10 text-xs font-semibold text-center opacity-0 group-hover:opacity-100 transition-opacity ${isOver ? 'text-green-400' : 'text-cyan-400'}`}>
-                                                {selectedLineData ? (isOver ? 'Over' : 'Under') : ''}
-                                            </div>
-                                        </div>
-                                    );
-                                }) : <p className="text-xs text-gray-500 text-center py-2">No game log data available.</p>}
-                            </div>
-                        </div>
-                    )}
+                {historicalContext && (
+                    <div className="p-3 bg-gray-700/50 rounded-lg animate-fade-in mb-3 border border-cyan-500/20">
+                        <h4 className="flex items-center gap-2 text-sm font-semibold mb-3 text-gray-300">
+                            <BarChartIcon className="h-5 w-5 text-cyan-400" />
+                            Historical Performance Context
+                        </h4>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                            <span className="text-gray-400">Prop Type</span>
+                            <span className="font-semibold text-right text-gray-200">{selectedProp?.propType}</span>
+                            
+                            <span className="text-gray-400">Season Avg</span>
+                            <span className="font-mono text-right text-white">
+                                {historicalContext.seasonAvg?.toFixed(1) ?? 'N/A'}
+                            </span>
 
-                    {opponentInfo && (
+                            <span className="text-gray-400">Last 5 Avg</span>
+                            <span className="font-mono text-right text-white">
+                                {historicalContext.last5Avg?.toFixed(1) ?? 'N/A'}
+                            </span>
+                        </div>
+                    </div>
+                )}
+                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
+                     {availableLines.length > 0 && (
+                         <div className="p-3 bg-gray-700/50 rounded-lg">
+                             <label htmlFor="line-select" className="block text-sm font-medium text-gray-300 mb-2">Select Line & Position</label>
+                              <div className="grid grid-cols-2 gap-2 mb-2">
+                                  <div className="relative">
+                                    <select id="line-select" value={selectedLineIndex} onChange={e => setSelectedLineIndex(e.target.value)} className="form-select !pr-8">
+                                        <option value="" disabled>Choose Line</option>
+                                        {availableLines.map((l, index) => (
+                                            <option key={`${l.line}-${index}`} value={index}>
+                                                {l.line} (O: {formatAmericanOdds(l.overOdds)} / U: {formatAmericanOdds(l.underOdds)})
+                                            </option>
+                                        ))}
+                                    </select>
+                                    {referenceAverage && (
+                                        <div
+                                            onClick={() => setSelectedLineIndex(closestLineIndex.toString())}
+                                            className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center text-xs bg-yellow-500/20 text-yellow-300 px-2 py-1 rounded-full cursor-pointer hover:bg-yellow-500/30"
+                                            title={`Closest line to ${referenceAverage.type} avg (${referenceAverage.value.toFixed(1)})`}
+                                        >
+                                            <TargetIcon className="h-3 w-3 mr-1" />
+                                            {referenceAverage.type}
+                                        </div>
+                                    )}
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-1">
+                                      <button onClick={() => setSelectedPosition('Over')} className={`position-btn ${selectedPosition === 'Over' ? 'position-btn-active' : ''}`}>Over</button>
+                                      <button onClick={() => setSelectedPosition('Under')} className={`position-btn ${selectedPosition === 'Under' ? 'position-btn-active' : ''}`}>Under</button>
+                                  </div>
+                              </div>
+                             {selectedLineData && (
+                                 <div className="mt-3">
+                                     <OddsLineChart data={generateHistoricalOdds(currentOdds!)} />
+                                 </div>
+                             )}
+                         </div>
+                     )}
+
+                     {opponentInfo && (
                         <div className="grid grid-cols-3 gap-3 animate-fade-in">
                             <div className="col-span-2 p-3 bg-gray-700/50 rounded-lg text-sm border border-cyan-500/20">
                                 <div className="flex items-center gap-2 font-semibold mb-2 text-gray-300">
@@ -705,84 +696,43 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                             </div>
                         </div>
                     )}
-                </div>
 
-                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
-                     {availableLines.length > 0 && (
-                         <div className="p-3 bg-gray-700/50 rounded-lg">
-                             <label htmlFor="line-select" className="block text-sm font-medium text-gray-300 mb-2">Select Line & Position</label>
-                              <div className="grid grid-cols-2 gap-2 mb-2">
-                                  <div className="relative">
-                                    <select id="line-select" value={selectedLineIndex} onChange={e => setSelectedLineIndex(e.target.value)} className="form-select !pr-8">
-                                        <option value="" disabled>Choose Line</option>
-                                        {availableLines.map((l, index) => (
-                                            <option key={`${l.line}-${index}`} value={index}>
-                                                {l.line} (O: {formatAmericanOdds(l.overOdds)} / U: {formatAmericanOdds(l.underOdds)})
-                                            </option>
-                                        ))}
-                                    </select>
-                                    {referenceAverage && (
-                                        <div
-                                            onClick={() => setSelectedLineIndex(closestLineIndex.toString())}
-                                            className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center text-xs bg-yellow-500/20 text-yellow-300 px-2 py-1 rounded-full cursor-pointer hover:bg-yellow-500/30"
-                                            title={`Closest line to ${referenceAverage.type} avg (${referenceAverage.value.toFixed(1)})`}
-                                        >
-                                            <TargetIcon className="h-3 w-3 mr-1" />
-                                            Auto
-                                        </div>
-                                    )}
-                                  </div>
-                                 <div className="grid grid-cols-2 gap-1">
-                                     <button onClick={() => setSelectedPosition('Over')} className={`toggle-button ${selectedPosition === 'Over' ? 'active' : ''}`}>
-                                        Over {selectedLineData && <span className="odds">{formatAmericanOdds(selectedLineData.overOdds)}</span>}
-                                    </button>
-                                     <button onClick={() => setSelectedPosition('Under')} className={`toggle-button ${selectedPosition === 'Under' ? 'active' : ''}`}>
-                                        Under {selectedLineData && <span className="odds">{formatAmericanOdds(selectedLineData.underOdds)}</span>}
-                                    </button>
-                                 </div>
-                              </div>
-                         </div>
-                     )}
-                     {currentOdds !== null && <OddsLineChart data={generateHistoricalOdds(currentOdds)} />}
                  </div>
 
-                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <button onClick={handleAddLeg} disabled={isAddLegDisabled} className="col-span-1 md:col-span-1 flex items-center justify-center gap-2 action-button bg-cyan-500 hover:bg-cyan-600 disabled:bg-gray-600">
-                        <PlusIcon className="h-5 w-5" />
-                        Add Leg
-                    </button>
-                    <div className="col-span-1 md:col-span-2 flex items-center justify-between rounded-lg bg-gray-800/60 p-3">
-                        <div className="flex items-center gap-4">
-                            <button onClick={handleSaveParlay} disabled={legs.length === 0} className="flex items-center gap-2 text-sm font-semibold text-gray-300 hover:text-cyan-400 disabled:opacity-50 transition-colors">
-                                <SaveIcon className="h-4 w-4" /> Save
-                            </button>
-                            <div>
-                                <span className="text-sm text-gray-400">Total Odds:</span>
-                                <span className="ml-2 font-mono text-lg font-bold text-yellow-300">{formatAmericanOdds(parlayOdds)}</span>
-                            </div>
-                        </div>
-                        <button onClick={() => onAnalyze(legs)} disabled={legs.length === 0} className="action-button bg-green-500 hover:bg-green-600 disabled:bg-gray-600 h-full text-base px-6">
-                            <SendIcon className="h-5 w-5" />
-                            Analyze
-                        </button>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
+                     {selectedProp?.historicalContext?.gameLog && selectedProp.historicalContext.gameLog.length > 0 && (
+                         <div className="p-3 bg-gray-700/50 rounded-lg">
+                            <HistoricalPerformanceChart
+                                gameLog={selectedProp.historicalContext.gameLog}
+                                selectedLine={selectedLineData?.line ?? 0}
+                                seasonAvg={selectedProp.historicalContext.seasonAvg ?? null}
+                                last5Avg={selectedProp.historicalContext.last5Avg ?? null}
+                            />
+                         </div>
+                     )}
+
+                    <div className="p-3 bg-gray-700/50 rounded-lg flex flex-col justify-between">
+                         <div className="flex justify-between items-start">
+                             <div>
+                                <h3 className="text-md font-semibold text-gray-200">Parlay Summary</h3>
+                                <p className="text-sm text-gray-400">{legs.length} Leg(s) Selected</p>
+                             </div>
+                             <div className="text-right">
+                                <p className="text-sm text-gray-400">Total Odds</p>
+                                <p className="text-3xl font-bold font-mono text-yellow-300">{formatAmericanOdds(parlayOdds)}</p>
+                             </div>
+                         </div>
+                         <div className="flex gap-2 mt-3">
+                             <button onClick={handleAddLeg} disabled={isAddLegDisabled} className="btn-primary w-full gap-2"><PlusIcon className="h-5 w-5"/> Add Leg</button>
+                             <button onClick={handleSaveParlay} disabled={legs.length === 0} className="btn-secondary px-3" aria-label="Save Parlay"><SaveIcon className="h-5 w-5"/></button>
+                         </div>
                     </div>
                 </div>
 
-                 <style>{`
-                     .form-select { appearance: none; background-image: url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%239ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3e%3cpolyline points="6 9 12 15 18 9"/%3e%3c/svg%3e'); background-position: right 0.5rem center; background-repeat: no-repeat; background-size: 1.5em 1.5em; padding-right: 2.5rem; }
-                     .form-select:disabled { background-image: none; }
-                     .action-button { padding: 0.625rem 1rem; border-radius: 0.375rem; font-weight: 600; color: white; transition: background-color 0.2s; }
-                     .action-button:disabled { cursor: not-allowed; opacity: 0.6; }
-                     .toggle-button { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; padding: 0.5rem; font-size: 0.875rem; font-weight: 600; text-align: center; border: 1px solid #4b5563; border-radius: 0.375rem; color: #d1d5db; transition: all 0.2s; }
-                     .toggle-button:hover { background-color: #374151; }
-                     .toggle-button.active { background-color: #0891b2; border-color: #06b6d4; color: white; }
-                     .toggle-button .odds { display: block; font-size: 0.75rem; font-weight: 400; color: #9ca3af; }
-                     .toggle-button.active .odds { color: #cffafe; }
-                     @keyframes fade-in { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
-                     .animate-fade-in { animation: fade-in 0.3s ease-out forwards; }
-                     @keyframes fade-in-slow { from { opacity: 0; } to { opacity: 1; } }
-                     .animate-fade-in-slow { animation: fade-in-slow 0.4s ease-out forwards; }
-                 `}</style>
+                 <button onClick={() => onAnalyze(legs)} disabled={legs.length === 0} className="btn-primary w-full text-lg py-3 gap-2">
+                     <SendIcon className="h-5 w-5" />
+                     Analyze {legs.length > 0 ? `${legs.length}-Leg Parlay` : ''}
+                 </button>
             </div>
         </div>
     );

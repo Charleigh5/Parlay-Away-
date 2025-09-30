@@ -25,10 +25,10 @@ const SystemStatusPanel: React.FC = () => {
       }
       setUpdates(prev => [newUpdate, ...prev].slice(0, 5)); // Keep last 5 updates
     } catch (err) {
-      if (err instanceof Error && err.message.includes('quota')) {
-         setError('API quota exceeded. Please try again later.');
+      if (err instanceof Error) {
+        setError(err.message);
       } else {
-         setError('Failed to fetch AI model updates.');
+        setError('An unknown error occurred while fetching AI model updates.');
       }
     } finally {
       setIsLoading(false);

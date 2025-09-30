@@ -47,43 +47,41 @@ const transformEventToGame = (event: SportsDBEvent): Game => {
 
 /**
  * Fetches the NFL schedule for the current season from TheSportsDB.
+ * This function will throw an error if the underlying fetch calls fail,
+ * allowing the calling component to handle the error state and fallback UI.
  */
 export const fetchNFLEvents = async (): Promise<Game[]> => {
-    try {
-        const fetchPromises = SEASON_START_DATES.map(date => {
-            const url = buildApiUrlForDate(date);
-            return fetch(url).then(res => {
-                if (!res.ok) {
-                    // Log individual failures but don't throw, so Promise.all doesn't fail immediately.
-                    console.error(`API request for date ${date} failed with status ${res.status}`);
-                    return null; // Return null for failed requests
-                }
-                return res.json();
-            });
+    const fetchPromises = SEASON_START_DATES.map(date => {
+        const url = buildApiUrlForDate(date);
+        return fetch(url).then(res => {
+            if (!res.ok) {
+                // By not throwing, but returning null, we allow Promise.all to succeed
+                // even if some requests fail. We will check later if all failed.
+                console.error(`API request for date ${date} failed with status ${res.status}`);
+                return null;
+            }
+            return res.json();
         });
+    });
 
-        const results = await Promise.all(fetchPromises);
-        
-        const allEvents: SportsDBEvent[] = results
-            .filter((data): data is SportsDBResponse => data !== null && !!data.events)
-            .flatMap(data => data.events!);
+    // If a fetch promise rejects (e.g., network error), Promise.all will reject.
+    // This is the desired behavior to trigger the component's catch block.
+    const results = await Promise.all(fetchPromises);
+    
+    const allEvents: SportsDBEvent[] = results
+        .filter((data): data is SportsDBResponse => data !== null && !!data.events)
+        .flatMap(data => data.events!);
 
-        if (allEvents.length === 0) {
-             console.warn("No events found for the specified dates. Falling back to mocks.");
-             return MOCK_GAMES;
-        }
-        
-        const upcomingGames = allEvents.map(transformEventToGame);
-        
-        // Remove duplicates in case API returns same event on different queries (unlikely but safe)
-        const uniqueGames = Array.from(new Map(upcomingGames.map(game => [game.id, game])).values());
-
-        return uniqueGames.length > 0 ? uniqueGames : MOCK_GAMES;
-
-    } catch (error) {
-        console.error("Error fetching NFL schedule:", error);
-        // Fallback to mock data if API fails. This ensures the app is still usable.
-        console.log("Falling back to mock game data.");
-        return MOCK_GAMES;
+    // If API calls succeed but return no events, fall back to mocks as a business rule.
+    if (allEvents.length === 0) {
+         console.warn("No events found for the specified dates. Falling back to mocks.");
+         return MOCK_GAMES;
     }
+    
+    const upcomingGames = allEvents.map(transformEventToGame);
+    
+    // Remove duplicates in case API returns same event on different queries
+    const uniqueGames = Array.from(new Map(upcomingGames.map(game => [game.id, game])).values());
+
+    return uniqueGames;
 };
