@@ -1,4 +1,5 @@
 import { Game } from '../types';
+import { PLAYER_SPLITS } from './mockSplitsData';
 
 export const MOCK_GAMES: Game[] = [
   {
@@ -14,6 +15,7 @@ export const MOCK_GAMES: Game[] = [
           news: 'No recent injury concerns reported. Participated fully in all recent practices.',
           impact: 'Player is at full capacity. No negative performance impact is expected from an injury standpoint. (KM_05)'
         },
+        ...PLAYER_SPLITS['Patrick Mahomes'],
         props: [
           {
             propType: 'Passing Yards',
@@ -51,6 +53,7 @@ export const MOCK_GAMES: Game[] = [
           news: 'Cleared from the injury report this week after dealing with a minor calf issue.',
           impact: 'Returns to 100% health. No physical limitations anticipated, which is critical for his dual-threat ability. (KM_05)'
         },
+        ...PLAYER_SPLITS['Lamar Jackson'],
         props: [
           {
             propType: 'Passing Yards',
@@ -87,6 +90,7 @@ export const MOCK_GAMES: Game[] = [
               news: 'Listed as questionable with a minor ankle sprain sustained in last week\'s game.',
               impact: 'Practiced in a limited capacity this week. While expected to play, explosiveness might be slightly hampered on deep routes. Monitor in-game usage. (KM_05)'
           },
+          ...PLAYER_SPLITS['Travis Kelce'],
           props: [
               {
                   propType: 'Receiving Yards',
@@ -152,25 +156,7 @@ export const MOCK_GAMES: Game[] = [
             historicalContext: {
               seasonAvg: 265.1,
               last5Avg: 272.9,
-              gameLog: [280, 250, 311, 268, 291, 245, 220, 322, 289, 253]
-            }
-          }
-        ]
-      },
-      {
-        name: 'Jalen Hurts',
-        position: 'QB',
-        team: 'PHI',
-        props: [
-          {
-            propType: 'Passing Yards',
-            lines: [
-              { line: 240.5, overOdds: -115, underOdds: -115 }
-            ],
-            historicalContext: {
-              seasonAvg: 242.3,
-              last5Avg: 233.1,
-              gameLog: [210, 255, 199, 277, 201, 260, 238, 222, 290, 249]
+              gameLog: [280, 250, 311, 268, 291, 245, 220, 322, 277, 261],
             }
           }
         ]

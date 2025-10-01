@@ -5,6 +5,7 @@ import { ZapIcon } from './icons/ZapIcon';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { ClockIcon } from './icons/ClockIcon';
 import { RotateCwIcon } from './icons/RotateCwIcon';
+import { Settings2Icon } from './icons/Settings2Icon';
 
 const SystemStatusPanel: React.FC = () => {
   const [updates, setUpdates] = useState<SystemUpdate[]>([]);
@@ -99,6 +100,17 @@ const SystemStatusPanel: React.FC = () => {
               <StatusIcon status={update.status} />
             </div>
             <p className="mt-1 text-sm text-gray-400">{update.description}</p>
+            
+            {update.integrationStrategy && (
+                <div className="mt-2 pt-2 border-t border-gray-700/50">
+                    <h4 className="flex items-center gap-1.5 text-xs font-semibold text-gray-300 mb-1">
+                        <Settings2Icon className="h-3.5 w-3.5 text-cyan-400" />
+                        Integration Strategy
+                    </h4>
+                    <p className="text-xs text-gray-400 italic">{update.integrationStrategy}</p>
+                </div>
+            )}
+
             <div className="mt-2 text-xs font-mono grid grid-cols-3 gap-2 text-center">
                 <div className="bg-gray-800 p-1 rounded">
                     <div className="text-gray-400">ROI</div>

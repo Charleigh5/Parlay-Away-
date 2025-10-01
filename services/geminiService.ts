@@ -69,6 +69,7 @@ const systemUpdateSchema = {
         status: { type: Type.STRING, description: "The current status, which should be 'Pending Review'." },
         featureName: { type: Type.STRING, description: "A concise name for the new feature or knowledge module." },
         description: { type: Type.STRING, description: "A detailed description of the proposed update and its potential benefits." },
+        integrationStrategy: { type: Type.STRING, description: "A brief, actionable plan for how this feature would be integrated into the existing Synoptic Edge platform, including potential data sources or UI changes." },
         backtestResults: {
             type: Type.OBJECT,
             properties: {
@@ -79,7 +80,7 @@ const systemUpdateSchema = {
             required: ['roiChange', 'brierScore', 'sharpeRatio']
         }
     },
-    required: ['id', 'status', 'featureName', 'description', 'backtestResults']
+    required: ['id', 'status', 'featureName', 'description', 'integrationStrategy', 'backtestResults']
 };
 
 export const proposeModelUpdate = async (): Promise<SystemUpdate> => {
@@ -90,7 +91,7 @@ export const proposeModelUpdate = async (): Promise<SystemUpdate> => {
     try {
       const systemInstruction = `You are an expert in quantitative analysis and sports betting, acting as a research and development agent for an AI-powered betting analysis tool called 'Project Synoptic Edge'. Your task is to brainstorm and propose a single, innovative new feature or knowledge module. Your response must be a single JSON object matching the provided schema.`;
       
-      const prompt = `Propose a new feature to enhance the Synoptic Edge platform. This could be a new statistical model, a new data source integration, or a behavioral analysis module. Provide a unique ID starting with 'UP-', set status to 'Pending Review', and include plausible simulated backtest results (roiChange as a number, brierScore, sharpeRatio).`;
+      const prompt = `Brainstorm and propose a single, innovative new feature to enhance the Synoptic Edge platform. Think beyond simple data integration; consider novel analytical approaches. Ideas could include: live in-game momentum analysis, a model for player prop correlation in parlays, sentiment analysis from sports journalism, or identifying coaching scheme changes mid-season. Your proposal must be actionable. Provide a unique ID starting with 'UP-', set status to 'Pending Review', include plausible simulated backtest results, and crucially, describe a concise integration strategy detailing necessary data sources and potential UI/UX changes.`;
 
       const response = await ai.models.generateContent({
           model: 'gemini-2.5-flash',

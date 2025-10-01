@@ -1,4 +1,5 @@
 
+
 export interface KnowledgeModule {
   id: string;
   domain: string;
@@ -10,6 +11,7 @@ export interface SystemUpdate {
   status: 'Pending Review' | 'Approved & Deployed' | 'Backtesting Failed';
   featureName: string;
   description: string;
+  integrationStrategy?: string;
   backtestResults: {
     roiChange: number;
     brierScore: number;
@@ -78,12 +80,22 @@ export interface InjuryStatus {
   impact: string;
 }
 
+// Performance Splits Data
+export type StatSplits = Record<string, number>;
+
+export interface HomeAwaySplits {
+  home: StatSplits;
+  away: StatSplits;
+}
+
 export interface Player {
   name: string;
   position: string;
   team: string;
   props: PlayerProp[];
   injuryStatus?: InjuryStatus;
+  homeAwaySplits?: HomeAwaySplits;
+  divisionalSplits?: StatSplits;
 }
 
 export interface Game {
