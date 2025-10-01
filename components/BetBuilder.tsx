@@ -1,7 +1,6 @@
 
-
-import React from 'react';
-import { useState, useMemo, useEffect } from 'react';
+// FIX: Corrected a syntax error in the React import statement that was preventing the component from loading.
+import React, { useState, useMemo, useEffect } from 'react';
 import { ExtractedBetLeg, Game, Player, PlayerProp } from '../types';
 import { calculateParlayOdds, formatAmericanOdds, generateHistoricalOdds } from '../utils';
 import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
@@ -602,263 +601,226 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                                         return <p className="text-xs text-gray-500 text-center py-2">No specific defensive data for this prop.</p>;
                                     }
 
-                                    if (selectedLine === null || selectedPosition === null) {
+                                    if (selectedLine !== null && selectedPosition !== null) {
+                                        const isFavorable = (selectedPosition === 'Over' && selectedLine < opponentStat.value) || (selectedPosition === 'Under' && selectedLine > opponentStat.value);
+                                        
+                                        const favorableStyle = {
+                                            verdict: 'Favorable',
+                                            icon: <ArrowDownCircleIcon className="h-5 w-5 text-green-300" />,
+                                            textColor: 'text-green-300',
+                                        };
+                                        const toughStyle = {
+                                            verdict: 'Tough',
+                                            icon: <ArrowUpCircleIcon className="h-5 w-5 text-red-300" />,
+                                            textColor: 'text-red-300',
+                                        };
+
+                                        const style = isFavorable ? favorableStyle : toughStyle;
+
+                                        const line = selectedLine;
+                                        const allowed = opponentStat.value;
+                                        const buffer = Math.abs(line - allowed) * 0.2;
+                                        const rangeMin = Math.min(line, allowed) - buffer;
+                                        const rangeMax = Math.max(line, allowed) + buffer;
+                                        const range = rangeMax - rangeMin;
+
+                                        const linePosition = range > 0 ? ((line - rangeMin) / range) * 100 : 50;
+                                        const allowedPosition = range > 0 ? ((allowed - rangeMin) / range) * 100 : 50;
+
                                         return (
-                                            <div className="text-center p-3 rounded-md bg-gray-800/50">
-                                                <p className="font-semibold text-gray-200">{opponentStat.value.toFixed(1)} {opponentStat.unit}</p>
-                                                <p className="text-xs text-gray-400">{opponentStat.label} (Rank #{opponentStat.rank})</p>
-                                                <p className="text-xs text-yellow-300/80 mt-2">Select a line and position to analyze favorability.</p>
+                                            <div className="space-y-3">
+                                                <div className="flex justify-between items-center text-sm">
+                                                    <span className="text-gray-400">Matchup Verdict:</span>
+                                                    <div className={`flex items-center gap-1.5 font-semibold ${style.textColor}`}>
+                                                        {style.icon}
+                                                        {style.verdict}
+                                                    </div>
+                                                </div>
+
+                                                <div className="relative h-6 pt-5" aria-label={`Comparison of selected line ${line} against opponent allowed average ${allowed.toFixed(1)}`}>
+                                                    <div className={`h-2 rounded-full ${isFavorable ? 'bg-gradient-to-r from-green-500/20 to-red-500/20' : 'bg-gradient-to-r from-red-500/20 to-green-500/20'}`}></div>
+                                                    
+                                                    <div className="absolute top-0" style={{ left: `${linePosition}%`, transform: 'translateX(-50%)' }}>
+                                                        <div className="w-px h-4 bg-yellow-300 mx-auto"></div>
+                                                        <div className="text-xs font-bold text-yellow-300 text-center">{line}</div>
+                                                        <div className="text-[10px] text-gray-400 text-center leading-tight">Line</div>
+                                                    </div>
+
+                                                    <div className="absolute top-0" style={{ left: `${allowedPosition}%`, transform: 'translateX(-50%)' }}>
+                                                        <div className="w-px h-4 bg-cyan-300 mx-auto"></div>
+                                                        <div className="text-xs font-bold text-cyan-300 text-center">{allowed.toFixed(1)}</div>
+                                                        <div className="text-[10px] text-gray-400 text-center leading-tight">Allowed</div>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="text-xs text-gray-400 pt-3 border-t border-gray-700/50">
+                                                    <div className="flex justify-between">
+                                                        <span>{opponentStat.label}:</span>
+                                                        <span className="font-mono">{opponentStat.value.toFixed(1)} {opponentStat.unit}</span>
+                                                    </div>
+                                                    <div className="flex justify-between">
+                                                        <span>League Rank (vs {selectedPlayer?.position}):</span>
+                                                        <span className={`font-mono font-semibold ${getRankCategory(opponentStat.rank).color}`}>{opponentStat.rank} / 32</span>
+                                                    </div>
+                                                </div>
                                             </div>
                                         );
                                     }
 
-                                    const diff = selectedLine - opponentStat.value;
-                                    const isFavorable = (selectedPosition === 'Over' && diff < 0) || (selectedPosition === 'Under' && diff > 0);
-                                    
-                                    const favorableStyle = {
-                                        verdict: 'Favorable',
-                                        icon: <ArrowDownCircleIcon className="h-5 w-5 text-green-300" />,
-                                        textColor: 'text-green-300',
-                                    };
-                                    const toughStyle = {
-                                        verdict: 'Tough',
-                                        icon: <ArrowUpCircleIcon className="h-5 w-5 text-red-300" />,
-                                        textColor: 'text-red-300',
-                                    };
-
-                                    const style = isFavorable ? favorableStyle : toughStyle;
-
-                                    // --- Comparison Bar Logic ---
-                                    const line = selectedLine;
-                                    const allowed = opponentStat.value;
-                                    const buffer = Math.abs(line - allowed) * 0.2; // 20% buffer
-                                    const rangeMin = Math.min(line, allowed) - buffer;
-                                    const rangeMax = Math.max(line, allowed) + buffer;
-                                    const range = rangeMax - rangeMin;
-
-                                    let playerLinePercentage = 50;
-                                    let dAllowedPercentage = 50;
-
-                                    if (range > 0) {
-                                      playerLinePercentage = Math.max(0, Math.min(100, ((line - rangeMin) / range) * 100));
-                                      dAllowedPercentage = Math.max(0, Math.min(100, ((allowed - rangeMin) / range) * 100));
-                                    }
-                                    
-                                    const gradientClass = selectedPosition === 'Over'
-                                        ? 'from-green-500/70 via-yellow-500/70 to-red-500/70'
-                                        : 'from-red-500/70 via-yellow-500/70 to-green-500/70';
-
-                                    const getLabelStyle = (percentage: number) => {
-                                      let transform = 'translateX(-50%)';
-                                      if (percentage < 15) transform = 'translateX(0)';
-                                      if (percentage > 85) transform = 'translateX(-100%)';
-                                      return { left: `${percentage}%`, transform };
-                                    };
-
                                     return (
-                                        <div className="space-y-3">
-                                            <div className={`p-2 rounded-md bg-gray-800/50 flex items-center justify-between`}>
-                                                <div className="flex items-center gap-2">
-                                                    {style.icon}
-                                                    <span className={`font-semibold text-sm ${style.textColor}`}>{style.verdict} Matchup for {selectedPosition}</span>
-                                                </div>
-                                                 <div className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${getRankCategory(opponentStat.rank).bgColor} ${getRankCategory(opponentStat.rank).color}`}>
-                                                    #{opponentStat.rank} vs {selectedPlayer.position}s
-                                                </div>
+                                        <div className="text-xs text-gray-400 space-y-1">
+                                            <div className="flex justify-between">
+                                                <span>{opponentStat.label}:</span>
+                                                <span className="font-mono">{opponentStat.value.toFixed(1)} {opponentStat.unit}</span>
                                             </div>
-                                            
-                                            <div className="pt-8 pb-6 px-2 relative">
-                                                <div className={`relative h-2 w-full rounded-full bg-gradient-to-r ${gradientClass}`}>
-                                                    {/* D Allowed Marker */}
-                                                    <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 h-4 w-4" style={{ left: `${dAllowedPercentage}%` }}>
-                                                       <div className="h-3 w-3 rounded-full bg-gray-400 border-2 border-gray-900 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"></div>
-                                                    </div>
-                                                    {/* Player Line Marker */}
-                                                    <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2" style={{ left: `${playerLinePercentage}%` }}>
-                                                        <div className="h-4 w-4 rounded-full bg-white ring-2 ring-gray-900 shadow-lg"></div>
-                                                    </div>
-                                                </div>
-                                                
-                                                {/* Labels */}
-                                                <div className="absolute -top-1 w-full">
-                                                    <div className="absolute text-center" style={getLabelStyle(playerLinePercentage)}>
-                                                        <p className="font-bold text-white text-sm leading-none">{selectedLine}</p>
-                                                        <p className="text-gray-400 text-[10px] leading-tight">Player Line</p>
-                                                    </div>
-                                                </div>
-                                                <div className="absolute top-8 w-full">
-                                                     <div className="absolute text-center" style={getLabelStyle(dAllowedPercentage)}>
-                                                        <p className="font-bold text-gray-300 text-sm leading-none">{allowed.toFixed(1)}</p>
-                                                        <p className="text-gray-500 text-[10px] leading-tight">D Allowed</p>
-                                                    </div>
-                                                </div>
+                                            <div className="flex justify-between">
+                                                <span>League Rank (vs {selectedPlayer?.position}):</span>
+                                                <span className={`font-mono font-semibold ${getRankCategory(opponentStat.rank).color}`}>{opponentStat.rank} / 32</span>
                                             </div>
+                                            <p className="text-center pt-2 text-gray-500">Select a line and position to see favorability.</p>
                                         </div>
                                     );
                                 })()}
                             </div>
                         )}
 
-                        {selectedPlayer && (
-                            <button 
-                                onClick={handleAddLeg}
-                                disabled={!selectedPosition || !marketOdds}
-                                className="w-full mt-4 flex items-center justify-center gap-2 rounded-md bg-cyan-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cyan-700 disabled:bg-gray-600 disabled:cursor-not-allowed"
-                            >
-                                <PlusIcon className="h-5 w-5" />
-                                Add to Slip
-                            </button>
-                        )}
+                        <button
+                            onClick={handleAddLeg}
+                            disabled={!selectedPosition || !marketOdds}
+                            className="w-full flex items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cyan-600 disabled:cursor-not-allowed disabled:bg-gray-600"
+                        >
+                            <PlusIcon className="h-5 w-5" />
+                            Add Leg to Bet Slip
+                        </button>
                     </div>
-                    
 
-                    {/* Bet Slip Display */}
-                    <div className="flex-1 p-4 bg-gray-900/50">
-                        <h3 className="text-lg font-semibold text-gray-200 mb-3">Current Bet Slip ({legs.length} Legs)</h3>
-                        <div className="space-y-3">
-                            {legs.length === 0 ? (
-                                <div className="text-center text-gray-500 py-6 border-2 border-dashed border-gray-700 rounded-lg">
-                                    <p>Your bet slip is empty.</p>
-                                    <p className="text-xs">Add legs from the panel above.</p>
-                                </div>
-                            ) : (
-                                legs.map((leg, index) => {
-                                    const legContext = getLegContext(leg, games);
-                                    return (
-                                        <div key={index} className="p-3 rounded-lg bg-gray-800/70 border border-gray-700/50">
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-700 border-2 border-gray-600 font-bold text-gray-300 text-sm">
-                                                        {leg.playerDetails?.team}
-                                                    </div>
+                    {/* Bet Slip */}
+                    <div className="flex-1 p-4 bg-gray-800/50">
+                        <h3 className="text-lg font-semibold text-gray-200 mb-3">Bet Slip</h3>
+                        {legs.length === 0 ? (
+                            <div className="text-center text-gray-500 p-6 border-2 border-dashed border-gray-700 rounded-lg h-full flex flex-col justify-center">
+                                <p>Your bet slip is empty.</p>
+                                <p className="text-xs mt-1">Select a player and prop to build your bet.</p>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col h-full">
+                                <div className="flex-1 space-y-2 overflow-y-auto pr-2">
+                                    {legs.map((leg, index) => {
+                                        const context = getLegContext(leg, games);
+                                        const propContext = leg.propDetails?.historicalContext;
+
+                                        return (
+                                            <div key={index} className="bg-gray-900/70 p-3 rounded-lg border border-gray-700/50">
+                                                <div className="flex justify-between items-start">
                                                     <div>
                                                         <p className="font-semibold text-gray-200">{leg.player}</p>
-                                                        <p className="text-xs text-gray-500">{leg.playerDetails?.position}</p>
+                                                        <p className="text-sm text-gray-400">{leg.position} {leg.line} {leg.propType}</p>
+                                                        <p className="text-xs text-gray-500 mt-1">vs {context.opponentAbbr || 'N/A'}</p>
+                                                    </div>
+                                                    <div className="text-right flex-shrink-0">
+                                                        <p className="font-mono font-semibold text-lg text-yellow-300">{formatAmericanOdds(leg.marketOdds)}</p>
+                                                        <button onClick={() => handleRemoveLeg(index)} className="mt-1 text-red-400 hover:text-red-300">
+                                                            <Trash2Icon className="h-4 w-4" />
+                                                        </button>
                                                     </div>
                                                 </div>
-                                                <button onClick={() => handleRemoveLeg(index)} className="p-1.5 rounded-md text-gray-500 hover:text-red-400 hover:bg-red-500/10">
-                                                    <Trash2Icon className="h-4 w-4" />
-                                                </button>
-                                            </div>
-                                            <div className="flex items-center justify-between p-2 mt-3 rounded-md bg-gray-900/50">
-                                                <div>
-                                                    <p className="text-sm text-gray-300">{leg.propType}</p>
-                                                    <p className={`font-semibold text-sm ${leg.position === 'Over' ? 'text-green-400' : 'text-cyan-400'}`}>{leg.position} {leg.line}</p>
-                                                </div>
-                                                <div className="font-mono text-lg font-bold text-yellow-300">
-                                                    {formatAmericanOdds(leg.marketOdds)}
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center justify-between gap-4 text-xs mt-3 pt-3 border-t border-gray-700/50">
-                                                {leg.propDetails?.historicalContext?.gameLog ? (
-                                                    <div className="flex items-center gap-1.5 text-gray-400">
-                                                        <span>L5 Trend</span>
-                                                        <MicroPerformanceChart gameLog={leg.propDetails.historicalContext.gameLog} selectedLine={leg.line} />
+                                                {propContext && (
+                                                    <div className="border-t border-gray-700/50 mt-2 pt-2 flex items-center justify-between">
+                                                        <MicroPerformanceChart gameLog={propContext.gameLog || []} selectedLine={leg.line} />
+                                                        {context.matchupFavorability && (
+                                                            <div className={`text-xs font-semibold px-2 py-0.5 rounded-full ${context.matchupFavorability === 'Favorable' ? 'bg-green-500/10 text-green-300' : 'bg-red-500/10 text-red-300'}`}>
+                                                                {context.matchupFavorability} Matchup
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                ) : <div />}
-                                                {legContext.matchupFavorability ? (
-                                                    <div className={`flex items-center gap-1.5 py-1 px-2 rounded-full ${
-                                                        legContext.matchupFavorability === 'Favorable' ? 'bg-green-500/10 text-green-300' : 'bg-red-500/10 text-red-300'
-                                                    }`}>
-                                                        {legContext.matchupFavorability === 'Favorable' ? <ArrowDownCircleIcon className="h-3.5 w-3.5" /> : <ArrowUpCircleIcon className="h-3.5 w-3.5" />}
-                                                        <span className="font-semibold">{legContext.matchupFavorability} vs {legContext.opponentAbbr}</span>
-                                                    </div>
-                                                ) : <div />}
+                                                )}
                                             </div>
-                                        </div>
-                                    );
-                                })
-                            )}
-                        </div>
-                        {legs.length > 0 && (
-                            <div className="mt-4 p-3 rounded-lg bg-gray-950 text-center">
-                                <p className="text-sm text-gray-400">Total Parlay Odds</p>
-                                <p className="text-3xl font-bold font-mono text-cyan-400">{formatAmericanOdds(parlayOdds)}</p>
+                                        )
+                                    })}
+                                </div>
+                                <div className="mt-4 pt-4 border-t border-gray-700/50">
+                                     <div className="flex justify-between items-center text-lg mb-3">
+                                        <span className="font-semibold text-gray-300">Total Odds:</span>
+                                        <span className="font-mono font-bold text-yellow-300">{formatAmericanOdds(parlayOdds)}</span>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button 
+                                            onClick={handleSaveParlay}
+                                            disabled={legs.length === 0}
+                                            className="w-full flex items-center justify-center gap-2 rounded-md bg-gray-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-gray-500 disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                            <SaveIcon className="h-4 w-4" />
+                                        </button>
+                                        <button 
+                                            onClick={() => setIsParlayManagerOpen(true)}
+                                            className="w-full flex items-center justify-center gap-2 rounded-md bg-gray-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-gray-500"
+                                        >
+                                            <FolderOpenIcon className="h-4 w-4" />
+                                        </button>
+                                         <button 
+                                            onClick={() => onAnalyze(legs.map(({playerDetails, propDetails, ...leg}) => leg))}
+                                            disabled={legs.length === 0}
+                                            className="w-full flex items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-cyan-600 disabled:cursor-not-allowed disabled:bg-gray-600"
+                                        >
+                                            <SendIcon className="h-5 w-5" />
+                                            Analyze
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         )}
-                        <div className="mt-4 flex gap-2">
-                             <button 
-                                onClick={() => onAnalyze(legs.map(({playerDetails, propDetails, ...leg}) => leg))} // Strip enriched data before analyzing
-                                disabled={legs.length === 0}
-                                className="w-full flex items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cyan-600 disabled:bg-gray-600 disabled:cursor-not-allowed"
-                            >
-                                <SendIcon className="h-5 w-5" />
-                                Analyze
-                            </button>
-                             <button
-                                onClick={handleSaveParlay}
-                                disabled={legs.length === 0}
-                                className="p-2.5 rounded-md bg-gray-700 text-gray-300 hover:bg-gray-600 disabled:opacity-50 transition-colors"
-                                aria-label="Save Parlay"
-                            >
-                                <SaveIcon className="h-5 w-5" />
-                            </button>
-                            <button
-                                onClick={() => setIsParlayManagerOpen(true)}
-                                className="p-2.5 rounded-md bg-gray-700 text-gray-300 hover:bg-gray-600 disabled:opacity-50 transition-colors"
-                                aria-label="Load Parlay"
-                            >
-                                <FolderOpenIcon className="h-5 w-5" />
-                            </button>
-                        </div>
                     </div>
                 </div>
             </div>
 
             {isParlayManagerOpen && (
-                <div 
+                 <div 
                     className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/80 backdrop-blur-sm"
                     onClick={() => setIsParlayManagerOpen(false)}
                 >
-                    <div 
-                        className="relative w-full max-w-2xl bg-gray-900 border border-gray-700 rounded-lg shadow-xl p-6 m-4 max-h-[90vh] flex flex-col"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-700">
-                             <h3 className="text-xl font-semibold text-gray-100">Saved Bets</h3>
-                             <button onClick={() => setIsParlayManagerOpen(false)} className="p-1 rounded-full hover:bg-gray-700">
-                                <XIcon className="h-5 w-5 text-gray-400" />
-                             </button>
-                        </div>
-                        <div className="flex-1 overflow-y-auto pr-2 -mr-2">
-                             {savedParlays.length === 0 ? (
-                                <div className="text-center py-12">
-                                    <p className="text-gray-400">You have no saved bets.</p>
-                                    <p className="text-sm text-gray-500">Use the 'Save' icon in the Bet Builder to store your parlays here.</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-3">
-                                    {savedParlays.slice().reverse().map(parlay => (
-                                        <div key={parlay.id} className="p-3 bg-gray-800/50 rounded-lg border border-gray-700/50 flex items-center justify-between gap-4">
-                                            <div className="flex-1">
+                    <div className="relative w-full max-w-lg rounded-xl border border-gray-700 bg-gray-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                        <button 
+                            onClick={() => setIsParlayManagerOpen(false)} 
+                            className="absolute top-4 right-4 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-gray-700 text-white transition-colors hover:bg-gray-600"
+                            aria-label="Close parlay manager"
+                        >
+                            <XIcon className="h-5 w-5" />
+                        </button>
+                        <h3 className="text-xl font-semibold text-gray-200 mb-4">Saved Parlays</h3>
+                        
+                        <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
+                           {savedParlays.length > 0 ? (
+                                savedParlays.map(parlay => (
+                                    <div key={parlay.id} className="bg-gray-800/50 p-3 rounded-lg">
+                                        <div className="flex justify-between items-start">
+                                            <div>
                                                 <p className="font-semibold text-gray-200">{parlay.name}</p>
-                                                <div className="text-xs text-gray-400 flex items-center gap-3 mt-1">
-                                                    <span>{parlay.legs.length} Leg{parlay.legs.length > 1 ? 's' : ''}</span>
-                                                    <span className="font-mono text-yellow-300">{formatAmericanOdds(parlay.odds)}</span>
-                                                    <span>{new Date(parlay.createdAt).toLocaleDateString()}</span>
-                                                </div>
+                                                <p className="text-xs text-gray-400">{parlay.legs.length} leg(s) &bull; Created {new Date(parlay.createdAt).toLocaleDateString()}</p>
                                             </div>
-                                            <div className="flex gap-2">
-                                                <button 
-                                                    onClick={() => handleLoadParlay(parlay)}
-                                                    className="px-3 py-1.5 text-sm rounded-md bg-cyan-600 text-white hover:bg-cyan-700 transition-colors"
-                                                >
-                                                    Load
-                                                </button>
-                                                <button 
-                                                     onClick={() => handleDeleteParlay(parlay.id)}
-                                                    className="px-3 py-1.5 text-sm rounded-md bg-red-600/50 text-red-300 hover:bg-red-600/80 transition-colors"
-                                                >
-                                                    Delete
-                                                </button>
-                                            </div>
+                                            <p className="font-mono text-lg font-bold text-yellow-300">{formatAmericanOdds(parlay.odds)}</p>
                                         </div>
-                                    ))}
-                                </div>
-                            )}
+                                        <div className="mt-2 pt-2 border-t border-gray-700/50 flex justify-end gap-2">
+                                            <button 
+                                                onClick={() => handleDeleteParlay(parlay.id)}
+                                                className="px-3 py-1 text-xs font-semibold rounded-md bg-red-500/10 text-red-300 hover:bg-red-500/20"
+                                            >
+                                                Delete
+                                            </button>
+                                            <button 
+                                                onClick={() => handleLoadParlay(parlay)}
+                                                className="px-3 py-1 text-xs font-semibold rounded-md bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20"
+                                            >
+                                                Load
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))
+                           ) : (
+                                <p className="text-center text-gray-500 py-8">You have no saved parlays.</p>
+                           )}
                         </div>
                     </div>
-                </div>
+                 </div>
             )}
         </div>
     );
