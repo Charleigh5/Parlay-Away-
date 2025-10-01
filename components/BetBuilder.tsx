@@ -138,6 +138,7 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
     const [lineInput, setLineInput] = useState('');
     const [oddsInput, setOddsInput] = useState('');
     const [selectedPosition, setSelectedPosition] = useState<'Over' | 'Under' | null>(null);
+    const [errors, setErrors] = useState<{ line?: string; odds?: string }>({});
     
 
     // Fetch schedule data on mount
@@ -170,6 +171,25 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
             console.error("Failed to load saved parlays from localStorage:", error);
         }
     }, []);
+
+    // Validation for bet constructor inputs
+    useEffect(() => {
+        const newErrors: { line?: string; odds?: string } = {};
+
+        if (lineInput && isNaN(parseFloat(lineInput))) {
+            newErrors.line = 'Line must be a valid number.';
+        }
+
+        if (oddsInput && oddsInput !== '-') {
+            const num = parseInt(oddsInput, 10);
+            if (isNaN(num)) {
+                newErrors.odds = 'Odds must be a valid integer.';
+            } else if (num > -100 && num < 100) {
+                newErrors.odds = 'Odds must be <= -100 or >= 100.';
+            }
+        }
+        setErrors(newErrors);
+    }, [lineInput, oddsInput]);
     
     // Derived state for selected items
     const selectedGame = useMemo(() => games.find(g => g.id === selectedGameId), [games, selectedGameId]);
@@ -189,11 +209,11 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
     }, [oddsInput]);
 
     const historicalOdds = useMemo(() => {
-        if (parsedOdds !== null) {
+        if (parsedOdds !== null && !errors.odds) {
             return generateHistoricalOdds(parsedOdds);
         }
         return null;
-    }, [parsedOdds]);
+    }, [parsedOdds, errors.odds]);
 
     // Effect to pre-fill inputs when a new prop type is selected
     useEffect(() => {
@@ -406,7 +426,7 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
     const renderBetConstructor = () => (
          <div className="mt-4 bg-gray-900/50 p-3 rounded-lg border border-gray-700/70">
             <h4 className="text-sm font-semibold text-gray-300 mb-3 text-center">Construct Your Bet</h4>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-start">
                 {/* Line Input */}
                 <div>
                     <label htmlFor="line-input" className="block text-xs font-medium text-gray-400 mb-1">Line</label>
@@ -417,12 +437,17 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                         value={lineInput}
                         onChange={(e) => setLineInput(e.target.value)}
                         placeholder="e.g. 275.5"
-                        className="w-full text-center rounded-md border border-gray-600 bg-gray-800 py-2 px-2 text-gray-200 placeholder-gray-500 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                        className={`w-full text-center rounded-md border bg-gray-800 py-2 px-2 text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-1 ${
+                            errors.line
+                                ? 'border-red-500/70 focus:border-red-500 focus:ring-red-500'
+                                : 'border-gray-600 focus:border-cyan-500 focus:ring-cyan-500'
+                        }`}
                     />
+                    {errors.line && <p className="text-xs text-red-400 mt-1 text-center">{errors.line}</p>}
                 </div>
 
                 {/* Position Toggle */}
-                <div className="flex">
+                <div className="flex self-end">
                     <button
                         onClick={() => setSelectedPosition('Over')}
                         className={`w-1/2 flex items-center justify-center gap-2 rounded-l-md py-2 text-sm font-semibold transition-colors border border-gray-600 ${
@@ -454,8 +479,13 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                             }
                         }}
                         placeholder="e.g. -115"
-                        className="w-full text-center rounded-md border border-gray-600 bg-gray-800 py-2 px-2 text-gray-200 placeholder-gray-500 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                        className={`w-full text-center rounded-md border bg-gray-800 py-2 px-2 text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-1 ${
+                            errors.odds
+                                ? 'border-red-500/70 focus:border-red-500 focus:ring-red-500'
+                                : 'border-gray-600 focus:border-cyan-500 focus:ring-cyan-500'
+                        }`}
                     />
+                    {errors.odds && <p className="text-xs text-red-400 mt-1 text-center">{errors.odds}</p>}
                 </div>
             </div>
             {historicalOdds && (
@@ -476,6 +506,14 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
         const homeSplit = selectedPropType ? selectedPlayer.homeAwaySplits?.home[selectedPropType] : undefined;
         const awaySplit = selectedPropType ? selectedPlayer.homeAwaySplits?.away[selectedPropType] : undefined;
         const divisionalSplit = selectedPropType ? selectedPlayer.divisionalSplits?.[selectedPropType] : undefined;
+
+        const isAddButtonDisabled = !!errors.line ||
+                                    !!errors.odds ||
+                                    !selectedPlayer ||
+                                    !selectedPropType ||
+                                    parsedLine === null ||
+                                    !selectedPosition ||
+                                    parsedOdds === null;
 
         return (
         <div className="flex-1 flex flex-col overflow-hidden">
@@ -519,6 +557,47 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                                 </div>
                             )}
                         </div>
+                        {opponentStat && parsedLine !== null && (
+                            <div className="mt-3 pt-3 border-t border-gray-700/50">
+                                <h5 className="text-xs font-semibold text-gray-400 text-center mb-2">
+                                    Line vs. Defensive Average
+                                </h5>
+                                <div className="flex justify-around items-center text-center">
+                                    <div>
+                                        <p className="text-xs text-gray-400">Selected Line</p>
+                                        <p className="font-mono text-xl font-bold text-yellow-300">{parsedLine.toFixed(1)}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-400">Avg Allowed</p>
+                                        <p className="font-mono text-xl font-bold text-cyan-300">{opponentStat.value.toFixed(1)}</p>
+                                    </div>
+                                </div>
+                                {selectedPosition && (
+                                    <div className="mt-2 text-center">
+                                        {(() => {
+                                            const isFavorable = (selectedPosition === 'Over' && parsedLine < opponentStat.value) || (selectedPosition === 'Under' && parsedLine > opponentStat.value);
+                                            const isTough = (selectedPosition === 'Over' && parsedLine > opponentStat.value) || (selectedPosition === 'Under' && parsedLine < opponentStat.value);
+
+                                            if (isFavorable) {
+                                                return (
+                                                    <div className="text-xs font-semibold px-2 py-1 rounded-full inline-block bg-green-500/10 text-green-300">
+                                                        Favorable Matchup for {selectedPosition}
+                                                    </div>
+                                                );
+                                            }
+                                            if (isTough) {
+                                                return (
+                                                    <div className="text-xs font-semibold px-2 py-1 rounded-full inline-block bg-red-500/10 text-red-300">
+                                                        Tough Matchup for {selectedPosition}
+                                                    </div>
+                                                );
+                                            }
+                                            return null;
+                                        })()}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                  )}
 
@@ -577,7 +656,7 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                          <div className="mt-4">
                             <button
                                 onClick={handleAddLeg}
-                                disabled={!selectedPlayer || !selectedPropType || parsedLine === null || !selectedPosition || parsedOdds === null}
+                                disabled={isAddButtonDisabled}
                                 className="w-full flex items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cyan-600 disabled:cursor-not-allowed disabled:bg-gray-600 disabled:text-gray-400"
                             >
                                 <PlusIcon className="h-5 w-5" /> Add to Slip
