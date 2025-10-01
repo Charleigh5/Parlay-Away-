@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { AnalysisResponse, SystemUpdate, ExtractedBetLeg } from '../types';
+import { AnalysisResponse, SystemUpdate, ExtractedBetLeg, ParlayCorrelationAnalysis } from '../types';
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -165,5 +165,74 @@ export const extractBetsFromImage = async (imageData: { data: string, mimeType: 
     } catch (error) {
         console.error("Error extracting bets from image with Gemini:", error);
         throw new Error("Failed to extract bets from the provided image. Please ensure it's a clear screenshot of a bet slip.");
+    }
+};
+
+const correlationAnalysisSchema = {
+    type: Type.OBJECT,
+    properties: {
+        overallScore: {
+            type: Type.NUMBER,
+            description: "A single numerical score from -1.0 (strong negative correlation) to 1.0 (strong positive correlation) representing the entire parlay's synergy."
+        },
+        summary: {
+            type: Type.STRING,
+            description: "A concise, expert summary explaining the overall correlation of the parlay and the key factors driving it."
+        },
+        analysis: {
+            type: Type.ARRAY,
+            description: "A detailed breakdown of the correlation between each unique pair of legs in the parlay.",
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    leg1Index: {
+                        type: Type.INTEGER,
+                        description: "The 0-based index of the first leg in the pair from the original input."
+                    },
+                    leg2Index: {
+                        type: Type.INTEGER,
+                        description: "The 0-based index of the second leg in the pair from the original input."
+                    },
+                    relationship: {
+                        type: Type.STRING,
+                        description: "The type of correlation: 'Positive', 'Negative', or 'Neutral'."
+                    },
+                    explanation: {
+                        type: Type.STRING,
+                        description: "A clear, concise explanation of the gameplay and statistical reasoning behind the correlation between this specific pair of legs."
+                    }
+                },
+                required: ['leg1Index', 'leg2Index', 'relationship', 'explanation']
+            }
+        }
+    },
+    required: ['overallScore', 'summary', 'analysis']
+};
+
+export const analyzeParlayCorrelation = async (legs: ExtractedBetLeg[]): Promise<ParlayCorrelationAnalysis> => {
+    try {
+        const systemInstruction = `You are a world-class sports betting analyst specializing in identifying and quantifying the correlation between player props within a parlay. Your analysis must consider gameplay dynamics (e.g., game script, player roles, team schemes) and statistical relationships. You must return your findings in the specified JSON format. The analysis should cover every unique pair of legs.`;
+
+        const formattedLegs = legs.map((leg, index) =>
+            `${index}: ${leg.player} ${leg.position} ${leg.line} ${leg.propType}`
+        ).join('\n');
+
+        const query = `Analyze the correlation for the following parlay legs. Provide a detailed explanation for each pair of legs and an overall summary and score.\n\n${formattedLegs}`;
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: query,
+            config: {
+                systemInstruction,
+                responseMimeType: "application/json",
+                responseSchema: correlationAnalysisSchema,
+            }
+        });
+
+        const jsonText = response.text.trim();
+        return JSON.parse(jsonText);
+    } catch (error) {
+        console.error("Error analyzing parlay correlation with Gemini:", error);
+        throw new Error("Failed to analyze parlay correlation. The AI model may be temporarily unavailable.");
     }
 };

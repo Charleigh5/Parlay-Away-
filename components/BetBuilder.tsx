@@ -1,6 +1,5 @@
-// FIX: Corrected a syntax error in the React import statement that was preventing the component from loading.
 import React, { useState, useMemo, useEffect } from 'react';
-import { ExtractedBetLeg, Game, Player, PlayerProp, AnalysisResponse, LineOdds } from '../types';
+import { ExtractedBetLeg, Game, Player, PlayerProp, AnalysisResponse, LineOdds, ParlayCorrelationAnalysis } from '../types';
 import { calculateParlayOdds, formatAmericanOdds, generateHistoricalOdds, normalCdf, calculateSingleLegEV } from '../utils';
 import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
 import { SendIcon } from './icons/SendIcon';
@@ -29,7 +28,29 @@ import { HomeIcon } from './icons/HomeIcon';
 import { PlaneIcon } from './icons/PlaneIcon';
 import { SwordsIcon } from './icons/SwordsIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
-import { getAnalysis } from '../services/geminiService';
+import { getAnalysis, analyzeParlayCorrelation } from '../services/geminiService';
+
+const LinkIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.72" />
+    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.72-1.72" />
+  </svg>
+);
+
+const UnlinkIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.72" />
+    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.72-1.72" />
+    <line x1="2" y1="12" x2="22" y2="12" strokeWidth="3" strokeLinecap="butt"/>
+  </svg>
+);
+
+const MinusCircleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <line x1="8" y1="12" x2="16" y2="12" />
+  </svg>
+);
 
 
 interface BetBuilderProps {
@@ -162,6 +183,10 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
     const [isAnalyzingMarket, setIsAnalyzingMarket] = useState(false);
     const [marketAnalysisError, setMarketAnalysisError] = useState<string | null>(null);
     
+    // State for Correlation Analysis
+    const [correlationAnalysis, setCorrelationAnalysis] = useState<ParlayCorrelationAnalysis | null>(null);
+    const [isAnalyzingCorrelation, setIsAnalyzingCorrelation] = useState(false);
+    const [correlationError, setCorrelationError] = useState<string | null>(null);
 
     // Fetch schedule data on mount
     useEffect(() => {
@@ -186,697 +211,703 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
     // Load saved parlays from localStorage on mount
     useEffect(() => {
         try {
-            const storedParlays = localStorage.getItem(SAVED_PARLAYS_LIST_KEY);
-            if (storedParlays) {
-                setSavedParlays(JSON.parse(storedParlays));
+            const stored = localStorage.getItem(SAVED_PARLAYS_LIST_KEY);
+            if (stored) {
+                setSavedParlays(JSON.parse(stored));
             }
         } catch (error) {
-            console.error("Failed to load saved parlays from localStorage:", error);
+            console.error("Failed to load saved parlays from localStorage", error);
         }
     }, []);
 
-    // Validation for bet constructor inputs
-    useEffect(() => {
-        const newErrors: { line?: string; odds?: string } = {};
+    const filteredPlayers = useMemo(() => {
+        if (!selectedGameId) return [];
+        const game = games.find(g => g.id === selectedGameId);
+        if (!game) return [];
+        if (!searchTerm) return game.players;
+        return game.players.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    }, [games, selectedGameId, searchTerm]);
 
-        if (lineInput && isNaN(parseFloat(lineInput))) {
-            newErrors.line = 'Line must be a valid number.';
-        }
+    const selectedGame = useMemo(() => {
+        return games.find(g => g.id === selectedGameId) || null;
+    }, [games, selectedGameId]);
 
-        if (oddsInput && oddsInput !== '-') {
-            const num = parseInt(oddsInput, 10);
-            if (isNaN(num)) {
-                newErrors.odds = 'Odds must be a valid integer.';
-            } else if (num > -100 && num < 100) {
-                newErrors.odds = 'Odds must be <= -100 or >= 100.';
-            }
-        }
-        setErrors(newErrors);
-    }, [lineInput, oddsInput]);
+    const selectedPlayer = useMemo(() => {
+        return selectedGame?.players.find(p => p.name === selectedPlayerName) || null;
+    }, [selectedGame, selectedPlayerName]);
     
-    // Derived state for selected items
-    const selectedGame = useMemo(() => games.find(g => g.id === selectedGameId), [games, selectedGameId]);
-    const selectedPlayer = useMemo(() => selectedGame?.players.find(p => p.name === selectedPlayerName), [selectedGame, selectedPlayerName]);
-    const selectedProp = useMemo(() => selectedPlayer?.props.find(p => p.propType === selectedPropType), [selectedPlayer, selectedPropType]);
-
-    // Parsed values from input for validation and use in components
-    const parsedLine = useMemo(() => {
-        const num = parseFloat(lineInput);
-        return isNaN(num) ? null : num;
-    }, [lineInput]);
-
-    const parsedOdds = useMemo(() => {
-        if (oddsInput.trim() === '-') return null; // Allow typing negative
-        const num = parseInt(oddsInput, 10);
-        return isNaN(num) ? null : num;
-    }, [oddsInput]);
-
-    const historicalOdds = useMemo(() => {
-        if (parsedOdds !== null && !errors.odds) {
-            return generateHistoricalOdds(parsedOdds);
-        }
-        return null;
-    }, [parsedOdds, errors.odds]);
-
-    const advancedStatsForProp = useMemo((): AdvancedStat[] | null => {
-        if (!selectedPlayer?.name || !selectedPropType) return null;
-        const playerStats = ADVANCED_STATS[selectedPlayer.name];
-        if (!playerStats) return null;
-        return playerStats[selectedPropType] || null;
+    const selectedProp = useMemo(() => {
+        return selectedPlayer?.props.find(p => p.propType === selectedPropType) || null;
     }, [selectedPlayer, selectedPropType]);
 
-    // Effect to pre-fill inputs when a new line is selected from market analysis
-    const handleLineSelection = (line: LineOdds | MarketLineAnalysis, position: 'Over' | 'Under') => {
-        setLineInput(line.line.toString());
-        setSelectedPosition(position);
-        setOddsInput(position === 'Over' ? line.overOdds.toString() : line.underOdds.toString());
-    };
+    const parlayOdds = useMemo(() => calculateParlayOdds(legs), [legs]);
 
-    // Effect to update inputs when prop type changes
-    useEffect(() => {
+    const opponentInfo: OpponentInfo | null = useMemo(() => {
+        if (!selectedPlayer || !selectedGame) return null;
+
+        const teams = selectedGame.name.split(' @ ');
+        const playerTeamName = TEAM_ABBREVIATION_TO_NAME[selectedPlayer.team];
+        const opponentTeamName = teams.find(t => t !== playerTeamName);
+        if (!opponentTeamName) return null;
+
+        const opponentAbbr = TEAM_NAME_TO_ABBREVIATION[opponentTeamName];
+        const opponentStats = DEFENSIVE_STATS[opponentTeamName];
+        const overallRank = opponentStats ? (opponentStats.overall as { rank: number }).rank : null;
+
+        return {
+            fullName: opponentTeamName,
+            abbr: opponentAbbr,
+            overallRank: overallRank,
+        };
+    }, [selectedGame, selectedPlayer]);
+
+    const displayableOpponentStat: DisplayableOpponentStat | null = useMemo(() => {
+        if (!opponentInfo || !selectedPropType) return null;
+        
+        const opponentStats = DEFENSIVE_STATS[opponentInfo.fullName];
+        if (!opponentStats) return null;
+
+        // Special handling for TE/WR props
+        let propKey = selectedPropType;
+        if (propKey === 'Receiving Yards' || propKey === 'Receptions') {
+             if (selectedPlayer?.position === 'TE') propKey = 'vsTE';
+             else if (selectedPlayer?.position === 'WR') propKey = 'vsWR';
+        }
+
+        const stat = opponentStats?.[propKey];
+        if (stat && typeof stat === 'object' && 'value' in stat && 'rank' in stat && 'unit' in stat) {
+            return {
+                opponentAbbr: opponentInfo.abbr,
+                value: stat.value,
+                unit: stat.unit,
+                rank: stat.rank,
+                label: getConciseStatLabel(selectedPropType)
+            }
+        }
+        return null;
+
+    }, [opponentInfo, selectedPropType, selectedPlayer]);
+
+    const resetSelection = (level: 'game' | 'player' | 'prop' | 'full') => {
         setMarketAnalysis(null);
         setMarketAnalysisError(null);
-        if (selectedProp && selectedProp.lines.length > 0) {
-            const defaultLine = selectedProp.lines[Math.floor(selectedProp.lines.length / 2)];
-            handleLineSelection(defaultLine, 'Over');
-        } else {
-            setLineInput('');
-            setSelectedPosition(null);
-            setOddsInput('');
-        }
-    }, [selectedProp]);
+        setIsAnalyzingMarket(false);
 
-    // Effect to update odds automatically when position is toggled for a known line
-    useEffect(() => {
-        if (!selectedProp || !selectedPosition || parsedLine === null) return;
-
-        const matchingLine = selectedProp.lines.find(l => l.line === parsedLine);
-        if (matchingLine) {
-            const newOdds = selectedPosition === 'Over' ? matchingLine.overOdds : matchingLine.underOdds;
-            setOddsInput(newOdds.toString());
+        if (level === 'full') {
+            setSelectedGameId(null);
         }
-    }, [selectedPosition, parsedLine, selectedProp]);
+        if (level === 'full' || level === 'game') {
+            setSelectedPlayerName(null);
+            setSearchTerm('');
+        }
+        if (level !== 'prop') {
+             setSelectedPropType(null);
+        }
+        setLineInput('');
+        setOddsInput('');
+        setSelectedPosition(null);
+        setErrors({});
+    };
 
     const handleAnalyzeMarket = async () => {
-        if (!selectedPlayer || !selectedProp) return;
+        if (!selectedProp || !selectedPlayer) return;
+
         setIsAnalyzingMarket(true);
         setMarketAnalysis(null);
         setMarketAnalysisError(null);
 
         try {
-            const primaryLine = selectedProp.lines[Math.floor(selectedProp.lines.length / 2)];
-            const query = `Analyze the market for ${selectedPlayer.name} ${selectedProp.propType}. The primary line is ${primaryLine.line} with odds O:${primaryLine.overOdds}/U:${primaryLine.underOdds}. Provide your best projection for the mean and standard deviation.`;
-            
-            const analysis = await getAnalysis(query);
-            const { projectedMean, projectedStdDev } = analysis.quantitative;
-            
+            const query = `Analyze the market for ${selectedPlayer.name} - ${selectedPropType}. His historical season average is ${selectedProp.historicalContext?.seasonAvg} and his last 5 games average is ${selectedProp.historicalContext?.last5Avg}. Provide your core projections (mean and std dev) for the final outcome.`;
+            const baseAnalysis = await getAnalysis(query);
+
+            const { projectedMean, projectedStdDev } = baseAnalysis.quantitative;
+
             if (projectedMean === undefined || projectedStdDev === undefined) {
-                throw new Error("AI analysis did not return the required projections (mean/std dev).");
+                throw new Error("AI analysis did not return the required projected mean and standard deviation.");
             }
 
-            let optimalBet: MarketAnalysis['optimalBet'] = null;
-            
-            const lineAnalyses = selectedProp.lines.map(line => {
+            const marketLines: MarketLineAnalysis[] = selectedProp.lines.map(line => {
                 const probOver = 1 - normalCdf(line.line, projectedMean, projectedStdDev);
-                const probUnder = 1 - probOver;
-                
-                const overEV = calculateSingleLegEV(probOver, line.overOdds);
-                const underEV = calculateSingleLegEV(probUnder, line.underOdds);
+                const probUnder = normalCdf(line.line, projectedMean, projectedStdDev);
 
-                if (optimalBet === null || overEV > optimalBet.ev) {
-                    optimalBet = { line: line.line, position: 'Over', ev: overEV, odds: line.overOdds };
-                }
-                if (optimalBet === null || underEV > optimalBet.ev) {
-                    optimalBet = { line: line.line, position: 'Under', ev: underEV, odds: line.underOdds };
-                }
+                return {
+                    line: line.line,
+                    overOdds: line.overOdds,
+                    underOdds: line.underOdds,
+                    overEV: calculateSingleLegEV(probOver, line.overOdds),
+                    underEV: calculateSingleLegEV(probUnder, line.underOdds)
+                };
+            });
+            
+            let optimalBet: MarketAnalysis['optimalBet'] = null;
+            let maxEV = 0;
 
-                return { line: line.line, overOdds: line.overOdds, underOdds: line.underOdds, overEV, underEV };
+            marketLines.forEach(line => {
+                if (line.overEV > maxEV) {
+                    maxEV = line.overEV;
+                    optimalBet = { line: line.line, position: 'Over', ev: line.overEV, odds: line.overOdds };
+                }
+                if (line.underEV > maxEV) {
+                    maxEV = line.underEV;
+                    optimalBet = { line: line.line, position: 'Under', ev: line.underEV, odds: line.underOdds };
+                }
             });
 
-            setMarketAnalysis({ lines: lineAnalyses, optimalBet, baseAnalysis: analysis });
+            setMarketAnalysis({
+                lines: marketLines,
+                optimalBet,
+                baseAnalysis
+            });
 
         } catch (err) {
-            const msg = err instanceof Error ? err.message : "An unknown error occurred during market analysis.";
-            setMarketAnalysisError(msg);
+            const message = err instanceof Error ? err.message : "An unknown error occurred during market analysis.";
+            setMarketAnalysisError(message);
         } finally {
             setIsAnalyzingMarket(false);
         }
     };
+    
+    const handleSelectLine = (line: number, position: 'Over' | 'Under', odds: number) => {
+        setLineInput(String(line));
+        setSelectedPosition(position);
+        setOddsInput(String(odds));
+    };
 
     const handleAddLeg = () => {
-        if (!selectedPlayer || !selectedPropType || parsedLine === null || !selectedPosition || parsedOdds === null) return;
+        const line = parseFloat(lineInput);
+        const odds = parseInt(oddsInput, 10);
         
+        let hasError = false;
+        const newErrors: typeof errors = {};
+        if (isNaN(line) || line <= 0) {
+            newErrors.line = "Invalid line";
+            hasError = true;
+        }
+        if (isNaN(odds) || Math.abs(odds) < 100) {
+            newErrors.odds = "Invalid odds";
+            hasError = true;
+        }
+        if (!selectedPosition) {
+            // This case shouldn't happen with the UI, but good to have
+            hasError = true;
+        }
+
+        setErrors(newErrors);
+
+        if (hasError || !selectedPlayer || !selectedPropType || !selectedPosition) {
+            return;
+        }
+
         const newLeg: EnrichedLeg = {
             player: selectedPlayer.name,
             propType: selectedPropType,
-            line: parsedLine,
+            line: line,
             position: selectedPosition,
-            marketOdds: parsedOdds,
+            marketOdds: odds,
             playerDetails: selectedPlayer,
             propDetails: selectedProp
         };
+
         setLegs(prev => [...prev, newLeg]);
+        resetSelection('prop'); // Reset prop selection but keep player
+        setCorrelationAnalysis(null);
     };
 
     const handleRemoveLeg = (index: number) => {
         setLegs(prev => prev.filter((_, i) => i !== index));
+        setCorrelationAnalysis(null);
     };
-
-    const parlayOdds = useMemo(() => calculateParlayOdds(legs), [legs]);
-
-    const filteredGames = useMemo(() => {
-        if (!searchTerm) return games;
-        const lowerSearchTerm = searchTerm.toLowerCase();
-        return games.filter(game =>
-            game.name.toLowerCase().includes(lowerSearchTerm) ||
-            game.players.some(player => player.name.toLowerCase().includes(lowerSearchTerm))
-        );
-    }, [games, searchTerm]);
-
-    const opponentInfo = useMemo((): OpponentInfo | null => {
-        if (!selectedGame || !selectedPlayer) return null;
-        
-        const gameTeams = selectedGame.name.split(' @ ');
-        const playerTeamName = TEAM_ABBREVIATION_TO_NAME[selectedPlayer.team];
-        const opponentTeamName = gameTeams.find(team => team !== playerTeamName);
-        if (!opponentTeamName) return null;
-
-        const opponentDefensiveStats = DEFENSIVE_STATS[opponentTeamName];
-        const overallRank = opponentDefensiveStats ? opponentDefensiveStats.overall.rank : null;
-
-        return {
-            fullName: opponentTeamName,
-            abbr: TEAM_NAME_TO_ABBREVIATION[opponentTeamName] || 'N/A',
-            overallRank: overallRank,
-        };
-    }, [selectedGame, selectedPlayer]);
-
-    const opponentStat = useMemo((): DisplayableOpponentStat | null => {
-        if (!opponentInfo || !selectedPlayer || !selectedPropType) return null;
-    
-        const opponentDefensiveStats = DEFENSIVE_STATS[opponentInfo.fullName];
-        if (!opponentDefensiveStats) return null;
-
-        // More robust mapping to find the correct counter-stat
-        const getStatKey = () => {
-            const playerPosition = selectedPlayer.position;
-            
-            // 1. Positional overrides for receiving props
-            if (['Receiving Yards', 'Receptions'].includes(selectedPropType)) {
-                if (playerPosition === 'TE' && opponentDefensiveStats['vsTE']) return 'vsTE';
-                if (playerPosition === 'WR' && opponentDefensiveStats['vsWR']) return 'vsWR';
-            }
-            // 2. Direct mapping for special prop types
-            const directMapping: Record<string, string> = {
-                'Sacks': 'Sacks Allowed',
-                '1st Half Passing Yards': '1st Half Passing Yards Allowed'
-            };
-            if (directMapping[selectedPropType] && opponentDefensiveStats[directMapping[selectedPropType]]) {
-                return directMapping[selectedPropType];
-            }
-
-            // 3. Fallback to propType itself
-            return selectedPropType;
-        };
-        
-        const statKey = getStatKey();
-        const statData = opponentDefensiveStats[statKey];
-    
-        // Type guard to ensure we have a full DefensiveStat object
-        if (statData && 'value' in statData) {
-            return {
-                opponentAbbr: opponentInfo.abbr,
-                value: statData.value,
-                unit: statData.unit,
-                rank: statData.rank,
-                label: getConciseStatLabel(selectedPropType),
-            };
-        }
-    
-        return null;
-    }, [opponentInfo, selectedPlayer, selectedPropType]);
 
     const handleSaveParlay = () => {
         if (legs.length === 0) return;
-        const name = prompt("Enter a name for this parlay:", `Parlay - ${new Date().toLocaleDateString()}`);
+
+        let name = prompt(`Enter a name for this parlay (${legs.length} legs, ${formatAmericanOdds(parlayOdds)}):`, `Parlay - ${new Date().toLocaleDateString()}`);
+
         if (name) {
             const newParlay: SavedParlay = {
                 id: `parlay_${Date.now()}`,
                 name,
                 odds: parlayOdds,
-                legs,
+                legs: legs.map(({ playerDetails, propDetails, ...rest }) => rest), // Strip enriched data before saving
                 createdAt: new Date().toISOString(),
             };
             const updatedParlays = [...savedParlays, newParlay];
             setSavedParlays(updatedParlays);
             localStorage.setItem(SAVED_PARLAYS_LIST_KEY, JSON.stringify(updatedParlays));
+            alert(`Parlay "${name}" saved!`);
         }
     };
 
-    const handleLoadParlay = (parlay: SavedParlay) => {
-        setLegs(parlay.legs);
-        setIsParlayManagerOpen(false);
-    };
-
-    const handleDeleteParlay = (parlayId: string) => {
-        const updatedParlays = savedParlays.filter(p => p.id !== parlayId);
-        setSavedParlays(updatedParlays);
-        localStorage.setItem(SAVED_PARLAYS_LIST_KEY, JSON.stringify(updatedParlays));
-    };
-
-    // Main render content divided into sections for clarity
-    const renderPlayerList = () => (
-        <div className="flex-1 overflow-y-auto">
-            {scheduleError && <div className="p-4 text-sm text-yellow-300 bg-yellow-500/10 rounded-md m-4">{scheduleError}</div>}
-            {filteredGames.map((game) => (
-                <div key={game.id} className="mb-4">
-                    <button
-                        onClick={() => setSelectedGameId(game.id === selectedGameId ? null : game.id)}
-                        className="w-full text-left p-2 rounded-md bg-gray-800/60 hover:bg-gray-800"
-                    >
-                        <h3 className="text-sm font-semibold text-gray-300">{game.name}</h3>
-                    </button>
-                    {selectedGameId === game.id && (
-                        <div className="pl-2 pt-2 border-l-2 border-gray-700 ml-2">
-                            {game.players.map(player => (
-                                <div key={player.name} className="mb-2">
-                                    <button
-                                        onClick={() => setSelectedPlayerName(player.name)}
-                                        className={`w-full text-left p-2 rounded-md transition-colors ${selectedPlayerName === player.name ? 'bg-cyan-500/10' : 'hover:bg-gray-800/50'}`}
-                                    >
-                                        <p className="font-semibold text-gray-200 text-sm">{player.name}</p>
-                                        <p className="text-xs text-gray-500">{player.position} - {player.team}</p>
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            ))}
-        </div>
-    );
-    
-    const renderBetConstructor = () => (
-         <div className="mt-4 bg-gray-900/50 p-3 rounded-lg border border-gray-700/70">
-            <h4 className="text-sm font-semibold text-gray-300 mb-3 text-center">Construct Your Bet</h4>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-start">
-                {/* Line Input */}
-                <div>
-                    <label htmlFor="line-input" className="block text-xs font-medium text-gray-400 mb-1">Line</label>
-                    <input
-                        id="line-input"
-                        type="number"
-                        step="0.5"
-                        value={lineInput}
-                        onChange={(e) => setLineInput(e.target.value)}
-                        placeholder="e.g. 275.5"
-                        className={`w-full text-center rounded-md border bg-gray-800 py-2 px-2 text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-1 ${
-                            errors.line
-                                ? 'border-red-500/70 focus:border-red-500 focus:ring-red-500'
-                                : 'border-gray-600 focus:border-cyan-500 focus:ring-cyan-500'
-                        }`}
-                    />
-                    {errors.line && <p className="text-xs text-red-400 mt-1 text-center">{errors.line}</p>}
-                </div>
-
-                {/* Position Toggle */}
-                <div className="flex self-end">
-                    <button
-                        onClick={() => setSelectedPosition('Over')}
-                        className={`w-1/2 flex items-center justify-center gap-2 rounded-l-md py-2 text-sm font-semibold transition-colors border border-gray-600 ${
-                            selectedPosition === 'Over' ? 'bg-cyan-500 text-white border-cyan-500' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                        }`}
-                    >
-                        <ArrowUpCircleIcon className="h-4 w-4" /> Over
-                    </button>
-                    <button
-                        onClick={() => setSelectedPosition('Under')}
-                        className={`w-1/2 flex items-center justify-center gap-2 rounded-r-md py-2 text-sm font-semibold transition-colors border-y border-r border-gray-600 ${
-                            selectedPosition === 'Under' ? 'bg-cyan-500 text-white border-cyan-500' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                        }`}
-                    >
-                        <ArrowDownCircleIcon className="h-4 w-4" /> Under
-                    </button>
-                </div>
-
-                {/* Odds Input */}
-                <div>
-                    <label htmlFor="odds-input" className="block text-xs font-medium text-gray-400 mb-1">Odds</label>
-                    <input
-                        id="odds-input"
-                        type="text"
-                        value={oddsInput}
-                        onChange={(e) => {
-                            if (/^-?\d*$/.test(e.target.value)) {
-                                setOddsInput(e.target.value);
-                            }
-                        }}
-                        placeholder="e.g. -115"
-                        className={`w-full text-center rounded-md border bg-gray-800 py-2 px-2 text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-1 ${
-                            errors.odds
-                                ? 'border-red-500/70 focus:border-red-500 focus:ring-red-500'
-                                : 'border-gray-600 focus:border-cyan-500 focus:ring-cyan-500'
-                        }`}
-                    />
-                    {errors.odds && <p className="text-xs text-red-400 mt-1 text-center">{errors.odds}</p>}
-                </div>
-            </div>
-            {historicalOdds && (
-                <div className="mt-4">
-                    <h5 className="flex items-center justify-center gap-2 text-xs font-semibold text-gray-400 mb-1">
-                        <LineChartIcon className="h-3 w-3" />
-                        7-Day Odds Movement
-                    </h5>
-                    <OddsLineChart data={historicalOdds} />
-                </div>
-            )}
-        </div>
-    );
-    
-    const renderPlayerDetailView = () => {
-        if (!selectedPlayer) return null;
+    const handleLoadParlay = async (parlay: SavedParlay) => {
+        // We need to re-enrich the legs with player and prop details from our market data
+        const enrichedLegs: EnrichedLeg[] = [];
+        const allPlayers = games.flatMap(g => g.players);
         
-        const homeSplit = selectedPropType ? selectedPlayer.homeAwaySplits?.home[selectedPropType] : undefined;
-        const awaySplit = selectedPropType ? selectedPlayer.homeAwaySplits?.away[selectedPropType] : undefined;
-        const divisionalSplit = selectedPropType ? selectedPlayer.divisionalSplits?.[selectedPropType] : undefined;
+        for (const leg of parlay.legs) {
+            const playerDetails = allPlayers.find(p => p.name === leg.player);
+            const propDetails = playerDetails?.props.find(p => p.propType === leg.propType);
+            enrichedLegs.push({ ...leg, playerDetails, propDetails });
+        }
+        
+        setLegs(enrichedLegs);
+        setIsParlayManagerOpen(false);
+        resetSelection('full');
+    };
+    
+    const handleDeleteParlay = (parlayId: string) => {
+        if (window.confirm("Are you sure you want to delete this saved parlay?")) {
+            const updatedParlays = savedParlays.filter(p => p.id !== parlayId);
+            setSavedParlays(updatedParlays);
+            localStorage.setItem(SAVED_PARLAYS_LIST_KEY, JSON.stringify(updatedParlays));
+        }
+    };
 
-        const isAddButtonDisabled = !!errors.line ||
-                                    !!errors.odds ||
-                                    !selectedPlayer ||
-                                    !selectedPropType ||
-                                    parsedLine === null ||
-                                    !selectedPosition ||
-                                    parsedOdds === null;
+    const handleAnalyzeCorrelation = async () => {
+        if (legs.length < 2) return;
+        setIsAnalyzingCorrelation(true);
+        setCorrelationError(null);
+        setCorrelationAnalysis(null);
+        try {
+            const analysis = await analyzeParlayCorrelation(legs.map(({ playerDetails, propDetails, ...rest }) => rest));
+            setCorrelationAnalysis(analysis);
+        } catch (err) {
+            setCorrelationError(err instanceof Error ? err.message : 'An unknown error occurred.');
+        } finally {
+            setIsAnalyzingCorrelation(false);
+        }
+    };
+    
+    const resetBuilder = () => {
+        setLegs([]);
+        resetSelection('full');
+        setCorrelationAnalysis(null);
+        setCorrelationError(null);
+    };
 
-        return (
-        <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="p-4 border-b border-gray-700/50">
-                <button onClick={() => setSelectedPlayerName(null)} className="flex items-center gap-1 text-sm text-gray-400 hover:text-cyan-400">
-                    <ChevronLeftIcon className="h-4 w-4" /> Back to Players
-                </button>
-                <div className="mt-2">
-                    <div className="flex items-center gap-3 mb-0.5">
-                        <h3 className="font-bold text-lg text-gray-100">{selectedPlayer.name}</h3>
-                        {selectedPlayer.injuryStatus && selectedPlayer.injuryStatus.status !== 'Healthy' && (
-                            <div className={`text-xs font-semibold px-2 py-1 rounded-full ${getInjuryStatusStyle(selectedPlayer.injuryStatus.status).bgColor} ${getInjuryStatusStyle(selectedPlayer.injuryStatus.status).color}`}>
-                                {selectedPlayer.injuryStatus.status}
-                            </div>
-                        )}
-                    </div>
-                    <p className="text-sm text-gray-400">{selectedPlayer.position} - {selectedPlayer.team}</p>
-                </div>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4">
-                 {selectedPlayer.injuryStatus && selectedPlayer.injuryStatus.status !== 'Healthy' && (
-                    <div className="mb-4 p-3 rounded-lg bg-gray-900/50 border border-gray-700/70">
-                        <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-1"><StethoscopeIcon className="h-4 w-4 text-cyan-400" /> Injury Report</h4>
-                        <p className="text-xs text-gray-400 mb-1"><strong>News:</strong> {selectedPlayer.injuryStatus.news}</p>
-                        <p className="text-xs text-gray-400"><strong>Impact:</strong> <RenderImpactText text={selectedPlayer.injuryStatus.impact} /></p>
-                    </div>
-                 )}
-
-                 {opponentInfo && (
-                    <div className="mb-4 p-3 rounded-lg bg-gray-900/50 border border-gray-700/70">
-                        <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-2"><ShieldIcon className="h-4 w-4 text-cyan-400" /> Opponent Profile: {opponentInfo.fullName}</h4>
-                        <div className="flex justify-around text-center">
-                            <div>
-                                <p className="text-xs text-gray-400">Overall Def Rank</p>
-                                <p className={`text-lg font-bold ${getRankCategory(opponentInfo.overallRank).color}`}>{opponentInfo.overallRank || 'N/A'}</p>
-                            </div>
-                           {opponentStat && (
-                                <div>
-                                    <p className="text-xs text-gray-400">{opponentStat.label}</p>
-                                    <p className={`text-lg font-bold ${getRankCategory(opponentStat.rank).color}`}>{opponentStat.rank || 'N/A'}</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                 )}
-
-                <div className="space-y-2">
-                    <p className="text-sm font-semibold text-gray-400">Select Prop:</p>
-                    <div className="flex flex-wrap gap-2">
-                        {selectedPlayer.props.map(prop => (
-                            <button
-                                key={prop.propType}
-                                onClick={() => setSelectedPropType(prop.propType)}
-                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${selectedPropType === prop.propType ? 'bg-cyan-500 text-white' : 'bg-gray-700 hover:bg-gray-600 text-gray-300'}`}
-                            >
-                                {prop.propType}
+    const renderSelectionPanel = () => {
+        if (!selectedGameId) {
+            return (
+                <div className="p-4">
+                    <h3 className="text-gray-300 font-semibold mb-2">Select a Game</h3>
+                    {scheduleLoading && <p className="text-sm text-gray-400">Loading schedule...</p>}
+                    {scheduleError && <p className="text-sm text-yellow-400 bg-yellow-500/10 p-2 rounded">{scheduleError}</p>}
+                    <div className="space-y-2">
+                        {games.map(game => (
+                            <button key={game.id} onClick={() => setSelectedGameId(game.id)} className="w-full text-left p-2 rounded-md bg-gray-800 hover:bg-gray-700/80 transition-colors">
+                                <span className="text-gray-200 text-sm font-medium">{game.name}</span>
                             </button>
                         ))}
                     </div>
                 </div>
-
-                {selectedProp && (
-                    <div className="mt-4 border-t border-gray-700/50 pt-4">
-                        {/* MARKET ANALYSIS PANEL */}
-                        <div className="mb-4 p-3 rounded-lg bg-gray-900/50 border border-gray-700/70">
-                            <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-3">Market Analysis</h4>
-                            {!marketAnalysis && !isAnalyzingMarket && (
-                                <>
-                                    <div className="max-h-32 overflow-y-auto space-y-1 pr-2 mb-3">
-                                        {selectedProp.lines.map(line => (
-                                            <div key={line.line} className="grid grid-cols-3 gap-2 items-center text-center text-xs">
-                                                <button onClick={() => handleLineSelection(line, 'Over')} className={`p-1 rounded font-mono transition-colors ${selectedPosition === 'Over' && parsedLine === line.line ? 'bg-cyan-500/20 text-cyan-300' : 'bg-gray-800/60 hover:bg-gray-700/80 text-gray-300'}`}>{formatAmericanOdds(line.overOdds)}</button>
-                                                <div className="font-semibold text-gray-400">{line.line}</div>
-                                                <button onClick={() => handleLineSelection(line, 'Under')} className={`p-1 rounded font-mono transition-colors ${selectedPosition === 'Under' && parsedLine === line.line ? 'bg-cyan-500/20 text-cyan-300' : 'bg-gray-800/60 hover:bg-gray-700/80 text-gray-300'}`}>{formatAmericanOdds(line.underOdds)}</button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <button onClick={handleAnalyzeMarket} className="w-full flex items-center justify-center gap-2 rounded-md bg-gray-700 px-4 py-2 text-xs font-semibold text-cyan-300 transition-colors hover:bg-gray-600">
-                                        <SparklesIcon className="h-4 w-4" /> Analyze Market & Find Optimal Line
-                                    </button>
-                                </>
-                            )}
-                            {isAnalyzingMarket && (
-                                <div className="text-center text-sm text-gray-400 py-4">
-                                    <p>Analyzing market with AI core...</p>
-                                    <p className="text-xs text-gray-500">Calculating EV for all alternate lines.</p>
+            )
+        }
+        if (!selectedPlayerName) {
+            return (
+                <div className="p-4">
+                    <button onClick={() => resetSelection('full')} className="text-xs text-cyan-400 hover:underline mb-2 flex items-center gap-1">
+                       <ChevronLeftIcon className="h-3 w-3" /> Back to Games
+                    </button>
+                    <h3 className="text-gray-300 font-semibold mb-2 truncate">{selectedGame?.name}</h3>
+                     <div className="relative mb-2">
+                        <SearchIcon className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Search player..."
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                            className="w-full bg-gray-800 border border-gray-600 rounded-md py-1.5 pl-8 pr-2 text-sm text-gray-200 focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500"
+                        />
+                    </div>
+                    <div className="space-y-1 max-h-96 overflow-y-auto">
+                        {filteredPlayers.map(player => (
+                            <button key={player.name} onClick={() => setSelectedPlayerName(player.name)} className="w-full text-left p-2 rounded-md hover:bg-gray-700/80 transition-colors flex items-center justify-between">
+                                <div>
+                                    <span className="text-gray-200 text-sm font-medium">{player.name}</span>
+                                    <span className="text-gray-500 text-xs ml-2">{player.position}</span>
                                 </div>
-                            )}
-                            {marketAnalysisError && <p className="text-red-400 text-xs text-center py-4">{marketAnalysisError}</p>}
-                            {marketAnalysis && (
-                                <>
-                                <div className="text-xs text-center text-gray-400 mb-2">Model Projection: <span className="font-mono text-cyan-300">{marketAnalysis.baseAnalysis.quantitative.projectedMean?.toFixed(2)}</span> (±{marketAnalysis.baseAnalysis.quantitative.projectedStdDev?.toFixed(2)})</div>
-                                <div className="w-full text-xs text-center">
-                                    <div className="grid grid-cols-5 gap-2 font-semibold text-gray-500 pb-1 border-b border-gray-700">
-                                        <div className="text-left">Over</div><div>+EV</div><div>Line</div><div>+EV</div><div className="text-right">Under</div>
+                                {player.injuryStatus && (
+                                     <span className={`text-xs px-1.5 py-0.5 rounded-full ${getInjuryStatusStyle(player.injuryStatus.status).bgColor} ${getInjuryStatusStyle(player.injuryStatus.status).color}`}>
+                                        {player.injuryStatus.status.charAt(0)}
+                                    </span>
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+        if (!selectedPropType) {
+             return (
+                <div className="p-4">
+                    <button onClick={() => resetSelection('game')} className="text-xs text-cyan-400 hover:underline mb-2 flex items-center gap-1">
+                       <ChevronLeftIcon className="h-3 w-3" /> Back to Players
+                    </button>
+                    <div className="flex items-start gap-3 p-2 rounded-lg bg-gray-800/50 mb-3">
+                        <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center text-cyan-400 font-bold text-lg flex-shrink-0">
+                           {selectedPlayer.name.split(' ').map(n => n[0]).join('')}
+                        </div>
+                        <div>
+                            <h3 className="text-gray-200 font-semibold">{selectedPlayer.name}</h3>
+                            <p className="text-xs text-gray-400">{selectedPlayer.position} - {selectedPlayer.team}</p>
+                        </div>
+                    </div>
+
+                    {opponentInfo && (
+                        <div className="mb-3 p-2 border border-gray-700/50 rounded-lg bg-gray-900/30">
+                            <h4 className="text-xs text-gray-400 uppercase font-semibold mb-1">Matchup</h4>
+                            <div className="flex items-center gap-2 text-sm">
+                                <ShieldIcon className="h-4 w-4 text-cyan-400"/>
+                                <span>vs {opponentInfo.abbr} Defense</span>
+                                {opponentInfo.overallRank && (
+                                  <span className={`text-xs px-1.5 py-0.5 rounded-full border ${getRankCategory(opponentInfo.overallRank).bgColor} ${getRankCategory(opponentInfo.overallRank).borderColor} ${getRankCategory(opponentInfo.overallRank).color}`}>
+                                    #{opponentInfo.overallRank} Overall
+                                </span>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                    
+                    <h4 className="text-gray-300 font-semibold text-sm mb-1">Select Prop Market</h4>
+                    <div className="space-y-1 max-h-96 overflow-y-auto">
+                        {selectedPlayer.props.map(prop => (
+                            <button key={prop.propType} onClick={() => setSelectedPropType(prop.propType)} className="w-full text-left p-2 rounded-md hover:bg-gray-700/80 transition-colors flex items-center justify-between text-sm">
+                                <span className="text-gray-200">{prop.propType}</span>
+                                {prop.historicalContext && (
+                                    <MicroPerformanceChart gameLog={prop.historicalContext.gameLog || []} selectedLine={prop.lines[0].line} />
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+        // Prop is selected, show market details
+        return (
+            <div className="p-4 flex flex-col h-full">
+                <button onClick={() => resetSelection('player')} className="text-xs text-cyan-400 hover:underline mb-2 flex items-center gap-1">
+                    <ChevronLeftIcon className="h-3 w-3" /> Back to Props
+                </button>
+                <h3 className="text-gray-200 font-semibold">{selectedPlayer.name}</h3>
+                <p className="text-sm text-cyan-400 mb-2">{selectedPropType}</p>
+
+                <div className="flex-grow overflow-y-auto pr-2 -mr-2">
+                    {displayableOpponentStat && (
+                        <div className="mb-3 p-2 border border-gray-700/50 rounded-lg bg-gray-900/30">
+                            <h4 className="text-xs text-gray-400 uppercase font-semibold mb-1">Positional Matchup</h4>
+                            <div className="flex items-center gap-2 text-sm">
+                                <CrosshairIcon className="h-4 w-4 text-cyan-400"/>
+                                <span>vs {displayableOpponentStat.opponentAbbr}</span>
+                                <span className={`text-xs px-1.5 py-0.5 rounded-full border ${getRankCategory(displayableOpponentStat.rank).bgColor} ${getRankCategory(displayableOpponentStat.rank).borderColor} ${getRankCategory(displayableOpponentStat.rank).color}`}>
+                                    #{displayableOpponentStat.rank} vs {selectedPlayer.position}
+                                </span>
+                            </div>
+                             <p className="text-xs text-gray-500 mt-1">{displayableOpponentStat.label}: {displayableOpponentStat.value.toFixed(1)} {displayableOpponentStat.unit}</p>
+                        </div>
+                    )}
+
+                    {selectedPlayer.injuryStatus && (
+                         <div className="mb-3 p-2 border border-gray-700/50 rounded-lg bg-gray-900/30">
+                            <h4 className="flex items-center gap-1.5 text-xs text-gray-400 uppercase font-semibold mb-1"><StethoscopeIcon className="h-3.5 w-3.5" />Injury Status</h4>
+                            <div className={`text-sm font-semibold ${getInjuryStatusStyle(selectedPlayer.injuryStatus.status).color}`}>{getInjuryStatusStyle(selectedPlayer.injuryStatus.status).text}</div>
+                            <p className="text-xs text-gray-500 mt-0.5">{selectedPlayer.injuryStatus.news}</p>
+                            <div className="mt-1.5 pt-1.5 border-t border-gray-700/50 text-xs text-gray-400 italic">
+                                <strong className="text-gray-300 not-italic">Impact: </strong>
+                                <RenderImpactText text={selectedPlayer.injuryStatus.impact} />
+                            </div>
+                         </div>
+                    )}
+                    
+                    {selectedPlayer.homeAwaySplits && (
+                        <div className="mb-3 p-2 border border-gray-700/50 rounded-lg bg-gray-900/30">
+                            <h4 className="text-xs text-gray-400 uppercase font-semibold mb-2">Performance Splits</h4>
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                <div className="bg-gray-800 p-1.5 rounded">
+                                    <div className="flex items-center gap-1 text-gray-300"><HomeIcon className="h-3.5 w-3.5" /> Home</div>
+                                    <div className="font-mono text-cyan-300">{selectedPlayer.homeAwaySplits.home[selectedPropType]?.toFixed(1) || 'N/A'}</div>
+                                </div>
+                                <div className="bg-gray-800 p-1.5 rounded">
+                                    <div className="flex items-center gap-1 text-gray-300"><PlaneIcon className="h-3.5 w-3.5" /> Away</div>
+                                    <div className="font-mono text-cyan-300">{selectedPlayer.homeAwaySplits.away[selectedPropType]?.toFixed(1) || 'N/A'}</div>
+                                </div>
+                                {selectedPlayer.divisionalSplits && (
+                                     <div className="bg-gray-800 p-1.5 rounded col-span-2">
+                                        <div className="flex items-center gap-1 text-gray-300"><SwordsIcon className="h-3.5 w-3.5" /> Divisional</div>
+                                        <div className="font-mono text-cyan-300">{selectedPlayer.divisionalSplits[selectedPropType]?.toFixed(1) || 'N/A'}</div>
                                     </div>
-                                    <div className="max-h-40 overflow-y-auto space-y-1 pt-1 pr-2">
-                                        {marketAnalysis.lines.map(line => {
-                                            const isOptimalOver = marketAnalysis.optimalBet?.line === line.line && marketAnalysis.optimalBet?.position === 'Over';
-                                            const isOptimalUnder = marketAnalysis.optimalBet?.line === line.line && marketAnalysis.optimalBet?.position === 'Under';
+                                )}
+                            </div>
+                        </div>
+                    )}
+                    
+                    <button onClick={handleAnalyzeMarket} disabled={isAnalyzingMarket} className="w-full flex items-center justify-center gap-2 rounded-md bg-cyan-500/20 px-3 py-2 text-sm font-semibold text-cyan-300 transition-colors hover:bg-cyan-500/30 disabled:opacity-50 disabled:cursor-not-allowed mb-3">
+                        <SparklesIcon className="h-4 w-4" />
+                        {isAnalyzingMarket ? 'Analyzing Market...' : 'Run AI Market Analysis'}
+                    </button>
+                    
+                    {isAnalyzingMarket && <div className="text-center text-xs text-gray-400">AI is calculating projections...</div>}
+                    {marketAnalysisError && <div className="text-center text-xs text-red-400 p-2 bg-red-500/10 rounded">{marketAnalysisError}</div>}
+                    
+                    {marketAnalysis ? (
+                        <div className="space-y-2">
+                             <div className="p-2 bg-gray-900/40 rounded-lg border border-cyan-500/30">
+                                <p className="text-xs text-cyan-400 font-semibold mb-1">Optimal Bet Identified:</p>
+                                {marketAnalysis.optimalBet ? (
+                                    <div className="text-sm">
+                                        <span className="font-bold text-gray-200">{marketAnalysis.optimalBet.position} {marketAnalysis.optimalBet.line}</span> at <span className="font-mono">{formatAmericanOdds(marketAnalysis.optimalBet.odds)}</span> with a <span className={`font-bold ${marketAnalysis.optimalBet.ev > 0 ? 'text-green-400' : 'text-red-400'}`}>{marketAnalysis.optimalBet.ev.toFixed(2)}% EV</span>
+                                    </div>
+                                ) : (
+                                    <p className="text-sm text-gray-400">No positive EV found in the current market lines.</p>
+                                )}
+                            </div>
+                            {marketAnalysis.lines.map(line => (
+                                <div key={line.line} className="grid grid-cols-3 gap-2 items-center text-center p-1 rounded-md bg-gray-800 hover:bg-gray-700/70">
+                                    <button onClick={() => handleSelectLine(line.line, 'Under', line.underOdds)} className={`p-1 rounded transition-colors ${line.underEV > 0 ? 'bg-green-500/10 hover:bg-green-500/20' : 'hover:bg-gray-700'}`}>
+                                        <div className={`font-mono text-xs ${line.underEV > 0 ? 'text-green-300' : 'text-gray-400'}`}>{line.underEV.toFixed(1)}% EV</div>
+                                        <div className="text-gray-300 text-sm font-semibold">{formatAmericanOdds(line.underOdds)}</div>
+                                    </button>
+                                    <div className="text-sm font-bold text-gray-200">
+                                        {line.line}
+                                        <div className="text-xs text-gray-500 font-normal">Under | Over</div>
+                                    </div>
+                                    <button onClick={() => handleSelectLine(line.line, 'Over', line.overOdds)} className={`p-1 rounded transition-colors ${line.overEV > 0 ? 'bg-green-500/10 hover:bg-green-500/20' : 'hover:bg-gray-700'}`}>
+                                        <div className={`font-mono text-xs ${line.overEV > 0 ? 'text-green-300' : 'text-gray-400'}`}>{line.overEV.toFixed(1)}% EV</div>
+                                        <div className="text-gray-300 text-sm font-semibold">{formatAmericanOdds(line.overOdds)}</div>
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="space-y-1">
+                             {selectedProp?.lines.map(line => (
+                                <div key={line.line} onClick={() => handleSelectLine(line.line, 'Over', line.overOdds)} className="grid grid-cols-3 gap-2 items-center text-center p-2 rounded-md bg-gray-800 cursor-pointer hover:bg-gray-700/70">
+                                    <div className="text-sm font-semibold text-gray-300">{formatAmericanOdds(line.underOdds)}</div>
+                                    <div className="text-sm font-bold text-gray-200">{line.line}</div>
+                                    <div className="text-sm font-semibold text-gray-300">{formatAmericanOdds(line.overOdds)}</div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    
+                    {ADVANCED_STATS[selectedPlayer.name]?.[selectedPropType] && (
+                         <div className="mt-3">
+                            <h4 className="flex items-center gap-1.5 text-xs text-gray-400 uppercase font-semibold mb-2"><TrendingUpIcon className="h-3.5 w-3.5" />Advanced Metrics</h4>
+                            <div className="space-y-1.5">
+                                {ADVANCED_STATS[selectedPlayer.name][selectedPropType].map(stat => (
+                                    <div key={stat.abbreviation} className="text-xs group relative">
+                                        <div className="flex justify-between items-center text-gray-300">
+                                            <span>{stat.abbreviation}</span>
+                                            <span className="font-mono">{stat.value.toFixed(2)} (#{stat.rank})</span>
+                                        </div>
+                                        <div className="w-full bg-gray-700 rounded-full h-1.5 mt-0.5">
+                                            <div className="bg-cyan-500 h-1.5 rounded-full" style={{ width: `${stat.percentile}%`}}></div>
+                                        </div>
+                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-2 bg-gray-950 text-xs text-gray-300 border border-gray-700 rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                                            <strong className="font-semibold text-cyan-400">{stat.name} ({stat.abbreviation})</strong>
+                                            <p className="text-gray-400">{stat.description}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    
+                    {selectedProp?.historicalContext && (
+                        <HistoricalPerformanceChart 
+                            gameLog={selectedProp.historicalContext.gameLog || []}
+                            selectedLine={parseFloat(lineInput) || selectedProp.lines[0].line}
+                            seasonAvg={selectedProp.historicalContext.seasonAvg || null}
+                            last5Avg={selectedProp.historicalContext.last5Avg || null}
+                        />
+                    )}
+                </div>
+
+                <div className="mt-auto pt-3 border-t border-gray-700/50">
+                     <div className="grid grid-cols-3 gap-2 mb-2">
+                         <div className="relative col-span-1">
+                            <input type="number" placeholder="Line" value={lineInput} onChange={e => setLineInput(e.target.value)} className={`w-full bg-gray-800 border ${errors.line ? 'border-red-500' : 'border-gray-600'} rounded-md py-1.5 px-2 text-sm text-gray-200 focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500`} />
+                         </div>
+                         <div className="flex items-center col-span-1 rounded-md border border-gray-600">
+                            <button onClick={() => setSelectedPosition('Under')} className={`w-1/2 py-1.5 text-sm rounded-l-md transition-colors ${selectedPosition === 'Under' ? 'bg-cyan-500 text-white' : 'bg-gray-800 hover:bg-gray-700 text-gray-300'}`}>U</button>
+                            <button onClick={() => setSelectedPosition('Over')} className={`w-1/2 py-1.5 text-sm rounded-r-md transition-colors ${selectedPosition === 'Over' ? 'bg-cyan-500 text-white' : 'bg-gray-800 hover:bg-gray-700 text-gray-300'}`}>O</button>
+                         </div>
+                         <div className="relative col-span-1">
+                            <input type="number" placeholder="Odds" value={oddsInput} onChange={e => setOddsInput(e.target.value)} className={`w-full bg-gray-800 border ${errors.odds ? 'border-red-500' : 'border-gray-600'} rounded-md py-1.5 px-2 text-sm text-gray-200 focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500`} />
+                         </div>
+                    </div>
+                    <button onClick={handleAddLeg} className="w-full flex items-center justify-center gap-2 rounded-md bg-cyan-500 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-cyan-600 disabled:opacity-50 disabled:cursor-not-allowed" disabled={!lineInput || !oddsInput || !selectedPosition}>
+                        <PlusIcon className="h-4 w-4" />
+                        Add to Slip
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="flex h-full w-full">
+            <button onClick={onBack} className="absolute top-[4.5rem] left-2 flex items-center gap-2 rounded-md bg-gray-700/50 px-3 py-1.5 text-sm font-medium text-gray-300 transition-colors hover:bg-gray-700 z-10">
+                <ChevronLeftIcon className="h-4 w-4" />
+                Back
+            </button>
+            <div className="w-1/3 min-w-[320px] max-w-[400px] border-r border-gray-700/50 bg-gray-900/50 flex flex-col">
+                {renderSelectionPanel()}
+            </div>
+            <div className="flex-1 p-4 flex flex-col">
+                <div className="flex justify-between items-center mb-2">
+                    <h2 className="text-lg font-semibold text-gray-200">Bet Slip</h2>
+                    <div>
+                         <button onClick={() => setIsParlayManagerOpen(true)} className="p-1.5 rounded-md text-gray-400 hover:text-cyan-400 hover:bg-gray-700 transition-colors mr-1" aria-label="Open saved parlays">
+                            <FolderOpenIcon className="h-5 w-5" />
+                        </button>
+                        <button onClick={handleSaveParlay} disabled={legs.length === 0} className="p-1.5 rounded-md text-gray-400 hover:text-cyan-400 hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" aria-label="Save current parlay">
+                            <SaveIcon className="h-5 w-5" />
+                        </button>
+                    </div>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto pr-2 -mr-2 space-y-2">
+                    {legs.length === 0 ? (
+                        <div className="flex h-full items-center justify-center text-center text-gray-500 p-4 border-2 border-dashed border-gray-700 rounded-lg">
+                            <div>
+                                <p className="font-semibold text-gray-400">Your Bet Slip is Empty</p>
+                                <p className="text-sm mt-1">Select a game, player, and prop to get started.</p>
+                            </div>
+                        </div>
+                    ) : (
+                        legs.map((leg, index) => (
+                            <div key={`${leg.player}-${leg.propType}-${index}`} className="bg-gray-800/70 p-2.5 rounded-lg flex items-center justify-between">
+                                <div>
+                                    <p className="font-semibold text-gray-200 text-sm">{leg.player}</p>
+                                    <p className="text-xs text-gray-400">{leg.position} {leg.line} {leg.propType}</p>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <span className="font-mono text-sm text-gray-200">{formatAmericanOdds(leg.marketOdds)}</span>
+                                    <button onClick={() => handleRemoveLeg(index)} className="p-1.5 rounded-md text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors">
+                                        <Trash2Icon className="h-4 w-4" />
+                                    </button>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+
+                {legs.length > 0 && (
+                    <div className="mt-auto pt-4 border-t border-gray-700/50">
+                        <div className="flex justify-between items-center text-sm mb-2">
+                            <span className="text-gray-400">{legs.length} Leg Parlay</span>
+                            <span className="text-xl font-bold font-mono text-yellow-300">{formatAmericanOdds(parlayOdds)}</span>
+                        </div>
+                        
+                        {legs.length > 1 && (
+                            <div className="mt-4 border-t border-gray-700/50 pt-4">
+                              <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-2">
+                                <SparklesIcon className="h-4 w-4 text-cyan-400" />
+                                Parlay Correlation
+                              </h4>
+                              <button
+                                onClick={handleAnalyzeCorrelation}
+                                disabled={isAnalyzingCorrelation}
+                                className="w-full flex items-center justify-center gap-2 rounded-md bg-cyan-500/20 px-3 py-2 text-sm font-semibold text-cyan-300 transition-colors hover:bg-cyan-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {isAnalyzingCorrelation ? 'Analyzing...' : 'Analyze Prop Correlations'}
+                              </button>
+                              {isAnalyzingCorrelation && <div className="text-center text-xs text-gray-400 mt-2">AI is analyzing relationships...</div>}
+                              {correlationError && <div className="text-center text-xs text-red-400 mt-2 p-2 bg-red-500/10 rounded">{correlationError}</div>}
+                              {correlationAnalysis && (
+                                <div className="mt-3 space-y-3 text-xs">
+                                    <div className="p-2 bg-gray-800/50 rounded-lg">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-gray-300 font-semibold">Overall Score</span>
+                                            <span className={`font-mono text-base font-bold px-2 py-0.5 rounded-full ${
+                                                correlationAnalysis.overallScore > 0.2 ? 'bg-green-500/20 text-green-300' :
+                                                correlationAnalysis.overallScore < -0.2 ? 'bg-red-500/20 text-red-300' :
+                                                'bg-gray-700 text-gray-300'
+                                            }`}>
+                                                {correlationAnalysis.overallScore.toFixed(2)}
+                                            </span>
+                                        </div>
+                                        <p className="mt-1.5 text-gray-400 italic text-center">{correlationAnalysis.summary}</p>
+                                    </div>
+                                    <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                                        {correlationAnalysis.analysis.map((detail, i) => {
+                                            const leg1 = legs[detail.leg1Index];
+                                            const leg2 = legs[detail.leg2Index];
+                                            const RelationshipIcon = detail.relationship === 'Positive' ? LinkIcon : detail.relationship === 'Negative' ? UnlinkIcon : MinusCircleIcon;
+                                            const color = detail.relationship === 'Positive' ? 'text-green-400' : detail.relationship === 'Negative' ? 'text-red-400' : 'text-gray-400';
                                             return (
-                                            <div key={line.line} className="grid grid-cols-5 gap-2 items-center font-mono rounded-md">
-                                                <button onClick={() => handleLineSelection(line, 'Over')} className={`text-left p-1 rounded transition-colors ${isOptimalOver ? 'bg-green-500/20 ring-1 ring-green-400' : 'hover:bg-gray-700/50'}`}>{formatAmericanOdds(line.overOdds)}</button>
-                                                <div className={`text-center p-1 rounded ${line.overEV > 0 ? 'text-green-400' : 'text-red-400'}`}>{line.overEV.toFixed(2)}%</div>
-                                                <div className="text-center text-gray-400">{line.line}</div>
-                                                <div className={`text-center p-1 rounded ${line.underEV > 0 ? 'text-green-400' : 'text-red-400'}`}>{line.underEV.toFixed(2)}%</div>
-                                                <button onClick={() => handleLineSelection(line, 'Under')} className={`text-right p-1 rounded transition-colors ${isOptimalUnder ? 'bg-green-500/20 ring-1 ring-green-400' : 'hover:bg-gray-700/50'}`}>{formatAmericanOdds(line.underOdds)}</button>
-                                            </div>
+                                                <div key={i} className="p-2 bg-gray-800/50 rounded-md">
+                                                     <div className="flex items-center justify-between font-semibold">
+                                                        <div className="flex items-center gap-1">
+                                                            <span>{leg1.player.split(' ').pop()} {leg1.position[0]}{leg1.line}{leg1.propType.slice(0,4)}</span>
+                                                            <span>-</span>
+                                                            <span>{leg2.player.split(' ').pop()} {leg2.position[0]}{leg2.line}{leg2.propType.slice(0,4)}</span>
+                                                        </div>
+                                                        <div className={`flex items-center gap-1 ${color}`}>
+                                                            <RelationshipIcon className="h-3.5 w-3.5" />
+                                                            <span>{detail.relationship}</span>
+                                                        </div>
+                                                     </div>
+                                                     <p className="text-gray-400 mt-1 text-2xs">{detail.explanation}</p>
+                                                </div>
                                             );
                                         })}
                                     </div>
                                 </div>
-                                </>
-                            )}
-                        </div>
-                        {/* END MARKET ANALYSIS PANEL */}
-
-                        {renderBetConstructor()}
-
-                        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {selectedProp.historicalContext && parsedLine !== null && (
-                                <HistoricalPerformanceChart
-                                    gameLog={selectedProp.historicalContext.gameLog || []}
-                                    selectedLine={parsedLine}
-                                    seasonAvg={selectedProp.historicalContext.seasonAvg || null}
-                                    last5Avg={selectedProp.historicalContext.last5Avg || null}
-                                />
-                            )}
-                            {advancedStatsForProp && (
-                                <div>
-                                    <h4 className="text-xs font-semibold text-gray-400 uppercase mb-2 flex items-center gap-2"><TrendingUpIcon className="h-3.5 w-3.5"/> Advanced Metrics</h4>
-                                    <div className="space-y-3">
-                                        {advancedStatsForProp.map(stat => (
-                                            <div key={stat.abbreviation} className="group relative">
-                                                <div className="flex justify-between items-center">
-                                                    <span className="text-sm font-medium text-gray-300">{stat.abbreviation}</span>
-                                                    <span className="text-sm font-mono text-cyan-300">{stat.value}</span>
-                                                </div>
-                                                <div className="w-full bg-gray-700 rounded-full h-1.5 mt-1">
-                                                    <div className="bg-cyan-500 h-1.5 rounded-full" style={{ width: `${stat.percentile}%` }}></div>
-                                                </div>
-                                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-2 bg-gray-950 text-xs text-gray-300 border border-gray-700 rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                                                    <strong className="font-semibold text-cyan-400">{stat.name}</strong>
-                                                    <p className="mt-1">{stat.description}</p>
-                                                    <p className="mt-1 font-mono">Rank: {stat.rank} ({stat.percentile}th percentile)</p>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                         {(homeSplit !== undefined || awaySplit !== undefined || divisionalSplit !== undefined) && (
-                            <div className="mt-4">
-                                <h4 className="text-xs font-semibold text-gray-400 uppercase mb-2">Performance Splits</h4>
-                                <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                                    {homeSplit !== undefined && (
-                                        <div className="bg-gray-900/50 p-2 rounded-md"><HomeIcon className="h-4 w-4 mx-auto mb-1 text-gray-400" />{homeSplit.toFixed(1)}</div>
-                                    )}
-                                    {awaySplit !== undefined && (
-                                        <div className="bg-gray-900/50 p-2 rounded-md"><PlaneIcon className="h-4 w-4 mx-auto mb-1 text-gray-400" />{awaySplit.toFixed(1)}</div>
-                                    )}
-                                    {divisionalSplit !== undefined && (
-                                        <div className="bg-gray-900/50 p-2 rounded-md"><SwordsIcon className="h-4 w-4 mx-auto mb-1 text-gray-400" />{divisionalSplit.toFixed(1)}</div>
-                                    )}
-                                </div>
-                            </div>
-                         )}
-
-                    </div>
-                )}
-            </div>
-            {selectedPlayer && (
-                <div className="p-4 border-t border-gray-700/50">
-                    <button
-                        onClick={handleAddLeg}
-                        disabled={isAddButtonDisabled}
-                        className="w-full flex items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cyan-600 disabled:bg-gray-600 disabled:cursor-not-allowed"
-                    >
-                        <PlusIcon className="h-5 w-5" />
-                        Add to Slip
-                    </button>
-                </div>
-            )}
-        </div>
-        )
-    }
-
-    const renderParlayManager = () => (
-        <div 
-            className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/80 backdrop-blur-sm"
-            onClick={() => setIsParlayManagerOpen(false)}
-        >
-            <div className="w-full max-w-lg bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-6" onClick={(e) => e.stopPropagation()}>
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold text-gray-200">Saved Parlays</h3>
-                    <button onClick={() => setIsParlayManagerOpen(false)} className="p-1 rounded-md hover:bg-gray-700"><XIcon className="h-5 w-5 text-gray-400"/></button>
-                </div>
-                <div className="max-h-96 overflow-y-auto space-y-3">
-                    {savedParlays.length === 0 ? (
-                        <p className="text-center text-gray-500 py-8">No saved parlays.</p>
-                    ) : (
-                        savedParlays.map(parlay => (
-                            <div key={parlay.id} className="p-3 bg-gray-900/50 rounded-md border border-gray-700/50">
-                                <div className="flex justify-between items-start">
-                                    <div>
-                                        <p className="font-semibold text-gray-300">{parlay.name}</p>
-                                        <p className="text-xs text-gray-400">{parlay.legs.length} Legs &bull; {formatAmericanOdds(parlay.odds)}</p>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <button onClick={() => handleLoadParlay(parlay)} className="text-xs bg-cyan-500/20 text-cyan-300 px-2 py-1 rounded hover:bg-cyan-500/40">Load</button>
-                                        <button onClick={() => handleDeleteParlay(parlay.id)} className="p-1 text-gray-500 hover:text-red-400"><Trash2Icon className="h-4 w-4"/></button>
-                                    </div>
-                                </div>
-                            </div>
-                        ))
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-
-    return (
-        <div className="flex h-full w-full">
-            {isParlayManagerOpen && renderParlayManager()}
-            {/* Left Column: Player/Game Selection */}
-            <div className="w-1/3 max-w-sm flex flex-col border-r border-gray-700/50 p-4">
-                <div className="mb-4 relative">
-                    <input
-                        type="text"
-                        placeholder="Search players or teams..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full rounded-md border border-gray-600 bg-gray-700 py-2 pl-10 pr-4 text-gray-200 placeholder-gray-400 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 text-sm"
-                    />
-                    <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                </div>
-                {scheduleLoading ? (
-                    <div className="text-center text-gray-400">Loading schedule...</div>
-                ) : (
-                    renderPlayerList()
-                )}
-            </div>
-
-            {/* Middle Column: Player Details & Bet Constructor */}
-            <div className="w-1/3 flex-1 flex flex-col border-r border-gray-700/50">
-                {selectedPlayerName ? (
-                    renderPlayerDetailView()
-                ) : (
-                     <div className="flex h-full w-full flex-col items-center justify-center p-8 text-center">
-                        <CrosshairIcon className="h-12 w-12 text-gray-600" />
-                        <h3 className="mt-4 text-xl font-semibold text-gray-300">Player Details</h3>
-                        <p className="mt-2 text-gray-400">Select a player from the list on the left to view their available prop markets and analytical data.</p>
-                    </div>
-                )}
-            </div>
-
-            {/* Right Column: Bet Slip */}
-            <div className="w-1/3 max-w-md flex flex-col p-4">
-                <h3 className="text-lg font-semibold text-gray-200 mb-4">Bet Slip</h3>
-                <div className="flex-1 space-y-3 overflow-y-auto">
-                    {legs.length === 0 ? (
-                        <div className="text-center text-gray-500 p-6 border-2 border-dashed border-gray-700 rounded-lg h-full flex flex-col justify-center">
-                            <p className="font-semibold text-gray-400">Your slip is empty.</p>
-                            <p className="mt-1 text-sm">Add bets from the middle panel to get started.</p>
-                        </div>
-                    ) : (
-                        legs.map((leg, index) => (
-                            <div key={`${leg.player}-${leg.propType}-${index}`} className="relative p-3 bg-gray-800/60 rounded-lg border border-gray-700">
-                                <button onClick={() => handleRemoveLeg(index)} className="absolute top-1.5 right-1.5 p-1 rounded-md text-gray-500 hover:text-red-400"><XIcon className="h-4 w-4"/></button>
-                                <p className="font-semibold text-gray-200 text-sm pr-4">{leg.player}</p>
-                                <div className="flex justify-between items-center mt-1">
-                                    <p className="text-xs text-gray-400">{leg.position} {leg.line} {leg.propType}</p>
-                                    <div className="flex items-center gap-2">
-                                        {leg.propDetails?.historicalContext && (
-                                            <MicroPerformanceChart gameLog={leg.propDetails.historicalContext.gameLog || []} selectedLine={leg.line} />
-                                        )}
-                                        <p className="font-mono text-sm text-yellow-300">{formatAmericanOdds(leg.marketOdds)}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        ))
-                    )}
-                </div>
-                {legs.length > 0 && (
-                    <div className="mt-4 pt-4 border-t border-gray-700/50">
-                        {legs.length > 1 && (
-                            <div className="flex justify-between items-center mb-3">
-                                <span className="text-sm font-semibold text-gray-300">{legs.length}-Leg Parlay</span>
-                                <span className="text-lg font-mono font-bold text-yellow-300">{formatAmericanOdds(parlayOdds)}</span>
+                              )}
                             </div>
                         )}
-                         <div className="flex gap-2">
-                            <button onClick={handleSaveParlay} className="flex-1 flex items-center justify-center gap-2 rounded-md bg-gray-700 px-3 py-2 text-sm font-semibold text-gray-300 transition-colors hover:bg-gray-600">
-                                <SaveIcon className="h-4 w-4" /> Save
+
+                        <div className="flex gap-2 mt-4">
+                             <button onClick={resetBuilder} className="w-1/3 flex items-center justify-center gap-2 rounded-md bg-gray-700 px-3 py-2 text-sm font-semibold text-gray-300 transition-colors hover:bg-gray-600">
+                                <Trash2Icon className="h-4 w-4" /> Clear
                             </button>
-                            <button onClick={() => setIsParlayManagerOpen(true)} className="flex-1 flex items-center justify-center gap-2 rounded-md bg-gray-700 px-3 py-2 text-sm font-semibold text-gray-300 transition-colors hover:bg-gray-600">
-                                <FolderOpenIcon className="h-4 w-4" /> Load
+                            <button onClick={() => onAnalyze(legs.map(({playerDetails, propDetails, ...rest}) => rest))} className="w-2/3 flex items-center justify-center gap-2 rounded-md bg-cyan-500 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-cyan-600">
+                                <SendIcon className="h-4 w-4" />
+                                Run Full Analysis
                             </button>
                         </div>
-                        <button
-                            onClick={() => onAnalyze(legs)}
-                            className="w-full mt-2 flex items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cyan-600"
-                        >
-                            <SendIcon className="h-5 w-5" />
-                            Analyze Parlay
-                        </button>
                     </div>
                 )}
             </div>
+             {isParlayManagerOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/80 backdrop-blur-sm" onClick={() => setIsParlayManagerOpen(false)}>
+                    <div className="w-full max-w-lg rounded-xl border border-gray-700 bg-gray-900 p-4" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center mb-3">
+                            <h3 className="text-lg font-semibold text-gray-200">Saved Parlays</h3>
+                            <button onClick={() => setIsParlayManagerOpen(false)} className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-700">
+                                <XIcon className="h-5 w-5" />
+                            </button>
+                        </div>
+                        <div className="max-h-96 overflow-y-auto space-y-2">
+                            {savedParlays.length > 0 ? savedParlays.map(p => (
+                                <div key={p.id} className="bg-gray-800/70 p-3 rounded-lg group">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="font-semibold text-gray-200">{p.name}</p>
+                                            <p className="text-xs text-gray-400">{p.legs.length} legs &bull; {formatAmericanOdds(p.odds)} &bull; {new Date(p.createdAt).toLocaleDateString()}</p>
+                                        </div>
+                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button onClick={() => handleLoadParlay(p)} className="p-1.5 rounded-md text-gray-400 bg-gray-700/50 hover:text-cyan-400 hover:bg-gray-700">
+                                                <FolderOpenIcon className="h-4 w-4" />
+                                            </button>
+                                            <button onClick={() => handleDeleteParlay(p.id)} className="p-1.5 rounded-md text-gray-400 bg-gray-700/50 hover:text-red-400 hover:bg-gray-700">
+                                                <Trash2Icon className="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="mt-2 text-xs space-y-1 border-t border-gray-700/50 pt-2">
+                                        {p.legs.map((leg, i) => <p key={i} className="text-gray-400 truncate">{leg.player} {leg.position} {leg.line} {leg.propType}</p>)}
+                                    </div>
+                                </div>
+                            )) : (
+                                <div className="text-center py-8 text-gray-500">
+                                    <p>No saved parlays yet.</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

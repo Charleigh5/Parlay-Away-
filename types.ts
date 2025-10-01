@@ -132,3 +132,17 @@ export interface SportsDBEvent {
 export interface SportsDBResponse {
   events: SportsDBEvent[] | null;
 }
+
+// Types for Correlation Analysis
+export interface CorrelationAnalysisDetail {
+  leg1Index: number;
+  leg2Index: number;
+  relationship: 'Positive' | 'Negative' | 'Neutral';
+  explanation: string;
+}
+
+export interface ParlayCorrelationAnalysis {
+  overallScore: number; // -1 to 1
+  summary: string;
+  analysis: CorrelationAnalysisDetail[];
+}
