@@ -31,6 +31,7 @@ import { SparklesIcon } from './icons/SparklesIcon';
 import { getAnalysis, analyzeParlayCorrelation } from '../services/geminiService';
 import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import { RotateCwIcon } from './icons/RotateCwIcon';
+import { TestTubeIcon } from './icons/TestTubeIcon';
 
 const LinkIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -769,78 +770,111 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                         </div>
                     ))}
                 </div>
-                <div className="mt-auto pt-4 border-t border-gray-700/50 space-y-3">
-                    <div className="flex justify-between items-center">
-                        <span className="text-sm font-semibold text-gray-300">Total Parlay Odds</span>
-                        <span className="text-xl font-bold font-mono text-yellow-300">{formatAmericanOdds(parlayOdds)}</span>
-                    </div>
+                <div className="mt-auto pt-4 border-t border-gray-700/50">
+                    <div className="p-3 rounded-lg border border-gray-700 bg-gray-800/50">
+                        <h3 className="text-md font-semibold text-gray-200 mb-3">Parlay Summary & Actions</h3>
+                        
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-center">
+                                <span className="text-sm font-semibold text-gray-300">Total Parlay Odds</span>
+                                <span className="text-xl font-bold font-mono text-yellow-300">{formatAmericanOdds(parlayOdds)}</span>
+                            </div>
 
-                    {/* Correlation Analysis Section */}
-                    {legs.length >= 2 && (
-                        <div className="p-3 rounded-lg border border-gray-700 bg-gray-800/50">
-                            {!correlationAnalysis && !isAnalyzingCorrelation && !correlationError && (
-                                <button onClick={handleAnalyzeCorrelation} className="w-full flex items-center justify-center gap-2 rounded-md bg-transparent border border-cyan-500/50 px-3 py-2 text-sm font-semibold text-cyan-300 transition-colors hover:bg-cyan-500/10 disabled:opacity-50">
-                                    <SparklesIcon className="h-4 w-4" /> Analyze Parlay Correlation
-                                </button>
-                            )}
-                            {isAnalyzingCorrelation && (
-                                <div className="text-center text-sm text-gray-400">
-                                    <RotateCwIcon className="h-4 w-4 inline mr-2 animate-spin" />
-                                    Analyzing synergy...
-                                </div>
-                            )}
-                            {correlationError && (
-                                <div className="text-center text-xs text-red-400">
-                                    <p>Analysis failed: {correlationError}</p>
-                                    <button onClick={handleAnalyzeCorrelation} className="text-cyan-400 underline mt-1">Retry</button>
-                                </div>
-                            )}
-                            {correlationAnalysis && (
-                                <div>
-                                    <div className="flex justify-between items-center">
-                                        <h4 className="text-sm font-semibold text-cyan-400">Synergy Analysis</h4>
-                                        <div className={`px-2 py-0.5 rounded-full text-xs font-bold font-mono ${correlationAnalysis.overallScore > 0.2 ? 'bg-green-500/20 text-green-300' : correlationAnalysis.overallScore < -0.2 ? 'bg-red-500/20 text-red-300' : 'bg-gray-600 text-gray-200'}`}>
-                                            Score: {correlationAnalysis.overallScore.toFixed(2)}
+                            {/* Correlation Analysis Section */}
+                            {legs.length >= 2 && (
+                                <div className="p-3 rounded-lg border border-gray-700 bg-gray-900/40">
+                                    {!correlationAnalysis && !isAnalyzingCorrelation && !correlationError && (
+                                        <button onClick={handleAnalyzeCorrelation} className="w-full flex items-center justify-center gap-2 rounded-md bg-transparent border border-cyan-500/50 px-3 py-2 text-sm font-semibold text-cyan-300 transition-colors hover:bg-cyan-500/10 disabled:opacity-50">
+                                            <SparklesIcon className="h-4 w-4" /> Analyze Parlay Correlation
+                                        </button>
+                                    )}
+                                    {isAnalyzingCorrelation && (
+                                        <div className="text-center text-sm text-gray-400">
+                                            <RotateCwIcon className="h-4 w-4 inline mr-2 animate-spin" />
+                                            Analyzing synergy...
                                         </div>
-                                    </div>
-                                    <p className="text-xs text-gray-400 mt-1 italic">{correlationAnalysis.summary}</p>
-                                    <button onClick={() => setIsCorrelationDetailsOpen(prev => !prev)} className="text-xs mt-2 text-cyan-400 hover:underline flex items-center gap-1">
-                                        Details <ChevronDownIcon className={`h-4 w-4 transition-transform ${isCorrelationDetailsOpen ? 'rotate-180' : ''}`} />
-                                    </button>
-                                    {isCorrelationDetailsOpen && (
-                                        <div className="mt-2 pt-2 border-t border-gray-700/50 space-y-2 text-xs">
-                                            {correlationAnalysis.analysis.map((detail, i) => {
-                                                const leg1 = legs[detail.leg1Index];
-                                                const leg2 = legs[detail.leg2Index];
-                                                const relationshipColor = detail.relationship === 'Positive' ? 'text-green-400' : detail.relationship === 'Negative' ? 'text-red-400' : 'text-gray-400';
-                                                const RelationshipIcon = detail.relationship === 'Positive' ? LinkIcon : detail.relationship === 'Negative' ? UnlinkIcon : MinusCircleIcon;
-
-                                                return (
-                                                    <div key={i}>
-                                                        <div className="flex items-center gap-2 font-semibold">
-                                                             <RelationshipIcon className={`h-3.5 w-3.5 flex-shrink-0 ${relationshipColor}`} />
-                                                             <span className="text-gray-300">{leg1.player.split(' ')[1]} & {leg2.player.split(' ')[1]}:</span>
-                                                             <span className={relationshipColor}>{detail.relationship}</span>
-                                                        </div>
-                                                        <p className="text-gray-500 pl-6">{detail.explanation}</p>
-                                                    </div>
-                                                );
-                                            })}
+                                    )}
+                                    {correlationError && (
+                                        <div className="text-center text-xs text-red-400">
+                                            <p>Analysis failed: {correlationError}</p>
+                                            <button onClick={handleAnalyzeCorrelation} className="text-cyan-400 underline mt-1">Retry</button>
+                                        </div>
+                                    )}
+                                    {correlationAnalysis && (
+                                        <div>
+                                            <div className="flex justify-between items-center">
+                                                <h4 className="text-sm font-semibold text-cyan-400">Synergy Analysis</h4>
+                                                <div className={`px-2 py-0.5 rounded-full text-xs font-bold font-mono ${correlationAnalysis.overallScore > 0.2 ? 'bg-green-500/20 text-green-300' : correlationAnalysis.overallScore < -0.2 ? 'bg-red-500/20 text-red-300' : 'bg-gray-600 text-gray-200'}`}>
+                                                    Score: {correlationAnalysis.overallScore.toFixed(2)}
+                                                </div>
+                                            </div>
+                                            <p className="text-xs text-gray-400 mt-1">{correlationAnalysis.summary}</p>
+                                            <button onClick={() => setIsCorrelationDetailsOpen(prev => !prev)} className="text-xs text-cyan-400 hover:underline mt-1.5 flex items-center gap-1">
+                                                {isCorrelationDetailsOpen ? 'Hide' : 'Show'} Details <ChevronDownIcon className={`h-3 w-3 transition-transform ${isCorrelationDetailsOpen ? 'rotate-180' : ''}`} />
+                                            </button>
+                                            {isCorrelationDetailsOpen && (
+                                                <div className="mt-2 pt-2 border-t border-gray-700/50 space-y-2 max-h-40 overflow-y-auto">
+                                                    {correlationAnalysis.analysis.map((detail, i) => {
+                                                        const leg1 = legs[detail.leg1Index];
+                                                        const leg2 = legs[detail.leg2Index];
+                                                        
+                                                        const getRelationshipIcon = () => {
+                                                            switch(detail.relationship) {
+                                                                case 'Positive': return <LinkIcon className="h-4 w-4 text-green-400 flex-shrink-0" />;
+                                                                case 'Negative': return <UnlinkIcon className="h-4 w-4 text-red-400 flex-shrink-0" />;
+                                                                case 'Neutral': return <MinusCircleIcon className="h-4 w-4 text-gray-400 flex-shrink-0" />;
+                                                            }
+                                                        };
+                                                        
+                                                        return (
+                                                            <div key={i} className="text-xs bg-gray-950/50 p-2 rounded">
+                                                                <div className="flex items-center gap-2 font-semibold">
+                                                                    {getRelationshipIcon()}
+                                                                    <p className="text-gray-300 truncate">
+                                                                        {leg1.player.split(' ').slice(-1)} ({leg1.position.charAt(0)}{leg1.line}) vs {leg2.player.split(' ').slice(-1)} ({leg2.position.charAt(0)}{leg2.line})
+                                                                    </p>
+                                                                </div>
+                                                                <p className="text-gray-400 mt-1 pl-6">{detail.explanation}</p>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
                             )}
+
+                             <div className="pt-4 border-t border-gray-700/50">
+                                <button
+                                    onClick={() => onAnalyze(legs)}
+                                    disabled={legs.length === 0}
+                                    className="w-full flex items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-3 text-base font-semibold text-white transition-colors hover:bg-cyan-600 disabled:bg-gray-600 disabled:cursor-not-allowed"
+                                >
+                                    <TestTubeIcon className="h-5 w-5" />
+                                    Run Full Synoptic Analysis ({legs.length})
+                                </button>
+                                <p className="text-xs text-gray-500 mt-2 text-center">
+                                    This will perform a deep-dive quantitative analysis on each individual leg of your parlay.
+                                </p>
+
+                                <div className="mt-4 grid grid-cols-2 gap-3">
+                                    <button
+                                        onClick={() => setIsParlayManagerOpen(true)}
+                                        className="w-full flex items-center justify-center gap-2 rounded-md bg-gray-700/70 px-3 py-2 text-sm font-medium text-gray-300 transition-colors hover:bg-gray-600"
+                                    >
+                                        <FolderOpenIcon className="h-4 w-4" /> Load Parlay
+                                    </button>
+                                    <button
+                                        onClick={handleSaveParlay}
+                                        disabled={legs.length === 0}
+                                        className="w-full flex items-center justify-center gap-2 rounded-md bg-gray-700/70 px-3 py-2 text-sm font-medium text-gray-300 transition-colors hover:bg-gray-600 disabled:opacity-50"
+                                    >
+                                        <SaveIcon className="h-4 w-4" /> Save Parlay
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                    )}
-
-
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                        <button onClick={handleSaveParlay} className="flex items-center justify-center gap-2 rounded-md bg-gray-700 px-3 py-2 font-semibold text-gray-300 transition-colors hover:bg-gray-600 disabled:opacity-50" disabled={legs.length === 0}><SaveIcon className="h-4 w-4" /> Save</button>
-                        <button onClick={() => setIsParlayManagerOpen(true)} className="flex items-center justify-center gap-2 rounded-md bg-gray-700 px-3 py-2 font-semibold text-gray-300 transition-colors hover:bg-gray-600"><FolderOpenIcon className="h-4 w-4" /> Load</button>
-                        <button onClick={() => onAnalyze(legs)} className="col-span-2 flex items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-2.5 font-semibold text-white transition-colors hover:bg-cyan-600 disabled:bg-gray-600 disabled:cursor-not-allowed" disabled={legs.length === 0}>
-                            <SendIcon className="h-5 w-5" />
-                            Run Full Synoptic Analysis
-                        </button>
                     </div>
                 </div>
             </div>
@@ -848,33 +882,34 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
       </div>
 
        {isParlayManagerOpen && (
-            <div className="absolute inset-0 z-20 flex items-center justify-center bg-gray-900/80 backdrop-blur-sm" onClick={() => setIsParlayManagerOpen(false)}>
-                <div className="w-full max-w-lg rounded-xl border border-gray-700 bg-gray-900/80 p-6 text-center shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/80 backdrop-blur-sm" onClick={() => setIsParlayManagerOpen(false)}>
+                <div className="w-full max-w-lg rounded-xl border border-gray-700 bg-gray-900 p-6 text-gray-200" onClick={e => e.stopPropagation()}>
                     <div className="flex justify-between items-center mb-4">
-                       <h3 className="text-lg font-semibold text-gray-200">Parlay Manager</h3>
-                       <button onClick={() => setIsParlayManagerOpen(false)} className="p-1.5 rounded-full text-gray-400 hover:bg-gray-700"><XIcon className="h-5 w-5"/></button>
+                        <h2 className="text-xl font-semibold">Parlay Manager</h2>
+                        <button onClick={() => setIsParlayManagerOpen(false)} className="p-1.5 rounded-md hover:bg-gray-700"><XIcon className="h-5 w-5"/></button>
                     </div>
-                    {savedParlays.length === 0 ? (
-                        <p className="text-gray-500 py-8">No saved parlays yet.</p>
-                    ) : (
-                        <div className="space-y-2 max-h-96 overflow-y-auto">
-                            {savedParlays.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map(parlay => (
-                                <div key={parlay.id} className="group bg-gray-800 p-3 rounded-lg flex items-center justify-between">
+                    {savedParlays.length > 0 ? (
+                        <div className="space-y-3 max-h-96 overflow-y-auto">
+                            {savedParlays.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map(parlay => (
+                                <div key={parlay.id} className="bg-gray-800 p-3 rounded-lg flex items-center justify-between">
                                     <div>
-                                        <p className="font-semibold text-gray-200 text-left">{parlay.name}</p>
-                                        <p className="text-xs text-gray-400 text-left">{parlay.legs.length} Legs - <span className="font-mono">{formatAmericanOdds(parlay.odds)}</span></p>
+                                        <p className="font-semibold">{parlay.name}</p>
+                                        <p className="text-xs text-gray-400">{parlay.legs.length} Legs &bull; {formatAmericanOdds(parlay.odds)} &bull; Saved on {new Date(parlay.createdAt).toLocaleDateString()}</p>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <button onClick={() => handleLoadParlay(parlay)} className="px-3 py-1 text-xs rounded-md bg-cyan-500 text-white hover:bg-cyan-600">Load</button>
-                                        <button onClick={() => handleDeleteParlay(parlay.id)} className="p-2 rounded-md text-gray-500 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2Icon className="h-4 w-4"/></button>
+                                        <button onClick={() => handleLoadParlay(parlay)} className="p-1.5 rounded-md bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20"><FolderOpenIcon className="h-4 w-4"/></button>
+                                        <button onClick={() => handleDeleteParlay(parlay.id)} className="p-1.5 rounded-md bg-red-500/10 text-red-400 hover:bg-red-500/20"><Trash2Icon className="h-4 w-4"/></button>
                                     </div>
                                 </div>
                             ))}
                         </div>
+                    ) : (
+                        <p className="text-center text-gray-500 py-8">No saved parlays yet.</p>
                     )}
                 </div>
             </div>
         )}
+
     </div>
   );
 };
