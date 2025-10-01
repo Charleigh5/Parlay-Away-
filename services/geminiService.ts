@@ -28,12 +28,14 @@ const analysisResponseSchema = {
       type: Type.OBJECT,
       description: "The core quantitative metrics derived from the analysis.",
       properties: {
-        expectedValue: { type: Type.NUMBER, description: "The calculated positive expected value (+EV) as a percentage (e.g., 5.5 for +5.5%)." },
+        expectedValue: { type: Type.NUMBER, description: "The calculated positive expected value (+EV) as a percentage (e.g., 5.5 for +5.5%) for the specific line provided in the query." },
         vigRemovedOdds: { type: Type.NUMBER, description: "The true, vig-removed odds for the bet." },
         kellyCriterionStake: { type: Type.NUMBER, description: "The recommended stake as a percentage of bankroll according to the Fractional Kelly Criterion (e.g., 1.25 for 1.25%)." },
-        confidenceScore: { type: Type.NUMBER, description: "A confidence score from 0.0 to 1.0 on the overall analysis." }
+        confidenceScore: { type: Type.NUMBER, description: "A confidence score from 0.0 to 1.0 on the overall analysis." },
+        projectedMean: { type: Type.NUMBER, description: "The model's projection for the mean outcome of the player's statistic (e.g., 288.5 passing yards)." },
+        projectedStdDev: { type: Type.NUMBER, description: "The model's projection for the standard deviation of the outcome, representing its variance or uncertainty." }
       },
-      required: ['expectedValue', 'vigRemovedOdds', 'kellyCriterionStake', 'confidenceScore']
+      required: ['expectedValue', 'vigRemovedOdds', 'kellyCriterionStake', 'confidenceScore', 'projectedMean', 'projectedStdDev']
     }
   },
   required: ['summary', 'reasoning', 'quantitative']
@@ -41,7 +43,7 @@ const analysisResponseSchema = {
 
 export const getAnalysis = async (query: string): Promise<AnalysisResponse> => {
   try {
-    const systemInstruction = `You are 'The Analyzer', the AI core of Project Synoptic Edge, an institutional-grade analytical co-pilot for sports betting. Your analysis must be based on the principles of Positive Expected Value (+EV), advanced vig removal, Fractional Kelly Criterion for staking, and contrarian analysis of market psychology. You must always return your analysis in the specified JSON format. Your reasoning must be broken down into logical steps, referencing the specific Knowledge Modules (e.g., KM_01 for financial theory) you are using.`;
+    const systemInstruction = `You are 'The Analyzer', the AI core of Project Synoptic Edge, an institutional-grade analytical co-pilot for sports betting. Your analysis must be based on the principles of Positive Expected Value (+EV), advanced vig removal, Fractional Kelly Criterion for staking, and contrarian analysis of market psychology. You must always return your analysis in the specified JSON format. Your reasoning must be broken down into logical steps, referencing the specific Knowledge Modules (e.g., KM_01 for financial theory). Crucially, for the player prop in the query, you must provide a 'projectedMean' for the final stat outcome and a 'projectedStdDev' representing the expected variance of that outcome.`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',

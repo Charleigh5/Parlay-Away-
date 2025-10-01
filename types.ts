@@ -30,6 +30,8 @@ export interface QuantitativeAnalysis {
   vigRemovedOdds: number;
   kellyCriterionStake: number;
   confidenceScore: number;
+  projectedMean?: number;
+  projectedStdDev?: number;
 }
 
 export interface AnalysisResponse {

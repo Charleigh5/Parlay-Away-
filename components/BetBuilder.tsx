@@ -1,7 +1,7 @@
 // FIX: Corrected a syntax error in the React import statement that was preventing the component from loading.
 import React, { useState, useMemo, useEffect } from 'react';
-import { ExtractedBetLeg, Game, Player, PlayerProp } from '../types';
-import { calculateParlayOdds, formatAmericanOdds, generateHistoricalOdds } from '../utils';
+import { ExtractedBetLeg, Game, Player, PlayerProp, AnalysisResponse, LineOdds } from '../types';
+import { calculateParlayOdds, formatAmericanOdds, generateHistoricalOdds, normalCdf, calculateSingleLegEV } from '../utils';
 import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
 import { SendIcon } from './icons/SendIcon';
 import { PlusIcon } from './icons/PlusIcon';
@@ -12,7 +12,7 @@ import { SearchIcon } from './icons/SearchIcon';
 import { fetchNFLEvents } from '../services/sportsDataService';
 import { ShieldIcon } from './icons/ShieldIcon';
 import { DEFENSIVE_STATS, TEAM_ABBREVIATION_TO_NAME, TEAM_NAME_TO_ABBREVIATION } from '../data/mockDefensiveStats';
-import { MOCK_GAMES } from '../data/mockSportsData';
+import { getMarketData } from '../services/marketDataService';
 import HistoricalPerformanceChart from './HistoricalPerformanceChart';
 import { ADVANCED_STATS, AdvancedStat } from '../data/mockAdvancedStats';
 import { TrendingUpIcon } from './icons/TrendingUpIcon';
@@ -28,6 +28,8 @@ import MicroPerformanceChart from './MicroPerformanceChart';
 import { HomeIcon } from './icons/HomeIcon';
 import { PlaneIcon } from './icons/PlaneIcon';
 import { SwordsIcon } from './icons/SwordsIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { getAnalysis } from '../services/geminiService';
 
 
 interface BetBuilderProps {
@@ -48,6 +50,19 @@ interface EnrichedLeg extends ExtractedBetLeg {
     propDetails?: PlayerProp;
 }
 
+interface MarketLineAnalysis {
+    line: number;
+    overOdds: number;
+    underOdds: number;
+    overEV: number;
+    underEV: number;
+}
+interface MarketAnalysis {
+    lines: MarketLineAnalysis[];
+    optimalBet: { line: number; position: 'Over' | 'Under'; ev: number; odds: number } | null;
+    baseAnalysis: AnalysisResponse;
+}
+
 const getConciseStatLabel = (propType: string): string => {
     switch (propType) {
         case 'Passing Yards': return 'Pass Yds Allowed';
@@ -55,6 +70,10 @@ const getConciseStatLabel = (propType: string): string => {
         case 'Rushing Yards': return 'Rush Yds Allowed';
         case 'Receiving Yards': return 'Rec Yds Allowed';
         case 'Receptions': return 'Receptions Allowed';
+        case 'Sacks': return 'Sacks Allowed';
+        case '1st Half Passing Yards': return '1H Pass Yds Allowed';
+        case 'Passing + Rushing Yards': return 'Total Yds Allowed';
+        case 'Tackles + Assists': return 'Offensive Plays Ran';
         default: return `${propType} Allowed`;
     }
 };
@@ -120,8 +139,6 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
     const [legs, setLegs] = useState<EnrichedLeg[]>([]);
     const [savedParlays, setSavedParlays] = useState<SavedParlay[]>([]);
     const [isParlayManagerOpen, setIsParlayManagerOpen] = useState(false);
-    const [saveInputValue, setSaveInputValue] = useState("");
-
 
     // State for live schedule data
     const [games, setGames] = useState<Game[]>([]);
@@ -139,6 +156,11 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
     const [oddsInput, setOddsInput] = useState('');
     const [selectedPosition, setSelectedPosition] = useState<'Over' | 'Under' | null>(null);
     const [errors, setErrors] = useState<{ line?: string; odds?: string }>({});
+
+    // State for Market Analysis
+    const [marketAnalysis, setMarketAnalysis] = useState<MarketAnalysis | null>(null);
+    const [isAnalyzingMarket, setIsAnalyzingMarket] = useState(false);
+    const [marketAnalysisError, setMarketAnalysisError] = useState<string | null>(null);
     
 
     // Fetch schedule data on mount
@@ -147,12 +169,13 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
             try {
                 setScheduleLoading(true);
                 setScheduleError(null);
-                const fetchedGames = await fetchNFLEvents();
+                const marketData = getMarketData(); // Use the service
+                const fetchedGames = await fetchNFLEvents(marketData);
                 setGames(fetchedGames);
             } catch (error) {
                 console.error("Failed to fetch NFL events:", error);
                 setScheduleError("Could not load schedule. Using mock data.");
-                setGames(MOCK_GAMES);
+                setGames(getMarketData()); // Fallback to service data
             } finally {
                 setScheduleLoading(false);
             }
@@ -215,13 +238,27 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
         return null;
     }, [parsedOdds, errors.odds]);
 
-    // Effect to pre-fill inputs when a new prop type is selected
+    const advancedStatsForProp = useMemo((): AdvancedStat[] | null => {
+        if (!selectedPlayer?.name || !selectedPropType) return null;
+        const playerStats = ADVANCED_STATS[selectedPlayer.name];
+        if (!playerStats) return null;
+        return playerStats[selectedPropType] || null;
+    }, [selectedPlayer, selectedPropType]);
+
+    // Effect to pre-fill inputs when a new line is selected from market analysis
+    const handleLineSelection = (line: LineOdds | MarketLineAnalysis, position: 'Over' | 'Under') => {
+        setLineInput(line.line.toString());
+        setSelectedPosition(position);
+        setOddsInput(position === 'Over' ? line.overOdds.toString() : line.underOdds.toString());
+    };
+
+    // Effect to update inputs when prop type changes
     useEffect(() => {
+        setMarketAnalysis(null);
+        setMarketAnalysisError(null);
         if (selectedProp && selectedProp.lines.length > 0) {
-            const defaultLine = selectedProp.lines[0];
-            setLineInput(defaultLine.line.toString());
-            setSelectedPosition('Over');
-            setOddsInput(defaultLine.overOdds.toString());
+            const defaultLine = selectedProp.lines[Math.floor(selectedProp.lines.length / 2)];
+            handleLineSelection(defaultLine, 'Over');
         } else {
             setLineInput('');
             setSelectedPosition(null);
@@ -240,45 +277,50 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
         }
     }, [selectedPosition, parsedLine, selectedProp]);
 
+    const handleAnalyzeMarket = async () => {
+        if (!selectedPlayer || !selectedProp) return;
+        setIsAnalyzingMarket(true);
+        setMarketAnalysis(null);
+        setMarketAnalysisError(null);
 
-    const getLegContext = (leg: EnrichedLeg, allGames: Game[]) => {
-        const playerTeamName = TEAM_ABBREVIATION_TO_NAME[leg.playerDetails?.team ?? ''];
-        const game = allGames.find(g => g.players.some(p => p.name === leg.player));
-        if (!game || !playerTeamName) return { opponentAbbr: null, matchupFavorability: null };
+        try {
+            const primaryLine = selectedProp.lines[Math.floor(selectedProp.lines.length / 2)];
+            const query = `Analyze the market for ${selectedPlayer.name} ${selectedProp.propType}. The primary line is ${primaryLine.line} with odds O:${primaryLine.overOdds}/U:${primaryLine.underOdds}. Provide your best projection for the mean and standard deviation.`;
+            
+            const analysis = await getAnalysis(query);
+            const { projectedMean, projectedStdDev } = analysis.quantitative;
+            
+            if (projectedMean === undefined || projectedStdDev === undefined) {
+                throw new Error("AI analysis did not return the required projections (mean/std dev).");
+            }
 
-        const gameTeams = game.name.split(' @ ');
-        const opponentTeamName = gameTeams.find(team => team !== playerTeamName);
-        if (!opponentTeamName) return { opponentAbbr: null, matchupFavorability: null };
+            let optimalBet: MarketAnalysis['optimalBet'] = null;
+            
+            const lineAnalyses = selectedProp.lines.map(line => {
+                const probOver = 1 - normalCdf(line.line, projectedMean, projectedStdDev);
+                const probUnder = 1 - probOver;
+                
+                const overEV = calculateSingleLegEV(probOver, line.overOdds);
+                const underEV = calculateSingleLegEV(probUnder, line.underOdds);
 
-        const opponentAbbr = TEAM_NAME_TO_ABBREVIATION[opponentTeamName] || 'N/A';
-        
-        const opponentDefensiveStats = DEFENSIVE_STATS[opponentTeamName];
-        if (!opponentDefensiveStats) return { opponentAbbr, matchupFavorability: null };
+                if (optimalBet === null || overEV > optimalBet.ev) {
+                    optimalBet = { line: line.line, position: 'Over', ev: overEV, odds: line.overOdds };
+                }
+                if (optimalBet === null || underEV > optimalBet.ev) {
+                    optimalBet = { line: line.line, position: 'Under', ev: underEV, odds: line.underOdds };
+                }
 
-        let matchupFavorability: 'Favorable' | 'Tough' | null = null;
-        
-        const playerPosition = leg.playerDetails?.position;
-        let positionalKey;
-        if (['Receiving Yards', 'Receptions'].includes(leg.propType)) {
-            if (playerPosition === 'TE') positionalKey = 'vsTE';
-            else if (playerPosition === 'WR') positionalKey = 'vsWR'; 
+                return { line: line.line, overOdds: line.overOdds, underOdds: line.underOdds, overEV, underEV };
+            });
+
+            setMarketAnalysis({ lines: lineAnalyses, optimalBet, baseAnalysis: analysis });
+
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : "An unknown error occurred during market analysis.";
+            setMarketAnalysisError(msg);
+        } finally {
+            setIsAnalyzingMarket(false);
         }
-        const statKey = positionalKey && opponentDefensiveStats[positionalKey] ? positionalKey : leg.propType;
-        const statData = opponentDefensiveStats[statKey];
-
-        if (statData && 'value' in statData && parsedLine !== null) {
-            const isFavorable = (leg.position === 'Over' && parsedLine < statData.value) || (leg.position === 'Under' && parsedLine > statData.value);
-            matchupFavorability = isFavorable ? 'Favorable' : 'Tough';
-        }
-
-        return { opponentAbbr, matchupFavorability };
-    };
-
-    const resetSelection = (keepPlayer = false) => {
-        if (!keepPlayer) {
-            setSelectedPlayerName(null);
-        }
-        setSelectedPropType(null);
     };
 
     const handleAddLeg = () => {
@@ -334,19 +376,30 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
     
         const opponentDefensiveStats = DEFENSIVE_STATS[opponentInfo.fullName];
         if (!opponentDefensiveStats) return null;
-    
-        // Determine the positional key, e.g., 'vsTE', 'vsWR'
-        let positionalKey;
-        const playerPosition = selectedPlayer.position;
-        if (['Receiving Yards', 'Receptions'].includes(selectedPropType)) {
-            if (playerPosition === 'TE') {
-                positionalKey = 'vsTE';
-            } else if (playerPosition === 'WR') {
-                positionalKey = 'vsWR';
+
+        // More robust mapping to find the correct counter-stat
+        const getStatKey = () => {
+            const playerPosition = selectedPlayer.position;
+            
+            // 1. Positional overrides for receiving props
+            if (['Receiving Yards', 'Receptions'].includes(selectedPropType)) {
+                if (playerPosition === 'TE' && opponentDefensiveStats['vsTE']) return 'vsTE';
+                if (playerPosition === 'WR' && opponentDefensiveStats['vsWR']) return 'vsWR';
             }
-        }
-        const statKey = positionalKey && opponentDefensiveStats[positionalKey] ? positionalKey : selectedPropType;
-    
+            // 2. Direct mapping for special prop types
+            const directMapping: Record<string, string> = {
+                'Sacks': 'Sacks Allowed',
+                '1st Half Passing Yards': '1st Half Passing Yards Allowed'
+            };
+            if (directMapping[selectedPropType] && opponentDefensiveStats[directMapping[selectedPropType]]) {
+                return directMapping[selectedPropType];
+            }
+
+            // 3. Fallback to propType itself
+            return selectedPropType;
+        };
+        
+        const statKey = getStatKey();
         const statData = opponentDefensiveStats[statKey];
     
         // Type guard to ensure we have a full DefensiveStat object
@@ -557,47 +610,6 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                                 </div>
                             )}
                         </div>
-                        {opponentStat && parsedLine !== null && (
-                            <div className="mt-3 pt-3 border-t border-gray-700/50">
-                                <h5 className="text-xs font-semibold text-gray-400 text-center mb-2">
-                                    Line vs. Defensive Average
-                                </h5>
-                                <div className="flex justify-around items-center text-center">
-                                    <div>
-                                        <p className="text-xs text-gray-400">Selected Line</p>
-                                        <p className="font-mono text-xl font-bold text-yellow-300">{parsedLine.toFixed(1)}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-gray-400">Avg Allowed</p>
-                                        <p className="font-mono text-xl font-bold text-cyan-300">{opponentStat.value.toFixed(1)}</p>
-                                    </div>
-                                </div>
-                                {selectedPosition && (
-                                    <div className="mt-2 text-center">
-                                        {(() => {
-                                            const isFavorable = (selectedPosition === 'Over' && parsedLine < opponentStat.value) || (selectedPosition === 'Under' && parsedLine > opponentStat.value);
-                                            const isTough = (selectedPosition === 'Over' && parsedLine > opponentStat.value) || (selectedPosition === 'Under' && parsedLine < opponentStat.value);
-
-                                            if (isFavorable) {
-                                                return (
-                                                    <div className="text-xs font-semibold px-2 py-1 rounded-full inline-block bg-green-500/10 text-green-300">
-                                                        Favorable Matchup for {selectedPosition}
-                                                    </div>
-                                                );
-                                            }
-                                            if (isTough) {
-                                                return (
-                                                    <div className="text-xs font-semibold px-2 py-1 rounded-full inline-block bg-red-500/10 text-red-300">
-                                                        Tough Matchup for {selectedPosition}
-                                                    </div>
-                                                );
-                                            }
-                                            return null;
-                                        })()}
-                                    </div>
-                                )}
-                            </div>
-                        )}
                     </div>
                  )}
 
@@ -618,95 +630,161 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
 
                 {selectedProp && (
                     <div className="mt-4 border-t border-gray-700/50 pt-4">
-                        {(homeSplit !== undefined || divisionalSplit !== undefined) && (
-                            <div className="mb-4 p-3 rounded-lg bg-gray-900/50 border border-gray-700/70">
-                                <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-2">Performance Splits for {selectedPropType}</h4>
-                                <div className="flex gap-2 text-center text-xs">
-                                    {homeSplit !== undefined && awaySplit !== undefined && (
-                                        <>
-                                            <div className="flex-1 bg-gray-800 p-2 rounded-md">
-                                                <p className="flex items-center justify-center gap-1.5 text-gray-400"><HomeIcon className="h-3 w-3" /> Home</p>
-                                                <p className="font-bold text-base text-gray-200 mt-1">{homeSplit.toFixed(1)}</p>
+                        {/* MARKET ANALYSIS PANEL */}
+                        <div className="mb-4 p-3 rounded-lg bg-gray-900/50 border border-gray-700/70">
+                            <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-3">Market Analysis</h4>
+                            {!marketAnalysis && !isAnalyzingMarket && (
+                                <>
+                                    <div className="max-h-32 overflow-y-auto space-y-1 pr-2 mb-3">
+                                        {selectedProp.lines.map(line => (
+                                            <div key={line.line} className="grid grid-cols-3 gap-2 items-center text-center text-xs">
+                                                <button onClick={() => handleLineSelection(line, 'Over')} className={`p-1 rounded font-mono transition-colors ${selectedPosition === 'Over' && parsedLine === line.line ? 'bg-cyan-500/20 text-cyan-300' : 'bg-gray-800/60 hover:bg-gray-700/80 text-gray-300'}`}>{formatAmericanOdds(line.overOdds)}</button>
+                                                <div className="font-semibold text-gray-400">{line.line}</div>
+                                                <button onClick={() => handleLineSelection(line, 'Under')} className={`p-1 rounded font-mono transition-colors ${selectedPosition === 'Under' && parsedLine === line.line ? 'bg-cyan-500/20 text-cyan-300' : 'bg-gray-800/60 hover:bg-gray-700/80 text-gray-300'}`}>{formatAmericanOdds(line.underOdds)}</button>
                                             </div>
-                                            <div className="flex-1 bg-gray-800 p-2 rounded-md">
-                                                <p className="flex items-center justify-center gap-1.5 text-gray-400"><PlaneIcon className="h-3 w-3" /> Away</p>
-                                                <p className="font-bold text-base text-gray-200 mt-1">{awaySplit.toFixed(1)}</p>
+                                        ))}
+                                    </div>
+                                    <button onClick={handleAnalyzeMarket} className="w-full flex items-center justify-center gap-2 rounded-md bg-gray-700 px-4 py-2 text-xs font-semibold text-cyan-300 transition-colors hover:bg-gray-600">
+                                        <SparklesIcon className="h-4 w-4" /> Analyze Market & Find Optimal Line
+                                    </button>
+                                </>
+                            )}
+                            {isAnalyzingMarket && (
+                                <div className="text-center text-sm text-gray-400 py-4">
+                                    <p>Analyzing market with AI core...</p>
+                                    <p className="text-xs text-gray-500">Calculating EV for all alternate lines.</p>
+                                </div>
+                            )}
+                            {marketAnalysisError && <p className="text-red-400 text-xs text-center py-4">{marketAnalysisError}</p>}
+                            {marketAnalysis && (
+                                <>
+                                <div className="text-xs text-center text-gray-400 mb-2">Model Projection: <span className="font-mono text-cyan-300">{marketAnalysis.baseAnalysis.quantitative.projectedMean?.toFixed(2)}</span> (±{marketAnalysis.baseAnalysis.quantitative.projectedStdDev?.toFixed(2)})</div>
+                                <div className="w-full text-xs text-center">
+                                    <div className="grid grid-cols-5 gap-2 font-semibold text-gray-500 pb-1 border-b border-gray-700">
+                                        <div className="text-left">Over</div><div>+EV</div><div>Line</div><div>+EV</div><div className="text-right">Under</div>
+                                    </div>
+                                    <div className="max-h-40 overflow-y-auto space-y-1 pt-1 pr-2">
+                                        {marketAnalysis.lines.map(line => {
+                                            const isOptimalOver = marketAnalysis.optimalBet?.line === line.line && marketAnalysis.optimalBet?.position === 'Over';
+                                            const isOptimalUnder = marketAnalysis.optimalBet?.line === line.line && marketAnalysis.optimalBet?.position === 'Under';
+                                            return (
+                                            <div key={line.line} className="grid grid-cols-5 gap-2 items-center font-mono rounded-md">
+                                                <button onClick={() => handleLineSelection(line, 'Over')} className={`text-left p-1 rounded transition-colors ${isOptimalOver ? 'bg-green-500/20 ring-1 ring-green-400' : 'hover:bg-gray-700/50'}`}>{formatAmericanOdds(line.overOdds)}</button>
+                                                <div className={`text-center p-1 rounded ${line.overEV > 0 ? 'text-green-400' : 'text-red-400'}`}>{line.overEV.toFixed(2)}%</div>
+                                                <div className="text-center text-gray-400">{line.line}</div>
+                                                <div className={`text-center p-1 rounded ${line.underEV > 0 ? 'text-green-400' : 'text-red-400'}`}>{line.underEV.toFixed(2)}%</div>
+                                                <button onClick={() => handleLineSelection(line, 'Under')} className={`text-right p-1 rounded transition-colors ${isOptimalUnder ? 'bg-green-500/20 ring-1 ring-green-400' : 'hover:bg-gray-700/50'}`}>{formatAmericanOdds(line.underOdds)}</button>
                                             </div>
-                                        </>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                                </>
+                            )}
+                        </div>
+                        {/* END MARKET ANALYSIS PANEL */}
+
+                        {renderBetConstructor()}
+
+                        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {selectedProp.historicalContext && parsedLine !== null && (
+                                <HistoricalPerformanceChart
+                                    gameLog={selectedProp.historicalContext.gameLog || []}
+                                    selectedLine={parsedLine}
+                                    seasonAvg={selectedProp.historicalContext.seasonAvg || null}
+                                    last5Avg={selectedProp.historicalContext.last5Avg || null}
+                                />
+                            )}
+                            {advancedStatsForProp && (
+                                <div>
+                                    <h4 className="text-xs font-semibold text-gray-400 uppercase mb-2 flex items-center gap-2"><TrendingUpIcon className="h-3.5 w-3.5"/> Advanced Metrics</h4>
+                                    <div className="space-y-3">
+                                        {advancedStatsForProp.map(stat => (
+                                            <div key={stat.abbreviation} className="group relative">
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-sm font-medium text-gray-300">{stat.abbreviation}</span>
+                                                    <span className="text-sm font-mono text-cyan-300">{stat.value}</span>
+                                                </div>
+                                                <div className="w-full bg-gray-700 rounded-full h-1.5 mt-1">
+                                                    <div className="bg-cyan-500 h-1.5 rounded-full" style={{ width: `${stat.percentile}%` }}></div>
+                                                </div>
+                                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-2 bg-gray-950 text-xs text-gray-300 border border-gray-700 rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                                    <strong className="font-semibold text-cyan-400">{stat.name}</strong>
+                                                    <p className="mt-1">{stat.description}</p>
+                                                    <p className="mt-1 font-mono">Rank: {stat.rank} ({stat.percentile}th percentile)</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                         {(homeSplit !== undefined || awaySplit !== undefined || divisionalSplit !== undefined) && (
+                            <div className="mt-4">
+                                <h4 className="text-xs font-semibold text-gray-400 uppercase mb-2">Performance Splits</h4>
+                                <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                                    {homeSplit !== undefined && (
+                                        <div className="bg-gray-900/50 p-2 rounded-md"><HomeIcon className="h-4 w-4 mx-auto mb-1 text-gray-400" />{homeSplit.toFixed(1)}</div>
+                                    )}
+                                    {awaySplit !== undefined && (
+                                        <div className="bg-gray-900/50 p-2 rounded-md"><PlaneIcon className="h-4 w-4 mx-auto mb-1 text-gray-400" />{awaySplit.toFixed(1)}</div>
                                     )}
                                     {divisionalSplit !== undefined && (
-                                        <div className="flex-1 bg-gray-800 p-2 rounded-md">
-                                            <p className="flex items-center justify-center gap-1.5 text-gray-400"><SwordsIcon className="h-3 w-3" /> Divisional</p>
-                                            <p className="font-bold text-base text-gray-200 mt-1">{divisionalSplit.toFixed(1)}</p>
-                                        </div>
+                                        <div className="bg-gray-900/50 p-2 rounded-md"><SwordsIcon className="h-4 w-4 mx-auto mb-1 text-gray-400" />{divisionalSplit.toFixed(1)}</div>
                                     )}
                                 </div>
                             </div>
-                        )}
+                         )}
 
-                        {selectedProp.historicalContext?.gameLog && parsedLine !== null && (
-                            <HistoricalPerformanceChart 
-                                gameLog={selectedProp.historicalContext.gameLog}
-                                selectedLine={parsedLine}
-                                seasonAvg={selectedProp.historicalContext.seasonAvg ?? null}
-                                last5Avg={selectedProp.historicalContext.last5Avg ?? null}
-                            />
-                        )}
-                        {renderBetConstructor()}
-                         <div className="mt-4">
-                            <button
-                                onClick={handleAddLeg}
-                                disabled={isAddButtonDisabled}
-                                className="w-full flex items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cyan-600 disabled:cursor-not-allowed disabled:bg-gray-600 disabled:text-gray-400"
-                            >
-                                <PlusIcon className="h-5 w-5" /> Add to Slip
-                            </button>
-                        </div>
                     </div>
                 )}
             </div>
+            {selectedPlayer && (
+                <div className="p-4 border-t border-gray-700/50">
+                    <button
+                        onClick={handleAddLeg}
+                        disabled={isAddButtonDisabled}
+                        className="w-full flex items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cyan-600 disabled:bg-gray-600 disabled:cursor-not-allowed"
+                    >
+                        <PlusIcon className="h-5 w-5" />
+                        Add to Slip
+                    </button>
+                </div>
+            )}
         </div>
-        );
-    };
-    
+        )
+    }
+
     const renderParlayManager = () => (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/80 backdrop-blur-sm" onClick={() => setIsParlayManagerOpen(false)}>
-            <div className="w-full max-w-lg rounded-xl border border-gray-700 bg-gray-900/80 p-6 text-center" onClick={(e) => e.stopPropagation()}>
-                <h3 className="text-lg font-semibold text-gray-200 mb-4">Saved Parlays</h3>
-                <div className="space-y-3 max-h-96 overflow-y-auto">
-                    {savedParlays.length > 0 ? savedParlays.map(parlay => (
-                        <div key={parlay.id} className="group flex items-center justify-between rounded-md bg-gray-800/70 p-3 text-left">
-                            <div>
-                                <p className="font-semibold text-gray-200">{parlay.name}</p>
-                                <p className="text-xs text-gray-400">{parlay.legs.length} Legs &middot; <span className="font-mono">{formatAmericanOdds(parlay.odds)}</span></p>
+        <div 
+            className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/80 backdrop-blur-sm"
+            onClick={() => setIsParlayManagerOpen(false)}
+        >
+            <div className="w-full max-w-lg bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-6" onClick={(e) => e.stopPropagation()}>
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold text-gray-200">Saved Parlays</h3>
+                    <button onClick={() => setIsParlayManagerOpen(false)} className="p-1 rounded-md hover:bg-gray-700"><XIcon className="h-5 w-5 text-gray-400"/></button>
+                </div>
+                <div className="max-h-96 overflow-y-auto space-y-3">
+                    {savedParlays.length === 0 ? (
+                        <p className="text-center text-gray-500 py-8">No saved parlays.</p>
+                    ) : (
+                        savedParlays.map(parlay => (
+                            <div key={parlay.id} className="p-3 bg-gray-900/50 rounded-md border border-gray-700/50">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <p className="font-semibold text-gray-300">{parlay.name}</p>
+                                        <p className="text-xs text-gray-400">{parlay.legs.length} Legs &bull; {formatAmericanOdds(parlay.odds)}</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button onClick={() => handleLoadParlay(parlay)} className="text-xs bg-cyan-500/20 text-cyan-300 px-2 py-1 rounded hover:bg-cyan-500/40">Load</button>
+                                        <button onClick={() => handleDeleteParlay(parlay.id)} className="p-1 text-gray-500 hover:text-red-400"><Trash2Icon className="h-4 w-4"/></button>
+                                    </div>
+                                </div>
                             </div>
-                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                 <button
-                                    onClick={() => handleLoadParlay(parlay)}
-                                    className="flex items-center justify-center rounded-md bg-cyan-500 p-2 text-sm font-semibold text-white transition-colors hover:bg-cyan-600"
-                                    aria-label={`Load parlay ${parlay.name}`}
-                                >
-                                    <FolderOpenIcon className="h-4 w-4" />
-                                </button>
-                                <button
-                                    onClick={() => handleDeleteParlay(parlay.id)}
-                                    className="flex items-center justify-center rounded-md bg-red-600/80 p-2 text-sm font-semibold text-white transition-colors hover:bg-red-600"
-                                     aria-label={`Delete parlay ${parlay.name}`}
-                                >
-                                    <Trash2Icon className="h-4 w-4" />
-                                </button>
-                            </div>
-                        </div>
-                    )) : (
-                        <p className="text-gray-500 py-8">No saved parlays yet.</p>
+                        ))
                     )}
                 </div>
-                <button
-                    onClick={() => setIsParlayManagerOpen(false)}
-                    className="mt-6 w-full rounded-md bg-gray-700 px-4 py-2.5 text-sm font-semibold text-gray-300 transition-colors hover:bg-gray-600"
-                >
-                    Close
-                </button>
             </div>
         </div>
     );
@@ -714,101 +792,90 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
     return (
         <div className="flex h-full w-full">
             {isParlayManagerOpen && renderParlayManager()}
-            {/* Left: Bet Slip */}
-            <div className="flex w-full max-w-sm flex-col border-r border-gray-700/50 bg-gray-900/50">
-                 <div className="p-4 border-b border-gray-700/50 flex justify-between items-center">
-                    <h2 className="text-lg font-semibold text-gray-200">Bet Slip</h2>
-                     <button
-                        onClick={() => setIsParlayManagerOpen(true)}
-                        className="flex items-center gap-2 rounded-md bg-gray-700/60 px-3 py-1.5 text-xs font-medium text-gray-300 transition-colors hover:bg-gray-700"
-                        aria-label="Manage saved parlays"
-                    >
-                        <FolderOpenIcon className="h-4 w-4" /> Manage Saved
-                    </button>
+            {/* Left Column: Player/Game Selection */}
+            <div className="w-1/3 max-w-sm flex flex-col border-r border-gray-700/50 p-4">
+                <div className="mb-4 relative">
+                    <input
+                        type="text"
+                        placeholder="Search players or teams..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full rounded-md border border-gray-600 bg-gray-700 py-2 pl-10 pr-4 text-gray-200 placeholder-gray-400 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 text-sm"
+                    />
+                    <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                 </div>
-                <div className="flex-1 space-y-3 overflow-y-auto p-4">
-                   {legs.length === 0 ? (
-                        <div className="text-center text-sm text-gray-500 pt-8">
-                            <p>Your slip is empty.</p>
-                            <p>Add a leg to get started.</p>
-                        </div>
-                   ) : (
-                       legs.map((leg, index) => (
-                           <div key={index} className="rounded-lg border border-gray-700 bg-gray-800/70 p-3">
-                                <div className="flex items-start justify-between">
-                                    <div>
-                                        <p className="font-semibold text-gray-200">{leg.player}</p>
-                                        <p className="text-xs text-gray-400">{leg.position} {leg.line} {leg.propType}</p>
-                                    </div>
-                                    <button onClick={() => handleRemoveLeg(index)} className="p-1 rounded-md text-gray-500 hover:text-red-400 hover:bg-gray-700" aria-label={`Remove ${leg.player} prop`}>
-                                        <Trash2Icon className="h-4 w-4" />
-                                    </button>
-                                </div>
-                                <div className="mt-2 pt-2 border-t border-gray-700/50 flex justify-between items-center">
-                                    <span className="font-mono text-sm text-yellow-300">{formatAmericanOdds(leg.marketOdds)}</span>
-                                     {leg.propDetails?.historicalContext?.gameLog && (
-                                        <MicroPerformanceChart gameLog={leg.propDetails.historicalContext.gameLog} selectedLine={leg.line} />
-                                     )}
-                                </div>
-                           </div>
-                       ))
-                   )}
-                </div>
-                <div className="p-4 border-t border-gray-700/50">
-                    <div className="flex justify-between items-center mb-4">
-                        <span className="text-sm font-semibold text-gray-300">Total Parlay Odds:</span>
-                        <span className="font-mono text-lg font-bold text-yellow-300">{formatAmericanOdds(parlayOdds)}</span>
-                    </div>
-                    <button
-                        onClick={() => onAnalyze(legs)}
-                        disabled={legs.length === 0}
-                        className="w-full flex items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cyan-600 disabled:cursor-not-allowed disabled:bg-gray-600"
-                    >
-                        <SendIcon className="h-5 w-5" /> Analyze Parlay
-                    </button>
-                </div>
+                {scheduleLoading ? (
+                    <div className="text-center text-gray-400">Loading schedule...</div>
+                ) : (
+                    renderPlayerList()
+                )}
             </div>
 
-            {/* Right: Market/Player Selection */}
-            <div className="flex flex-1 flex-col">
-                <div className="p-4 border-b border-gray-700/50 flex justify-between items-center">
-                    <button onClick={onBack} className="flex items-center gap-2 rounded-md bg-gray-700/50 px-3 py-1.5 text-sm font-medium text-gray-300 transition-colors hover:bg-gray-700">
-                        <ChevronLeftIcon className="h-4 w-4" />
-                        Back to Menu
-                    </button>
-                    <h2 className="text-lg font-semibold text-gray-200">Market Explorer</h2>
-                </div>
-                <div className="flex flex-1 overflow-hidden">
-                    {/* Left side within this panel: game/player list */}
-                    <div className="flex w-full max-w-xs flex-col border-r border-gray-700/50">
-                        <div className="p-4 border-b border-gray-700/50">
-                            <div className="relative">
-                                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-                                <input
-                                    type="text"
-                                    placeholder="Search games or players..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-full rounded-md border border-gray-600 bg-gray-800 py-2 pl-9 pr-3 text-sm text-gray-200 placeholder-gray-500 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
-                                />
-                            </div>
-                        </div>
-                        <div className="flex-1 overflow-y-auto p-4">
-                             {scheduleLoading ? <p className="text-gray-400 text-sm text-center">Loading schedule...</p> : renderPlayerList()}
-                        </div>
+            {/* Middle Column: Player Details & Bet Constructor */}
+            <div className="w-1/3 flex-1 flex flex-col border-r border-gray-700/50">
+                {selectedPlayerName ? (
+                    renderPlayerDetailView()
+                ) : (
+                     <div className="flex h-full w-full flex-col items-center justify-center p-8 text-center">
+                        <CrosshairIcon className="h-12 w-12 text-gray-600" />
+                        <h3 className="mt-4 text-xl font-semibold text-gray-300">Player Details</h3>
+                        <p className="mt-2 text-gray-400">Select a player from the list on the left to view their available prop markets and analytical data.</p>
                     </div>
+                )}
+            </div>
 
-                    {/* Right side within this panel: details & constructor */}
-                    <div className="flex-1 overflow-y-auto">
-                        {selectedPlayerName && selectedPlayer ? (
-                            renderPlayerDetailView()
-                        ) : (
-                            <div className="flex h-full items-center justify-center text-center text-gray-500 p-8">
-                                <p>Select a player to view available props.</p>
+            {/* Right Column: Bet Slip */}
+            <div className="w-1/3 max-w-md flex flex-col p-4">
+                <h3 className="text-lg font-semibold text-gray-200 mb-4">Bet Slip</h3>
+                <div className="flex-1 space-y-3 overflow-y-auto">
+                    {legs.length === 0 ? (
+                        <div className="text-center text-gray-500 p-6 border-2 border-dashed border-gray-700 rounded-lg h-full flex flex-col justify-center">
+                            <p className="font-semibold text-gray-400">Your slip is empty.</p>
+                            <p className="mt-1 text-sm">Add bets from the middle panel to get started.</p>
+                        </div>
+                    ) : (
+                        legs.map((leg, index) => (
+                            <div key={`${leg.player}-${leg.propType}-${index}`} className="relative p-3 bg-gray-800/60 rounded-lg border border-gray-700">
+                                <button onClick={() => handleRemoveLeg(index)} className="absolute top-1.5 right-1.5 p-1 rounded-md text-gray-500 hover:text-red-400"><XIcon className="h-4 w-4"/></button>
+                                <p className="font-semibold text-gray-200 text-sm pr-4">{leg.player}</p>
+                                <div className="flex justify-between items-center mt-1">
+                                    <p className="text-xs text-gray-400">{leg.position} {leg.line} {leg.propType}</p>
+                                    <div className="flex items-center gap-2">
+                                        {leg.propDetails?.historicalContext && (
+                                            <MicroPerformanceChart gameLog={leg.propDetails.historicalContext.gameLog || []} selectedLine={leg.line} />
+                                        )}
+                                        <p className="font-mono text-sm text-yellow-300">{formatAmericanOdds(leg.marketOdds)}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+                {legs.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-gray-700/50">
+                        {legs.length > 1 && (
+                            <div className="flex justify-between items-center mb-3">
+                                <span className="text-sm font-semibold text-gray-300">{legs.length}-Leg Parlay</span>
+                                <span className="text-lg font-mono font-bold text-yellow-300">{formatAmericanOdds(parlayOdds)}</span>
                             </div>
                         )}
+                         <div className="flex gap-2">
+                            <button onClick={handleSaveParlay} className="flex-1 flex items-center justify-center gap-2 rounded-md bg-gray-700 px-3 py-2 text-sm font-semibold text-gray-300 transition-colors hover:bg-gray-600">
+                                <SaveIcon className="h-4 w-4" /> Save
+                            </button>
+                            <button onClick={() => setIsParlayManagerOpen(true)} className="flex-1 flex items-center justify-center gap-2 rounded-md bg-gray-700 px-3 py-2 text-sm font-semibold text-gray-300 transition-colors hover:bg-gray-600">
+                                <FolderOpenIcon className="h-4 w-4" /> Load
+                            </button>
+                        </div>
+                        <button
+                            onClick={() => onAnalyze(legs)}
+                            className="w-full mt-2 flex items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cyan-600"
+                        >
+                            <SendIcon className="h-5 w-5" />
+                            Analyze Parlay
+                        </button>
                     </div>
-                </div>
+                )}
             </div>
         </div>
     );

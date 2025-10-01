@@ -1,5 +1,4 @@
 import { Game } from '../types';
-import { MOCK_GAMES } from '../data/mockSportsData';
 import type { SportsDBResponse, SportsDBEvent } from '../types';
 
 // NOTE: A free API key for TheSportsDB can be obtained via their Patreon.
@@ -24,13 +23,13 @@ const buildApiUrlForDate = (date: string) => `https://www.thesportsdb.com/api/v1
  * Transforms an event from TheSportsDB API into the application's Game format.
  * It also attempts to merge rich player prop data from local mocks.
  */
-const transformEventToGame = (event: SportsDBEvent): Game => {
+const transformEventToGame = (event: SportsDBEvent, marketData: Game[]): Game => {
     // The API sometimes uses 'vs' so we standardize to '@'
     const gameName = event.strEvent.replace(' vs ', ' @ ');
     
     // Attempt to find a matching game in mocks to enrich with player data.
     // This is a simple matching logic for demonstration purposes.
-    const matchingMockGame = MOCK_GAMES.find(mock => {
+    const matchingMockGame = marketData.find(mock => {
         const mockTeams = mock.name.split(' @ ');
         // Handle both "Team A @ Team B" and "Team B @ Team A"
         return (
@@ -50,7 +49,7 @@ const transformEventToGame = (event: SportsDBEvent): Game => {
  * This function will throw an error if the underlying fetch calls fail,
  * allowing the calling component to handle the error state and fallback UI.
  */
-export const fetchNFLEvents = async (): Promise<Game[]> => {
+export const fetchNFLEvents = async (marketData: Game[]): Promise<Game[]> => {
     const fetchPromises = SEASON_START_DATES.map(date => {
         const url = buildApiUrlForDate(date);
         return fetch(url).then(res => {
@@ -74,11 +73,11 @@ export const fetchNFLEvents = async (): Promise<Game[]> => {
 
     // If API calls succeed but return no events, fall back to mocks as a business rule.
     if (allEvents.length === 0) {
-         console.warn("No events found for the specified dates. Falling back to mocks.");
-         return MOCK_GAMES;
+         console.warn("No events found for the specified dates. Falling back to market data.");
+         return marketData;
     }
     
-    const upcomingGames = allEvents.map(transformEventToGame);
+    const upcomingGames = allEvents.map(event => transformEventToGame(event, marketData));
     
     // Remove duplicates in case API returns same event on different queries
     const uniqueGames = Array.from(new Map(upcomingGames.map(game => [game.id, game])).values());

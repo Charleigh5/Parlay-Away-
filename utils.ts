@@ -1,3 +1,4 @@
+import { LineOdds, PlayerProp } from './types';
 
 export const fileToBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -103,4 +104,83 @@ export const generateHistoricalOdds = (currentOdds: number): number[] => {
     lastOdd = nextOdd;
   }
   return oddsHistory; // Returns 7 days of data, ending with current
+};
+
+const PROP_TYPE_CONFIG: Record<string, { step: number; oddsShift: number, numLines: number }> = {
+    'Passing Yards': { step: 10, oddsShift: 20, numLines: 4 },
+    'Rushing Yards': { step: 5, oddsShift: 25, numLines: 4 },
+    'Receiving Yards': { step: 5, oddsShift: 25, numLines: 4 },
+    'Passing Touchdowns': { step: 1, oddsShift: 150, numLines: 2 },
+    'Receptions': { step: 1, oddsShift: 40, numLines: 2 },
+    'Sacks': { step: 1, oddsShift: 200, numLines: 1 },
+    'Tackles + Assists': { step: 1, oddsShift: 30, numLines: 2 },
+    'default': { step: 5, oddsShift: 20, numLines: 3 },
+};
+
+export const generateAlternateLines = (prop: PlayerProp): LineOdds[] => {
+    if (!prop.lines || prop.lines.length === 0) {
+        return [];
+    }
+    const primaryLine = prop.lines[0];
+    const config = PROP_TYPE_CONFIG[prop.propType] || PROP_TYPE_CONFIG.default;
+    const allLines: LineOdds[] = [primaryLine];
+
+    // Generate lower lines
+    let currentLine = primaryLine;
+    for (let i = 0; i < config.numLines; i++) {
+        const newLineValue = currentLine.line - config.step;
+        const newOverOdds = currentLine.overOdds - config.oddsShift;
+        const newUnderOdds = currentLine.underOdds + config.oddsShift;
+        const newLine = { line: newLineValue, overOdds: newOverOdds, underOdds: newUnderOdds };
+        allLines.unshift(newLine);
+        currentLine = newLine;
+    }
+
+    // Generate higher lines
+    currentLine = primaryLine;
+    for (let i = 0; i < config.numLines; i++) {
+        const newLineValue = currentLine.line + config.step;
+        const newOverOdds = currentLine.overOdds + config.oddsShift;
+        const newUnderOdds = currentLine.underOdds - config.oddsShift;
+        const newLine = { line: newLineValue, overOdds: newOverOdds, underOdds: newUnderOdds };
+        allLines.push(newLine);
+        currentLine = newLine;
+    }
+
+    return allLines;
+};
+
+// --- STATISTICAL FUNCTIONS FOR EV CALCULATION ---
+
+// Standard Normal Cumulative Distribution Function (CDF) using the Error Function approximation
+const standardNormalCdf = (x: number): number => {
+  const erf = (z: number): number => {
+    const t = 1.0 / (1.0 + 0.5 * Math.abs(z));
+    const ans = 1 - t * Math.exp(-z * z - 1.26551223 +
+      t * (1.00002368 +
+      t * (0.37409196 +
+      t * (0.09678418 +
+      t * (-0.18628806 +
+      t * (0.27886807 +
+      t * (-1.13520398 +
+      t * (1.48851587 +
+      t * (-0.82215223 +
+      t * 0.17087277)))))))));
+    return z >= 0 ? ans : -ans;
+  };
+  return 0.5 * (1.0 + erf(x / Math.sqrt(2.0)));
+};
+
+// General Normal CDF for any mean and stdDev
+export const normalCdf = (x: number, mean: number, stdDev: number): number => {
+  if (stdDev <= 0) return x < mean ? 0 : 1;
+  return standardNormalCdf((x - mean) / stdDev);
+};
+
+// Calculates EV for a single bet given true probability and market odds
+export const calculateSingleLegEV = (trueProbability: number, marketOdds: number): number => {
+    if (trueProbability < 0 || trueProbability > 1) return -100;
+    const decimalOdds = americanToDecimal(marketOdds);
+    const ev = (trueProbability * (decimalOdds - 1)) - (1 - trueProbability);
+    return ev * 100; // Return as percentage
 };

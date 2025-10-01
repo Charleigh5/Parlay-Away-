@@ -101,5 +101,25 @@ export const ADVANCED_STATS: Record<string, Record<string, AdvancedStat[]>> = {
           description: 'Measures receiving efficiency by dividing receiving yards by the number of routes run.'
         }
       ]
+  },
+  'Chris Jones': {
+    'Sacks': [
+        {
+            name: 'Pass Rush Win Rate',
+            abbreviation: 'PRWR',
+            value: 21.5,
+            rank: 2, // DT rank
+            percentile: 98,
+            description: "Percentage of pass rush snaps where the defender beats their block within 2.5 seconds."
+        },
+        {
+            name: 'Pressure Percentage',
+            abbreviation: 'Pres %',
+            value: 15.8,
+            rank: 1, // DT rank
+            percentile: 99,
+            description: "Percentage of pass rush snaps that result in a QB hurry, hit, or sack."
+        }
+    ]
   }
 };
