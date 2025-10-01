@@ -26,6 +26,7 @@ import { OddsLineChart } from './OddsLineChart';
 import { ArrowDownCircleIcon } from './icons/ArrowDownCircleIcon';
 import { ArrowUpCircleIcon } from './icons/ArrowUpCircleIcon';
 import { StethoscopeIcon } from './icons/StethoscopeIcon';
+import MicroPerformanceChart from './MicroPerformanceChart';
 
 
 interface BetBuilderProps {
@@ -173,6 +174,39 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
             setHistoricalOdds(null);
         }
     }, [marketOdds]);
+
+    const getLegContext = (leg: EnrichedLeg, allGames: Game[]) => {
+        const playerTeamName = TEAM_ABBREVIATION_TO_NAME[leg.playerDetails?.team ?? ''];
+        const game = allGames.find(g => g.players.some(p => p.name === leg.player));
+        if (!game || !playerTeamName) return { opponentAbbr: null, matchupFavorability: null };
+
+        const gameTeams = game.name.split(' @ ');
+        const opponentTeamName = gameTeams.find(team => team !== playerTeamName);
+        if (!opponentTeamName) return { opponentAbbr: null, matchupFavorability: null };
+
+        const opponentAbbr = TEAM_NAME_TO_ABBREVIATION[opponentTeamName] || 'N/A';
+        
+        const opponentDefensiveStats = DEFENSIVE_STATS[opponentTeamName];
+        if (!opponentDefensiveStats) return { opponentAbbr, matchupFavorability: null };
+
+        let matchupFavorability: 'Favorable' | 'Tough' | null = null;
+        
+        const playerPosition = leg.playerDetails?.position;
+        let positionalKey;
+        if (['Receiving Yards', 'Receptions'].includes(leg.propType)) {
+            if (playerPosition === 'TE') positionalKey = 'vsTE';
+            else if (playerPosition === 'WR') positionalKey = 'vsWR'; 
+        }
+        const statKey = positionalKey && opponentDefensiveStats[positionalKey] ? positionalKey : leg.propType;
+        const statData = opponentDefensiveStats[statKey];
+
+        if (statData && 'value' in statData) {
+            const isFavorable = (leg.position === 'Over' && leg.line < statData.value) || (leg.position === 'Under' && leg.line > statData.value);
+            matchupFavorability = isFavorable ? 'Favorable' : 'Tough';
+        }
+
+        return { opponentAbbr, matchupFavorability };
+    };
 
     const resetSelection = (keepPlayer = false) => {
         if (!keepPlayer) {
@@ -681,27 +715,59 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                     {/* Bet Slip Display */}
                     <div className="flex-1 p-4 bg-gray-900/50">
                         <h3 className="text-lg font-semibold text-gray-200 mb-3">Current Bet Slip ({legs.length} Legs)</h3>
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                             {legs.length === 0 ? (
                                 <div className="text-center text-gray-500 py-6 border-2 border-dashed border-gray-700 rounded-lg">
                                     <p>Your bet slip is empty.</p>
                                     <p className="text-xs">Add legs from the panel above.</p>
                                 </div>
                             ) : (
-                                legs.map((leg, index) => (
-                                    <div key={index} className="flex items-center justify-between p-2 rounded-md bg-gray-800/70">
-                                        <div>
-                                            <p className="font-medium text-gray-300">{leg.player}</p>
-                                            <p className="text-xs text-gray-400">{leg.position} {leg.line} {leg.propType}</p>
+                                legs.map((leg, index) => {
+                                    const legContext = getLegContext(leg, games);
+                                    return (
+                                        <div key={index} className="p-3 rounded-lg bg-gray-800/70 border border-gray-700/50">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-700 border-2 border-gray-600 font-bold text-gray-300 text-sm">
+                                                        {leg.playerDetails?.team}
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-semibold text-gray-200">{leg.player}</p>
+                                                        <p className="text-xs text-gray-500">{leg.playerDetails?.position}</p>
+                                                    </div>
+                                                </div>
+                                                <button onClick={() => handleRemoveLeg(index)} className="p-1.5 rounded-md text-gray-500 hover:text-red-400 hover:bg-red-500/10">
+                                                    <Trash2Icon className="h-4 w-4" />
+                                                </button>
+                                            </div>
+                                            <div className="flex items-center justify-between p-2 mt-3 rounded-md bg-gray-900/50">
+                                                <div>
+                                                    <p className="text-sm text-gray-300">{leg.propType}</p>
+                                                    <p className={`font-semibold text-sm ${leg.position === 'Over' ? 'text-green-400' : 'text-cyan-400'}`}>{leg.position} {leg.line}</p>
+                                                </div>
+                                                <div className="font-mono text-lg font-bold text-yellow-300">
+                                                    {formatAmericanOdds(leg.marketOdds)}
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center justify-between gap-4 text-xs mt-3 pt-3 border-t border-gray-700/50">
+                                                {leg.propDetails?.historicalContext?.gameLog ? (
+                                                    <div className="flex items-center gap-1.5 text-gray-400">
+                                                        <span>L5 Trend</span>
+                                                        <MicroPerformanceChart gameLog={leg.propDetails.historicalContext.gameLog} selectedLine={leg.line} />
+                                                    </div>
+                                                ) : <div />}
+                                                {legContext.matchupFavorability ? (
+                                                    <div className={`flex items-center gap-1.5 py-1 px-2 rounded-full ${
+                                                        legContext.matchupFavorability === 'Favorable' ? 'bg-green-500/10 text-green-300' : 'bg-red-500/10 text-red-300'
+                                                    }`}>
+                                                        {legContext.matchupFavorability === 'Favorable' ? <ArrowDownCircleIcon className="h-3.5 w-3.5" /> : <ArrowUpCircleIcon className="h-3.5 w-3.5" />}
+                                                        <span className="font-semibold">{legContext.matchupFavorability} vs {legContext.opponentAbbr}</span>
+                                                    </div>
+                                                ) : <div />}
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-3">
-                                            <span className="font-mono text-sm text-yellow-300">{formatAmericanOdds(leg.marketOdds)}</span>
-                                            <button onClick={() => handleRemoveLeg(index)} className="p-1.5 rounded-md text-red-400 hover:bg-red-500/10">
-                                                <Trash2Icon className="h-4 w-4" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))
+                                    );
+                                })
                             )}
                         </div>
                         {legs.length > 0 && (
