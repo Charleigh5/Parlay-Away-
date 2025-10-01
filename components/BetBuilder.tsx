@@ -120,6 +120,8 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
     const [legs, setLegs] = useState<EnrichedLeg[]>([]);
     const [savedParlays, setSavedParlays] = useState<SavedParlay[]>([]);
     const [isParlayManagerOpen, setIsParlayManagerOpen] = useState(false);
+    const [saveInputValue, setSaveInputValue] = useState("");
+
 
     // State for live schedule data
     const [games, setGames] = useState<Game[]>([]);
@@ -209,12 +211,12 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
 
     // Effect to update odds automatically when position is toggled for a known line
     useEffect(() => {
-        if (selectedProp && selectedPosition && parsedLine !== null) {
-            const matchingLine = selectedProp.lines.find(l => l.line === parsedLine);
-            if (matchingLine) {
-                const newOdds = selectedPosition === 'Over' ? matchingLine.overOdds : matchingLine.underOdds;
-                setOddsInput(newOdds.toString());
-            }
+        if (!selectedProp || !selectedPosition || parsedLine === null) return;
+
+        const matchingLine = selectedProp.lines.find(l => l.line === parsedLine);
+        if (matchingLine) {
+            const newOdds = selectedPosition === 'Over' ? matchingLine.overOdds : matchingLine.underOdds;
+            setOddsInput(newOdds.toString());
         }
     }, [selectedPosition, parsedLine, selectedProp]);
 
@@ -341,6 +343,34 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
         return null;
     }, [opponentInfo, selectedPlayer, selectedPropType]);
 
+    const handleSaveParlay = () => {
+        if (legs.length === 0) return;
+        const name = prompt("Enter a name for this parlay:", `Parlay - ${new Date().toLocaleDateString()}`);
+        if (name) {
+            const newParlay: SavedParlay = {
+                id: `parlay_${Date.now()}`,
+                name,
+                odds: parlayOdds,
+                legs,
+                createdAt: new Date().toISOString(),
+            };
+            const updatedParlays = [...savedParlays, newParlay];
+            setSavedParlays(updatedParlays);
+            localStorage.setItem(SAVED_PARLAYS_LIST_KEY, JSON.stringify(updatedParlays));
+        }
+    };
+
+    const handleLoadParlay = (parlay: SavedParlay) => {
+        setLegs(parlay.legs);
+        setIsParlayManagerOpen(false);
+    };
+
+    const handleDeleteParlay = (parlayId: string) => {
+        const updatedParlays = savedParlays.filter(p => p.id !== parlayId);
+        setSavedParlays(updatedParlays);
+        localStorage.setItem(SAVED_PARLAYS_LIST_KEY, JSON.stringify(updatedParlays));
+    };
+
     // Main render content divided into sections for clarity
     const renderPlayerList = () => (
         <div className="flex-1 overflow-y-auto">
@@ -428,27 +458,41 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                     />
                 </div>
             </div>
+            {historicalOdds && (
+                <div className="mt-4">
+                    <h5 className="flex items-center justify-center gap-2 text-xs font-semibold text-gray-400 mb-1">
+                        <LineChartIcon className="h-3 w-3" />
+                        7-Day Odds Movement
+                    </h5>
+                    <OddsLineChart data={historicalOdds} />
+                </div>
+            )}
         </div>
     );
     
-    const renderPlayerDetailView = () => (
+    const renderPlayerDetailView = () => {
+        if (!selectedPlayer) return null;
+        
+        const homeSplit = selectedPropType ? selectedPlayer.homeAwaySplits?.home[selectedPropType] : undefined;
+        const awaySplit = selectedPropType ? selectedPlayer.homeAwaySplits?.away[selectedPropType] : undefined;
+        const divisionalSplit = selectedPropType ? selectedPlayer.divisionalSplits?.[selectedPropType] : undefined;
+
+        return (
         <div className="flex-1 flex flex-col overflow-hidden">
             <div className="p-4 border-b border-gray-700/50">
                 <button onClick={() => setSelectedPlayerName(null)} className="flex items-center gap-1 text-sm text-gray-400 hover:text-cyan-400">
                     <ChevronLeftIcon className="h-4 w-4" /> Back to Players
                 </button>
-                <div className="mt-2 flex items-start justify-between">
-                    <div>
+                <div className="mt-2">
+                    <div className="flex items-center gap-3 mb-0.5">
                         <h3 className="font-bold text-lg text-gray-100">{selectedPlayer.name}</h3>
-                        <p className="text-sm text-gray-400">{selectedPlayer.position} - {selectedPlayer.team}</p>
+                        {selectedPlayer.injuryStatus && selectedPlayer.injuryStatus.status !== 'Healthy' && (
+                            <div className={`text-xs font-semibold px-2 py-1 rounded-full ${getInjuryStatusStyle(selectedPlayer.injuryStatus.status).bgColor} ${getInjuryStatusStyle(selectedPlayer.injuryStatus.status).color}`}>
+                                {selectedPlayer.injuryStatus.status}
+                            </div>
+                        )}
                     </div>
-                     {selectedPlayer.injuryStatus && (
-                        <div className="text-right">
-                           <div className={`text-xs font-semibold px-2 py-1 rounded-full ${getInjuryStatusStyle(selectedPlayer.injuryStatus.status).bgColor} ${getInjuryStatusStyle(selectedPlayer.injuryStatus.status).color}`}>
-                               {selectedPlayer.injuryStatus.status}
-                           </div>
-                        </div>
-                    )}
+                    <p className="text-sm text-gray-400">{selectedPlayer.position} - {selectedPlayer.team}</p>
                 </div>
             </div>
             <div className="flex-1 overflow-y-auto p-4">
@@ -495,6 +539,32 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
 
                 {selectedProp && (
                     <div className="mt-4 border-t border-gray-700/50 pt-4">
+                        {(homeSplit !== undefined || divisionalSplit !== undefined) && (
+                            <div className="mb-4 p-3 rounded-lg bg-gray-900/50 border border-gray-700/70">
+                                <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-2">Performance Splits for {selectedPropType}</h4>
+                                <div className="flex gap-2 text-center text-xs">
+                                    {homeSplit !== undefined && awaySplit !== undefined && (
+                                        <>
+                                            <div className="flex-1 bg-gray-800 p-2 rounded-md">
+                                                <p className="flex items-center justify-center gap-1.5 text-gray-400"><HomeIcon className="h-3 w-3" /> Home</p>
+                                                <p className="font-bold text-base text-gray-200 mt-1">{homeSplit.toFixed(1)}</p>
+                                            </div>
+                                            <div className="flex-1 bg-gray-800 p-2 rounded-md">
+                                                <p className="flex items-center justify-center gap-1.5 text-gray-400"><PlaneIcon className="h-3 w-3" /> Away</p>
+                                                <p className="font-bold text-base text-gray-200 mt-1">{awaySplit.toFixed(1)}</p>
+                                            </div>
+                                        </>
+                                    )}
+                                    {divisionalSplit !== undefined && (
+                                        <div className="flex-1 bg-gray-800 p-2 rounded-md">
+                                            <p className="flex items-center justify-center gap-1.5 text-gray-400"><SwordsIcon className="h-3 w-3" /> Divisional</p>
+                                            <p className="font-bold text-base text-gray-200 mt-1">{divisionalSplit.toFixed(1)}</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
                         {selectedProp.historicalContext?.gameLog && parsedLine !== null && (
                             <HistoricalPerformanceChart 
                                 gameLog={selectedProp.historicalContext.gameLog}
@@ -517,84 +587,149 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                 )}
             </div>
         </div>
+        );
+    };
+    
+    const renderParlayManager = () => (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/80 backdrop-blur-sm" onClick={() => setIsParlayManagerOpen(false)}>
+            <div className="w-full max-w-lg rounded-xl border border-gray-700 bg-gray-900/80 p-6 text-center" onClick={(e) => e.stopPropagation()}>
+                <h3 className="text-lg font-semibold text-gray-200 mb-4">Saved Parlays</h3>
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {savedParlays.length > 0 ? savedParlays.map(parlay => (
+                        <div key={parlay.id} className="group flex items-center justify-between rounded-md bg-gray-800/70 p-3 text-left">
+                            <div>
+                                <p className="font-semibold text-gray-200">{parlay.name}</p>
+                                <p className="text-xs text-gray-400">{parlay.legs.length} Legs &middot; <span className="font-mono">{formatAmericanOdds(parlay.odds)}</span></p>
+                            </div>
+                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                 <button
+                                    onClick={() => handleLoadParlay(parlay)}
+                                    className="flex items-center justify-center rounded-md bg-cyan-500 p-2 text-sm font-semibold text-white transition-colors hover:bg-cyan-600"
+                                    aria-label={`Load parlay ${parlay.name}`}
+                                >
+                                    <FolderOpenIcon className="h-4 w-4" />
+                                </button>
+                                <button
+                                    onClick={() => handleDeleteParlay(parlay.id)}
+                                    className="flex items-center justify-center rounded-md bg-red-600/80 p-2 text-sm font-semibold text-white transition-colors hover:bg-red-600"
+                                     aria-label={`Delete parlay ${parlay.name}`}
+                                >
+                                    <Trash2Icon className="h-4 w-4" />
+                                </button>
+                            </div>
+                        </div>
+                    )) : (
+                        <p className="text-gray-500 py-8">No saved parlays yet.</p>
+                    )}
+                </div>
+                <button
+                    onClick={() => setIsParlayManagerOpen(false)}
+                    className="mt-6 w-full rounded-md bg-gray-700 px-4 py-2.5 text-sm font-semibold text-gray-300 transition-colors hover:bg-gray-600"
+                >
+                    Close
+                </button>
+            </div>
+        </div>
     );
 
     return (
         <div className="flex h-full w-full">
+            {isParlayManagerOpen && renderParlayManager()}
             {/* Left: Bet Slip */}
             <div className="flex w-full max-w-sm flex-col border-r border-gray-700/50 bg-gray-900/50">
-                 <div className="p-4 border-b border-gray-700/50">
+                 <div className="p-4 border-b border-gray-700/50 flex justify-between items-center">
                     <h2 className="text-lg font-semibold text-gray-200">Bet Slip</h2>
+                     <button
+                        onClick={() => setIsParlayManagerOpen(true)}
+                        className="flex items-center gap-2 rounded-md bg-gray-700/60 px-3 py-1.5 text-xs font-medium text-gray-300 transition-colors hover:bg-gray-700"
+                        aria-label="Manage saved parlays"
+                    >
+                        <FolderOpenIcon className="h-4 w-4" /> Manage Saved
+                    </button>
                 </div>
                 <div className="flex-1 space-y-3 overflow-y-auto p-4">
                    {legs.length === 0 ? (
                         <div className="text-center text-sm text-gray-500 pt-8">
-                            <p>Your bet slip is empty.</p>
-                            <p>Select a player to begin.</p>
+                            <p>Your slip is empty.</p>
+                            <p>Add a leg to get started.</p>
                         </div>
-                   ) : legs.map((leg, index) => {
-                       const { opponentAbbr, matchupFavorability } = getLegContext(leg, games);
-                       return (
-                        <div key={index} className="rounded-lg border border-gray-700 bg-gray-800/50 p-3">
-                            <div className="flex items-start justify-between">
-                                <div>
-                                    <p className="font-semibold text-gray-200">{leg.player}</p>
-                                    <p className="text-xs text-gray-400">{leg.propType}</p>
+                   ) : (
+                       legs.map((leg, index) => (
+                           <div key={index} className="rounded-lg border border-gray-700 bg-gray-800/70 p-3">
+                                <div className="flex items-start justify-between">
+                                    <div>
+                                        <p className="font-semibold text-gray-200">{leg.player}</p>
+                                        <p className="text-xs text-gray-400">{leg.position} {leg.line} {leg.propType}</p>
+                                    </div>
+                                    <button onClick={() => handleRemoveLeg(index)} className="p-1 rounded-md text-gray-500 hover:text-red-400 hover:bg-gray-700" aria-label={`Remove ${leg.player} prop`}>
+                                        <Trash2Icon className="h-4 w-4" />
+                                    </button>
                                 </div>
-                                <button onClick={() => handleRemoveLeg(index)} className="p-1 text-gray-500 hover:text-red-400 transition-colors">
-                                    <Trash2Icon className="h-4 w-4" />
-                                </button>
-                            </div>
-                            <div className="mt-2 flex items-center justify-between border-t border-gray-700/50 pt-2">
-                                <div className="text-sm">
-                                    <span className={`font-bold ${leg.position === 'Over' ? 'text-green-400' : 'text-cyan-400'}`}>{leg.position} {leg.line}</span>
+                                <div className="mt-2 pt-2 border-t border-gray-700/50 flex justify-between items-center">
+                                    <span className="font-mono text-sm text-yellow-300">{formatAmericanOdds(leg.marketOdds)}</span>
+                                     {leg.propDetails?.historicalContext?.gameLog && (
+                                        <MicroPerformanceChart gameLog={leg.propDetails.historicalContext.gameLog} selectedLine={leg.line} />
+                                     )}
                                 </div>
-                                <div className="font-mono text-base font-semibold text-yellow-300">{formatAmericanOdds(leg.marketOdds)}</div>
-                            </div>
-                        </div>
-                       );
-                    })}
+                           </div>
+                       ))
+                   )}
                 </div>
-                <div className="border-t border-gray-700/50 bg-gray-900 p-4">
-                     {legs.length > 1 && (
-                        <div className="flex justify-between items-center mb-4">
-                            <span className="text-sm font-semibold text-gray-300">Parlay Odds</span>
-                            <span className="font-mono text-xl font-bold text-yellow-300">{formatAmericanOdds(parlayOdds)}</span>
-                        </div>
-                    )}
+                <div className="p-4 border-t border-gray-700/50">
+                    <div className="flex justify-between items-center mb-4">
+                        <span className="text-sm font-semibold text-gray-300">Total Parlay Odds:</span>
+                        <span className="font-mono text-lg font-bold text-yellow-300">{formatAmericanOdds(parlayOdds)}</span>
+                    </div>
                     <button
                         onClick={() => onAnalyze(legs)}
                         disabled={legs.length === 0}
-                        className="w-full flex items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-3 text-base font-semibold text-white transition-colors hover:bg-cyan-600 disabled:cursor-not-allowed disabled:bg-gray-600"
+                        className="w-full flex items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cyan-600 disabled:cursor-not-allowed disabled:bg-gray-600"
                     >
-                        <SendIcon className="h-5 w-5" />
-                        Analyze {legs.length > 0 ? `${legs.length} Leg(s)` : ''}
+                        <SendIcon className="h-5 w-5" /> Analyze Parlay
                     </button>
                 </div>
             </div>
 
-            {/* Right: Selection Panel */}
+            {/* Right: Market/Player Selection */}
             <div className="flex flex-1 flex-col">
-                <div className="p-4 border-b border-gray-700/50">
-                    <button onClick={onBack} className="flex items-center gap-2 text-sm font-medium text-gray-300 transition-colors hover:bg-gray-700 mb-4 -ml-1 p-1 rounded-md">
+                <div className="p-4 border-b border-gray-700/50 flex justify-between items-center">
+                    <button onClick={onBack} className="flex items-center gap-2 rounded-md bg-gray-700/50 px-3 py-1.5 text-sm font-medium text-gray-300 transition-colors hover:bg-gray-700">
                         <ChevronLeftIcon className="h-4 w-4" />
-                        Back to Input Selection
+                        Back to Menu
                     </button>
-                    {!selectedPlayer && (
-                        <div className="relative">
-                            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-500" />
-                            <input
-                                type="text"
-                                placeholder="Search player or team..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full rounded-md border border-gray-600 bg-gray-800 py-2 pl-10 pr-4 text-gray-200 placeholder-gray-500 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
-                            />
-                        </div>
-                    )}
+                    <h2 className="text-lg font-semibold text-gray-200">Market Explorer</h2>
                 </div>
-                
-                 {selectedPlayer ? renderPlayerDetailView() : renderPlayerList()}
+                <div className="flex flex-1 overflow-hidden">
+                    {/* Left side within this panel: game/player list */}
+                    <div className="flex w-full max-w-xs flex-col border-r border-gray-700/50">
+                        <div className="p-4 border-b border-gray-700/50">
+                            <div className="relative">
+                                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+                                <input
+                                    type="text"
+                                    placeholder="Search games or players..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full rounded-md border border-gray-600 bg-gray-800 py-2 pl-9 pr-3 text-sm text-gray-200 placeholder-gray-500 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                                />
+                            </div>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-4">
+                             {scheduleLoading ? <p className="text-gray-400 text-sm text-center">Loading schedule...</p> : renderPlayerList()}
+                        </div>
+                    </div>
+
+                    {/* Right side within this panel: details & constructor */}
+                    <div className="flex-1 overflow-y-auto">
+                        {selectedPlayerName && selectedPlayer ? (
+                            renderPlayerDetailView()
+                        ) : (
+                            <div className="flex h-full items-center justify-center text-center text-gray-500 p-8">
+                                <p>Select a player to view available props.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
             </div>
         </div>
     );
