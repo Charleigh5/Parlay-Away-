@@ -146,3 +146,12 @@ export interface ParlayCorrelationAnalysis {
   summary: string;
   analysis: CorrelationAnalysisDetail[];
 }
+
+// Represents a parlay saved by the user in localStorage
+export interface SavedParlay {
+  id: string;
+  name: string;
+  odds: number;
+  legs: ExtractedBetLeg[];
+  createdAt: string;
+}

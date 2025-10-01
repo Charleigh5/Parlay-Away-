@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { ExtractedBetLeg, Game, Player, PlayerProp, AnalysisResponse, LineOdds, ParlayCorrelationAnalysis } from '../types';
+import { ExtractedBetLeg, Game, Player, PlayerProp, AnalysisResponse, LineOdds, ParlayCorrelationAnalysis, SavedParlay } from '../types';
 import { calculateParlayOdds, formatAmericanOdds, generateHistoricalOdds, normalCdf, calculateSingleLegEV } from '../utils';
 import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
 import { SendIcon } from './icons/SendIcon';
@@ -56,14 +56,6 @@ const MinusCircleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 interface BetBuilderProps {
   onAnalyze: (legs: ExtractedBetLeg[]) => void;
   onBack: () => void;
-}
-
-interface SavedParlay {
-  id: string;
-  name: string;
-  odds: number;
-  legs: ExtractedBetLeg[];
-  createdAt: string;
 }
 
 interface EnrichedLeg extends ExtractedBetLeg {
@@ -781,8 +773,8 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                                     <p className="text-xs text-gray-400">{leg.position} {leg.line} {leg.propType}</p>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                    <span className="font-mono text-sm text-gray-200">{formatAmericanOdds(leg.marketOdds)}</span>
-                                    <button onClick={() => handleRemoveLeg(index)} className="p-1.5 rounded-md text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors">
+                                    <span className="font-mono text-sm text-yellow-300">{formatAmericanOdds(leg.marketOdds)}</span>
+                                    <button onClick={() => handleRemoveLeg(index)} className="p-1 rounded-md text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors">
                                         <Trash2Icon className="h-4 w-4" />
                                     </button>
                                 </div>
@@ -790,118 +782,87 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                         ))
                     )}
                 </div>
-
-                {legs.length > 0 && (
-                    <div className="mt-auto pt-4 border-t border-gray-700/50">
-                        <div className="flex justify-between items-center text-sm mb-2">
-                            <span className="text-gray-400">{legs.length} Leg Parlay</span>
-                            <span className="text-xl font-bold font-mono text-yellow-300">{formatAmericanOdds(parlayOdds)}</span>
-                        </div>
-                        
-                        {legs.length > 1 && (
-                            <div className="mt-4 border-t border-gray-700/50 pt-4">
-                              <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-2">
-                                <SparklesIcon className="h-4 w-4 text-cyan-400" />
-                                Parlay Correlation
-                              </h4>
-                              <button
-                                onClick={handleAnalyzeCorrelation}
-                                disabled={isAnalyzingCorrelation}
-                                className="w-full flex items-center justify-center gap-2 rounded-md bg-cyan-500/20 px-3 py-2 text-sm font-semibold text-cyan-300 transition-colors hover:bg-cyan-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                {isAnalyzingCorrelation ? 'Analyzing...' : 'Analyze Prop Correlations'}
-                              </button>
-                              {isAnalyzingCorrelation && <div className="text-center text-xs text-gray-400 mt-2">AI is analyzing relationships...</div>}
-                              {correlationError && <div className="text-center text-xs text-red-400 mt-2 p-2 bg-red-500/10 rounded">{correlationError}</div>}
-                              {correlationAnalysis && (
-                                <div className="mt-3 space-y-3 text-xs">
-                                    <div className="p-2 bg-gray-800/50 rounded-lg">
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-gray-300 font-semibold">Overall Score</span>
-                                            <span className={`font-mono text-base font-bold px-2 py-0.5 rounded-full ${
-                                                correlationAnalysis.overallScore > 0.2 ? 'bg-green-500/20 text-green-300' :
-                                                correlationAnalysis.overallScore < -0.2 ? 'bg-red-500/20 text-red-300' :
-                                                'bg-gray-700 text-gray-300'
-                                            }`}>
-                                                {correlationAnalysis.overallScore.toFixed(2)}
-                                            </span>
-                                        </div>
-                                        <p className="mt-1.5 text-gray-400 italic text-center">{correlationAnalysis.summary}</p>
-                                    </div>
-                                    <div className="space-y-1.5 max-h-40 overflow-y-auto">
-                                        {correlationAnalysis.analysis.map((detail, i) => {
-                                            const leg1 = legs[detail.leg1Index];
-                                            const leg2 = legs[detail.leg2Index];
-                                            const RelationshipIcon = detail.relationship === 'Positive' ? LinkIcon : detail.relationship === 'Negative' ? UnlinkIcon : MinusCircleIcon;
-                                            const color = detail.relationship === 'Positive' ? 'text-green-400' : detail.relationship === 'Negative' ? 'text-red-400' : 'text-gray-400';
-                                            return (
-                                                <div key={i} className="p-2 bg-gray-800/50 rounded-md">
-                                                     <div className="flex items-center justify-between font-semibold">
-                                                        <div className="flex items-center gap-1">
-                                                            <span>{leg1.player.split(' ').pop()} {leg1.position[0]}{leg1.line}{leg1.propType.slice(0,4)}</span>
-                                                            <span>-</span>
-                                                            <span>{leg2.player.split(' ').pop()} {leg2.position[0]}{leg2.line}{leg2.propType.slice(0,4)}</span>
-                                                        </div>
-                                                        <div className={`flex items-center gap-1 ${color}`}>
-                                                            <RelationshipIcon className="h-3.5 w-3.5" />
-                                                            <span>{detail.relationship}</span>
-                                                        </div>
-                                                     </div>
-                                                     <p className="text-gray-400 mt-1 text-2xs">{detail.explanation}</p>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                              )}
+                
+                {/* Footer */}
+                <div className="mt-auto pt-3 border-t border-gray-700/50">
+                    {legs.length > 0 && (
+                        <div className="mb-3">
+                            <div className="flex justify-between items-center text-sm mb-1">
+                                <span className="text-gray-400">Total Legs</span>
+                                <span className="font-semibold text-gray-200">{legs.length}</span>
                             </div>
-                        )}
-
-                        <div className="flex gap-2 mt-4">
-                             <button onClick={resetBuilder} className="w-1/3 flex items-center justify-center gap-2 rounded-md bg-gray-700 px-3 py-2 text-sm font-semibold text-gray-300 transition-colors hover:bg-gray-600">
-                                <Trash2Icon className="h-4 w-4" /> Clear
-                            </button>
-                            <button onClick={() => onAnalyze(legs.map(({playerDetails, propDetails, ...rest}) => rest))} className="w-2/3 flex items-center justify-center gap-2 rounded-md bg-cyan-500 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-cyan-600">
-                                <SendIcon className="h-4 w-4" />
-                                Run Full Analysis
-                            </button>
+                            <div className="flex justify-between items-center text-lg">
+                                <span className="text-gray-300 font-semibold">Parlay Odds</span>
+                                <span className="font-mono font-bold text-yellow-300">{formatAmericanOdds(parlayOdds)}</span>
+                            </div>
                         </div>
+                    )}
+
+                    {legs.length > 1 && (
+                        <div className="mb-3">
+                             <button onClick={handleAnalyzeCorrelation} disabled={isAnalyzingCorrelation} className="w-full flex items-center justify-center gap-2 rounded-md bg-cyan-500/20 px-3 py-2 text-sm font-semibold text-cyan-300 transition-colors hover:bg-cyan-500/30 disabled:opacity-50 disabled:cursor-not-allowed">
+                                <LinkIcon className="h-4 w-4" />
+                                {isAnalyzingCorrelation ? 'Analyzing...' : 'Analyze Parlay Correlation'}
+                            </button>
+                            {isAnalyzingCorrelation && <p className="text-xs text-center text-gray-400 mt-1">AI is analyzing leg relationships...</p>}
+                            {correlationError && <p className="text-xs text-center text-red-400 mt-1 p-2 bg-red-500/10 rounded-md">{correlationError}</p>}
+                            {correlationAnalysis && (
+                                <div className="mt-2 p-3 bg-gray-900/50 rounded-lg border border-gray-700">
+                                    <h4 className="text-sm font-semibold text-cyan-400 flex items-center gap-2">
+                                        Correlation Score: 
+                                        <span className={`font-mono text-base ${correlationAnalysis.overallScore > 0.2 ? 'text-green-400' : correlationAnalysis.overallScore < -0.2 ? 'text-red-400' : 'text-yellow-400'}`}>
+                                            {correlationAnalysis.overallScore.toFixed(2)}
+                                        </span>
+                                    </h4>
+                                    <p className="text-xs text-gray-400 mt-1">{correlationAnalysis.summary}</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    
+                    <div className="flex gap-2">
+                        <button onClick={resetBuilder} disabled={legs.length === 0} className="w-1/3 flex items-center justify-center gap-2 rounded-md bg-gray-700 px-3 py-2 text-sm font-semibold text-gray-300 transition-colors hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                            Reset
+                        </button>
+                        <button onClick={() => onAnalyze(legs)} disabled={legs.length === 0} className="w-2/3 flex items-center justify-center gap-2 rounded-md bg-cyan-500 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-cyan-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <SendIcon className="h-4 w-4" />
+                            Run Synoptic Analysis
+                        </button>
                     </div>
-                )}
+                </div>
             </div>
-             {isParlayManagerOpen && (
+
+            {isParlayManagerOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/80 backdrop-blur-sm" onClick={() => setIsParlayManagerOpen(false)}>
-                    <div className="w-full max-w-lg rounded-xl border border-gray-700 bg-gray-900 p-4" onClick={e => e.stopPropagation()}>
-                        <div className="flex justify-between items-center mb-3">
-                            <h3 className="text-lg font-semibold text-gray-200">Saved Parlays</h3>
+                    <div className="w-full max-w-lg rounded-xl border border-gray-700 bg-gray-900 shadow-2xl p-6" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-xl font-semibold text-gray-200 flex items-center gap-2">
+                                <FolderOpenIcon className="h-6 w-6 text-cyan-400" />
+                                Saved Parlays
+                            </h3>
                             <button onClick={() => setIsParlayManagerOpen(false)} className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-700">
                                 <XIcon className="h-5 w-5" />
                             </button>
                         </div>
-                        <div className="max-h-96 overflow-y-auto space-y-2">
-                            {savedParlays.length > 0 ? savedParlays.map(p => (
-                                <div key={p.id} className="bg-gray-800/70 p-3 rounded-lg group">
-                                    <div className="flex justify-between items-start">
+                        <div className="max-h-96 overflow-y-auto space-y-2 pr-2 -mr-2">
+                            {savedParlays.length > 0 ? (
+                                savedParlays.map(parlay => (
+                                    <div key={parlay.id} className="bg-gray-800/60 p-3 rounded-lg flex items-center justify-between">
                                         <div>
-                                            <p className="font-semibold text-gray-200">{p.name}</p>
-                                            <p className="text-xs text-gray-400">{p.legs.length} legs &bull; {formatAmericanOdds(p.odds)} &bull; {new Date(p.createdAt).toLocaleDateString()}</p>
+                                            <p className="font-semibold text-gray-200">{parlay.name}</p>
+                                            <p className="text-xs text-gray-400">{parlay.legs.length} Legs | {formatAmericanOdds(parlay.odds)} | Saved on {new Date(parlay.createdAt).toLocaleDateString()}</p>
                                         </div>
-                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button onClick={() => handleLoadParlay(p)} className="p-1.5 rounded-md text-gray-400 bg-gray-700/50 hover:text-cyan-400 hover:bg-gray-700">
-                                                <FolderOpenIcon className="h-4 w-4" />
-                                            </button>
-                                            <button onClick={() => handleDeleteParlay(p.id)} className="p-1.5 rounded-md text-gray-400 bg-gray-700/50 hover:text-red-400 hover:bg-gray-700">
+                                        <div className="flex items-center gap-2">
+                                            <button onClick={() => handleLoadParlay(parlay)} className="px-3 py-1 text-sm bg-cyan-500 text-white rounded-md hover:bg-cyan-600">Load</button>
+                                            <button onClick={() => handleDeleteParlay(parlay.id)} className="p-1.5 rounded-md text-gray-500 hover:text-red-400 hover:bg-red-500/10">
                                                 <Trash2Icon className="h-4 w-4" />
                                             </button>
                                         </div>
                                     </div>
-                                    <div className="mt-2 text-xs space-y-1 border-t border-gray-700/50 pt-2">
-                                        {p.legs.map((leg, i) => <p key={i} className="text-gray-400 truncate">{leg.player} {leg.position} {leg.line} {leg.propType}</p>)}
-                                    </div>
-                                </div>
-                            )) : (
-                                <div className="text-center py-8 text-gray-500">
-                                    <p>No saved parlays yet.</p>
+                                ))
+                            ) : (
+                                <div className="text-center text-gray-500 py-8">
+                                    <p>You have no saved parlays.</p>
                                 </div>
                             )}
                         </div>
