@@ -618,241 +618,211 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                             <h4 className="text-xs text-gray-400 uppercase font-semibold mb-2">Performance Splits</h4>
                             <div className="grid grid-cols-2 gap-2 text-xs">
                                 <div className="bg-gray-800 p-1.5 rounded">
-                                    <div className="flex items-center gap-1 text-gray-300"><HomeIcon className="h-3.5 w-3.5" /> Home</div>
-                                    <div className="font-mono text-cyan-300">{selectedPlayer.homeAwaySplits.home[selectedPropType]?.toFixed(1) || 'N/A'}</div>
+                                    <div className="flex items-center gap-1.5 text-gray-400 mb-1"><HomeIcon className="h-3 w-3"/> Home</div>
+                                    {Object.entries(selectedPlayer.homeAwaySplits.home).map(([stat, value]) => (
+                                        <div key={stat} className="flex justify-between"><span>{stat.substring(0,8)}...</span> <span className="font-mono text-gray-200">{value}</span></div>
+                                    ))}
                                 </div>
                                 <div className="bg-gray-800 p-1.5 rounded">
-                                    <div className="flex items-center gap-1 text-gray-300"><PlaneIcon className="h-3.5 w-3.5" /> Away</div>
-                                    <div className="font-mono text-cyan-300">{selectedPlayer.homeAwaySplits.away[selectedPropType]?.toFixed(1) || 'N/A'}</div>
+                                    <div className="flex items-center gap-1.5 text-gray-400 mb-1"><PlaneIcon className="h-3 w-3"/> Away</div>
+                                    {Object.entries(selectedPlayer.homeAwaySplits.away).map(([stat, value]) => (
+                                        <div key={stat} className="flex justify-between"><span>{stat.substring(0,8)}...</span> <span className="font-mono text-gray-200">{value}</span></div>
+                                    ))}
                                 </div>
-                                {selectedPlayer.divisionalSplits && (
-                                     <div className="bg-gray-800 p-1.5 rounded col-span-2">
-                                        <div className="flex items-center gap-1 text-gray-300"><SwordsIcon className="h-3.5 w-3.5" /> Divisional</div>
-                                        <div className="font-mono text-cyan-300">{selectedPlayer.divisionalSplits[selectedPropType]?.toFixed(1) || 'N/A'}</div>
-                                    </div>
-                                )}
                             </div>
-                        </div>
-                    )}
-                    
-                    <button onClick={handleAnalyzeMarket} disabled={isAnalyzingMarket} className="w-full flex items-center justify-center gap-2 rounded-md bg-cyan-500/20 px-3 py-2 text-sm font-semibold text-cyan-300 transition-colors hover:bg-cyan-500/30 disabled:opacity-50 disabled:cursor-not-allowed mb-3">
-                        <SparklesIcon className="h-4 w-4" />
-                        {isAnalyzingMarket ? 'Analyzing Market...' : 'Run AI Market Analysis'}
-                    </button>
-                    
-                    {isAnalyzingMarket && <div className="text-center text-xs text-gray-400">AI is calculating projections...</div>}
-                    {marketAnalysisError && <div className="text-center text-xs text-red-400 p-2 bg-red-500/10 rounded">{marketAnalysisError}</div>}
-                    
-                    {marketAnalysis ? (
-                        <div className="space-y-2">
-                             <div className="p-2 bg-gray-900/40 rounded-lg border border-cyan-500/30">
-                                <p className="text-xs text-cyan-400 font-semibold mb-1">Optimal Bet Identified:</p>
-                                {marketAnalysis.optimalBet ? (
-                                    <div className="text-sm">
-                                        <span className="font-bold text-gray-200">{marketAnalysis.optimalBet.position} {marketAnalysis.optimalBet.line}</span> at <span className="font-mono">{formatAmericanOdds(marketAnalysis.optimalBet.odds)}</span> with a <span className={`font-bold ${marketAnalysis.optimalBet.ev > 0 ? 'text-green-400' : 'text-red-400'}`}>{marketAnalysis.optimalBet.ev.toFixed(2)}% EV</span>
-                                    </div>
-                                ) : (
-                                    <p className="text-sm text-gray-400">No positive EV found in the current market lines.</p>
-                                )}
-                            </div>
-                            {marketAnalysis.lines.map(line => (
-                                <div key={line.line} className="grid grid-cols-3 gap-2 items-center text-center p-1 rounded-md bg-gray-800 hover:bg-gray-700/70">
-                                    <button onClick={() => handleSelectLine(line.line, 'Under', line.underOdds)} className={`p-1 rounded transition-colors ${selectedPosition === 'Under' && lineInput === String(line.line) ? 'ring-2 ring-cyan-400' : ''} ${line.underEV > 0 ? 'bg-green-500/10 hover:bg-green-500/20' : 'hover:bg-gray-700'}`}>
-                                        <div className={`font-mono text-xs ${line.underEV > 0 ? 'text-green-300' : 'text-gray-400'}`}>{line.underEV.toFixed(1)}% EV</div>
-                                        <div className="text-gray-300 text-sm font-semibold">{formatAmericanOdds(line.underOdds)}</div>
-                                    </button>
-                                    <div className="text-sm font-bold text-gray-200">
-                                        {line.line}
-                                        <div className="text-xs text-gray-500 font-normal">Under | Over</div>
-                                    </div>
-                                    <button onClick={() => handleSelectLine(line.line, 'Over', line.overOdds)} className={`p-1 rounded transition-colors ${selectedPosition === 'Over' && lineInput === String(line.line) ? 'ring-2 ring-cyan-400' : ''} ${line.overEV > 0 ? 'bg-green-500/10 hover:bg-green-500/20' : 'hover:bg-gray-700'}`}>
-                                        <div className={`font-mono text-xs ${line.overEV > 0 ? 'text-green-300' : 'text-gray-400'}`}>{line.overEV.toFixed(1)}% EV</div>
-                                        <div className="text-gray-300 text-sm font-semibold">{formatAmericanOdds(line.overOdds)}</div>
-                                    </button>
+                            {selectedPlayer.divisionalSplits && (
+                                <div className="bg-gray-800 p-1.5 rounded mt-2">
+                                    <div className="flex items-center gap-1.5 text-gray-400 mb-1"><SwordsIcon className="h-3 w-3"/> Divisional</div>
+                                    {Object.entries(selectedPlayer.divisionalSplits).map(([stat, value]) => (
+                                        <div key={stat} className="flex justify-between text-xs"><span>{stat.substring(0,8)}...</span> <span className="font-mono text-gray-200">{value}</span></div>
+                                    ))}
                                 </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="space-y-1">
-                             {selectedProp?.lines.map(line => (
-                                <div key={line.line} className="grid grid-cols-3 gap-2 items-center text-center p-2 rounded-md bg-gray-800">
-                                    <button onClick={() => handleSelectLine(line.line, 'Under', line.underOdds)} className={`p-1.5 rounded transition-colors hover:bg-gray-700 ${selectedPosition === 'Under' && lineInput === String(line.line) ? 'ring-2 ring-cyan-400' : ''}`}><span className="text-sm font-semibold text-gray-300">{formatAmericanOdds(line.underOdds)}</span></button>
-                                    <div className="text-sm font-bold text-gray-200">{line.line}</div>
-                                    <button onClick={() => handleSelectLine(line.line, 'Over', line.overOdds)} className={`p-1.5 rounded transition-colors hover:bg-gray-700 ${selectedPosition === 'Over' && lineInput === String(line.line) ? 'ring-2 ring-cyan-400' : ''}`}><span className="text-sm font-semibold text-gray-300">{formatAmericanOdds(line.overOdds)}</span></button>
-                                </div>
-                            ))}
+                            )}
                         </div>
                     )}
                     
                     {ADVANCED_STATS[selectedPlayer.name]?.[selectedPropType] && (
-                         <div className="mt-3">
-                            <h4 className="flex items-center gap-1.5 text-xs text-gray-400 uppercase font-semibold mb-2"><TrendingUpIcon className="h-3.5 w-3.5" />Advanced Metrics</h4>
-                            <div className="space-y-1.5">
-                                {ADVANCED_STATS[selectedPlayer.name]?.[selectedPropType]?.map(stat => (
-                                    <div key={stat.abbreviation} className="group relative text-xs bg-gray-900/40 p-1.5 rounded">
-                                        <div className="flex justify-between items-center">
-                                            <span className="font-semibold text-gray-300">{stat.abbreviation}</span>
-                                            <span className={`font-mono ${stat.percentile > 85 ? 'text-green-300' : stat.percentile > 60 ? 'text-yellow-300' : 'text-gray-300'}`}>{stat.value.toFixed(2)}</span>
+                        <div className="mb-3 p-2 border border-gray-700/50 rounded-lg bg-gray-900/30">
+                            <h4 className="flex items-center gap-1.5 text-xs text-gray-400 uppercase font-semibold mb-2"><TrendingUpIcon className="h-3.5 w-3.5" /> Advanced Metrics</h4>
+                            <div className="space-y-2">
+                                {ADVANCED_STATS[selectedPlayer.name][selectedPropType].map(stat => (
+                                    <div key={stat.name} className="group relative text-xs">
+                                        <div className="flex justify-between items-center mb-0.5">
+                                            <span className="text-gray-300">{stat.abbreviation}</span>
+                                            <span className="font-mono text-cyan-300">{stat.value} (#{stat.rank})</span>
                                         </div>
-                                        <div className="w-full bg-gray-700 rounded-full h-1 mt-1">
-                                            <div className="bg-cyan-500 h-1 rounded-full" style={{ width: `${stat.percentile}%` }}></div>
+                                        <div className="w-full bg-gray-700/50 rounded-full h-1.5">
+                                            <div className="bg-gradient-to-r from-cyan-500 to-blue-500 h-1.5 rounded-full" style={{ width: `${stat.percentile}%`}}></div>
                                         </div>
-                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-2 bg-gray-950 text-xs text-gray-300 border border-gray-700 rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                                            <p className="font-bold text-cyan-400">{stat.name} (#{stat.rank})</p>
-                                            <p className="text-gray-400">{stat.description}</p>
+                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-gray-950 text-xs text-gray-300 border border-gray-700 rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                                           <strong className="font-semibold text-cyan-400">{stat.name}</strong>
+                                           <p className="text-gray-400">{stat.description}</p>
                                         </div>
                                     </div>
                                 ))}
                             </div>
                         </div>
                     )}
+                    
+                    {selectedProp.historicalContext && (
+                        <HistoricalPerformanceChart 
+                            gameLog={selectedProp.historicalContext.gameLog || []}
+                            selectedLine={selectedProp.lines[0].line}
+                            seasonAvg={selectedProp.historicalContext.seasonAvg || null}
+                            last5Avg={selectedProp.historicalContext.last5Avg || null}
+                        />
+                    )}
                 </div>
 
-                <div className="mt-auto pt-3 border-t border-gray-700/50">
-                     <div className="grid grid-cols-5 gap-2 items-center">
-                        <div className="col-span-2">
-                             <label htmlFor="line-input" className="text-xs text-gray-400">Line</label>
-                             <input id="line-input" type="number" value={lineInput} onChange={e => setLineInput(e.target.value)} placeholder="e.g. 275.5" className={`w-full text-sm bg-gray-700 border ${errors.line ? 'border-red-500' : 'border-gray-600'} rounded p-1.5 focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500`} />
+                {!marketAnalysis && (
+                     <div className="mt-auto pt-4 border-t border-gray-700/50">
+                        <button 
+                            onClick={handleAnalyzeMarket}
+                            disabled={isAnalyzingMarket}
+                            className="w-full flex items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-cyan-600 disabled:bg-gray-600 disabled:cursor-not-allowed"
+                        >
+                            {isAnalyzingMarket ? (
+                                <>
+                                 <RotateCwIcon className="h-4 w-4 animate-spin" />
+                                 Analyzing Market...
+                                </>
+                            ) : (
+                                <>
+                                <SparklesIcon className="h-5 w-5" />
+                                Run AI Market Analysis
+                                </>
+                            )}
+                        </button>
+                        {marketAnalysisError && <p className="text-xs text-red-400 mt-2 text-center">{marketAnalysisError}</p>}
+                    </div>
+                )}
+                
+                {marketAnalysis && (
+                    <div className="mt-auto pt-2 border-t border-gray-700/50">
+                        <div className="space-y-1">
+                            {marketAnalysis.lines.map(l => (
+                                <div key={l.line} className="grid grid-cols-10 gap-1 text-xs">
+                                     <button 
+                                        onClick={() => handleSelectLine(l.line, 'Over', l.overOdds)}
+                                        className={`col-span-4 flex justify-between items-center p-1 rounded transition-colors ${
+                                            lineInput === String(l.line) && selectedPosition === 'Over' ? 'bg-cyan-500/20 ring-1 ring-cyan-400' : 'hover:bg-gray-700/50'
+                                        } ${l.overEV > 0 ? 'bg-green-500/10' : ''}`}
+                                    >
+                                        <span className={`font-mono font-semibold ${l.overEV > 0 ? 'text-green-300' : 'text-gray-300'}`}>{l.overEV.toFixed(1)}%</span>
+                                        <span className="font-mono text-gray-400">{formatAmericanOdds(l.overOdds)}</span>
+                                    </button>
+                                     <div className="col-span-2 text-center py-1 font-mono text-gray-200">{l.line}</div>
+                                     <button 
+                                        onClick={() => handleSelectLine(l.line, 'Under', l.underOdds)}
+                                        className={`col-span-4 flex justify-between items-center p-1 rounded transition-colors ${
+                                            lineInput === String(l.line) && selectedPosition === 'Under' ? 'bg-cyan-500/20 ring-1 ring-cyan-400' : 'hover:bg-gray-700/50'
+                                        } ${l.underEV > 0 ? 'bg-green-500/10' : ''}`}
+                                    >
+                                        <span className="font-mono text-gray-400">{formatAmericanOdds(l.underOdds)}</span>
+                                        <span className={`font-mono font-semibold ${l.underEV > 0 ? 'text-green-300' : 'text-gray-300'}`}>{l.underEV.toFixed(1)}%</span>
+                                    </button>
+                                </div>
+                            ))}
                         </div>
-                        <div className="col-span-2">
-                             <label htmlFor="odds-input" className="text-xs text-gray-400">Odds</label>
-                             <input id="odds-input" type="number" value={oddsInput} onChange={e => setOddsInput(e.target.value)} placeholder="e.g. -115" className={`w-full text-sm bg-gray-700 border ${errors.odds ? 'border-red-500' : 'border-gray-600'} rounded p-1.5 focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500`} />
-                        </div>
-                        <div className="col-span-1">
-                             <label className="text-xs text-gray-400 invisible">Add</label>
-                             <button onClick={handleAddLeg} disabled={!lineInput || !oddsInput || !selectedPosition} className="w-full h-8 flex items-center justify-center rounded-md bg-cyan-500 text-white transition-colors hover:bg-cyan-600 disabled:bg-gray-600 disabled:cursor-not-allowed">
-                                 <PlusIcon className="h-5 w-5" />
+                        <div className="mt-2 flex gap-2">
+                             <input type="number" placeholder="Line" value={lineInput} onChange={e => setLineInput(e.target.value)} className={`w-1/3 bg-gray-800 border ${errors.line ? 'border-red-500' : 'border-gray-600'} rounded-md p-2 text-sm text-gray-200 focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500`} />
+                             <input type="number" placeholder="Odds" value={oddsInput} onChange={e => setOddsInput(e.target.value)} className={`w-1/3 bg-gray-800 border ${errors.odds ? 'border-red-500' : 'border-gray-600'} rounded-md p-2 text-sm text-gray-200 focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500`} />
+                             <button onClick={handleAddLeg} className="w-1/3 flex items-center justify-center gap-2 rounded-md bg-cyan-500 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-cyan-600 disabled:bg-gray-600" disabled={!lineInput || !oddsInput || !selectedPosition}>
+                                <PlusIcon className="h-4 w-4"/> Add
                              </button>
                         </div>
-                     </div>
-                </div>
+                    </div>
+                )}
             </div>
         );
     };
 
-    const getCorrelationScoreColor = (score: number) => {
-        if (score >= 0.3) return 'text-green-400';
-        if (score <= -0.3) return 'text-red-400';
-        return 'text-yellow-400';
-    };
-
     return (
-        <div className="flex h-full w-full">
-            {/* Left Panel: Market & Prop Selection */}
-            <div className="w-[450px] shrink-0 border-r border-gray-700/50 flex flex-col bg-gray-900/30">
-                <div className="p-4 border-b border-gray-700/50 flex items-center gap-4">
-                    <button onClick={onBack} className="flex items-center gap-2 rounded-md bg-gray-700/50 px-3 py-1.5 text-sm font-medium text-gray-300 transition-colors hover:bg-gray-700">
-                        <ChevronLeftIcon className="h-4 w-4" />
-                        Back
-                    </button>
-                    <h2 className="text-lg font-semibold text-gray-200">Bet Builder</h2>
-                </div>
-                <div className="flex-grow overflow-y-auto">
-                    {renderSelectionPanel()}
-                </div>
+    <div className="flex-1 flex overflow-hidden relative">
+        <button onClick={onBack} className="absolute top-2 left-2 z-10 flex items-center gap-1 rounded-md bg-gray-700/50 px-2 py-1 text-xs font-medium text-gray-300 transition-colors hover:bg-gray-700">
+            <ChevronLeftIcon className="h-3 w-3" />
+            Back
+        </button>
+      <div className="w-2/5 border-r border-gray-700/50 flex flex-col">
+        {renderSelectionPanel()}
+      </div>
+      <div className="w-3/5 flex flex-col bg-gray-900/30 p-4">
+        <h2 className="text-lg font-semibold text-gray-200 mb-2">Bet Slip</h2>
+        {legs.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-center text-gray-500 border-2 border-dashed border-gray-700 rounded-lg p-4">
+                <p>Your bet slip is empty.</p>
+                <p className="text-sm">Select a game, player, and prop to get started.</p>
             </div>
-
-            {/* Right Panel: Bet Slip & Analysis */}
-            <div className="flex-1 flex flex-col p-4 gap-4 bg-gray-800/40">
-                {/* Bet Slip */}
-                <div className="flex-1 flex flex-col rounded-lg border border-gray-700/50 bg-gray-900/30 p-4 min-h-0">
-                    <h2 className="text-lg font-semibold text-gray-200 mb-3 shrink-0">Bet Slip</h2>
-                    <div className="flex-1 overflow-y-auto pr-2 -mr-4">
-                        {legs.length === 0 ? (
-                            <div className="h-full flex items-center justify-center text-center text-gray-500 border-2 border-dashed border-gray-700 rounded-lg">
-                                <p>Add legs from the panel on the left.</p>
+        ) : (
+            <div className="flex-1 flex flex-col">
+                <div className="flex-grow space-y-2 overflow-y-auto pr-2 -mr-2">
+                    {legs.map((leg, index) => (
+                        <div key={index} className="bg-gray-800 p-2.5 rounded-lg flex items-center justify-between">
+                            <div>
+                                <p className="font-semibold text-gray-200">{leg.player}</p>
+                                <p className="text-xs text-gray-400">{leg.propType}</p>
+                                <p className="text-sm text-cyan-400">{leg.position} {leg.line} @ <span className="font-mono">{formatAmericanOdds(leg.marketOdds)}</span></p>
                             </div>
-                        ) : (
-                            <div className="space-y-3">
-                                {legs.map((leg, index) => (
-                                    <div key={index} className="bg-gray-800/70 p-3 rounded-lg flex items-center justify-between">
-                                        <div>
-                                            <p className="font-semibold text-gray-200">{leg.player}</p>
-                                            <p className="text-sm text-gray-400">{leg.position} {leg.line} {leg.propType}</p>
-                                        </div>
-                                        <div className="flex items-center gap-4">
-                                            <span className="font-mono text-lg font-semibold text-yellow-300">{formatAmericanOdds(leg.marketOdds)}</span>
-                                            <button onClick={() => handleRemoveLeg(index)} className="p-1.5 rounded-md text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors">
-                                                <Trash2Icon className="h-4 w-4" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
+                            <button onClick={() => handleRemoveLeg(index)} className="p-1.5 rounded-md text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors">
+                                <Trash2Icon className="h-4 w-4" />
+                            </button>
+                        </div>
+                    ))}
                 </div>
-
-                 {/* Parlay Summary, Correlation & Actions */}
-                <div className="shrink-0 rounded-lg border border-gray-700/50 bg-gray-900/30 p-4">
-                    <div className="flex items-start justify-between gap-4">
-                        <div>
-                            <h3 className="text-sm text-gray-400 uppercase font-semibold">Parlay Summary</h3>
-                            <div className="flex items-baseline gap-2 mt-1">
-                                <span className="text-3xl font-bold text-yellow-300 font-mono">{formatAmericanOdds(parlayOdds)}</span>
-                                <span className="text-gray-400">({legs.length} leg{legs.length !== 1 ? 's' : ''})</span>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                             <button onClick={() => setIsParlayManagerOpen(true)} className="p-2 rounded-md bg-gray-700/70 text-gray-300 hover:bg-gray-700 transition-colors" aria-label="Open Parlay Manager"><FolderOpenIcon className="h-5 w-5"/></button>
-                             <button onClick={handleSaveParlay} disabled={legs.length === 0} className="p-2 rounded-md bg-gray-700/70 text-gray-300 hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" aria-label="Save Parlay"><SaveIcon className="h-5 w-5"/></button>
-                             <button onClick={resetBuilder} disabled={legs.length === 0} className="p-2 rounded-md bg-gray-700/70 text-gray-300 hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" aria-label="Reset Builder"><RotateCwIcon className="h-5 w-5"/></button>
-                        </div>
+                <div className="mt-auto pt-4 border-t border-gray-700/50 space-y-3">
+                    <div className="flex justify-between items-center">
+                        <span className="text-sm font-semibold text-gray-300">Total Parlay Odds</span>
+                        <span className="text-xl font-bold font-mono text-yellow-300">{formatAmericanOdds(parlayOdds)}</span>
                     </div>
-                    
-                    {/* Correlation Analysis */}
+
+                    {/* Correlation Analysis Section */}
                     {legs.length >= 2 && (
-                        <div className="mt-4 pt-4 border-t border-gray-700/50">
-                             {!correlationAnalysis && !isAnalyzingCorrelation && !correlationError && (
-                                <button onClick={handleAnalyzeCorrelation} className="w-full flex items-center justify-center gap-2 rounded-md bg-cyan-500/20 px-3 py-2 text-sm font-semibold text-cyan-300 transition-colors hover:bg-cyan-500/30">
-                                    <SparklesIcon className="h-4 w-4" />
-                                    Analyze Parlay Correlation
+                        <div className="p-3 rounded-lg border border-gray-700 bg-gray-800/50">
+                            {!correlationAnalysis && !isAnalyzingCorrelation && !correlationError && (
+                                <button onClick={handleAnalyzeCorrelation} className="w-full flex items-center justify-center gap-2 rounded-md bg-transparent border border-cyan-500/50 px-3 py-2 text-sm font-semibold text-cyan-300 transition-colors hover:bg-cyan-500/10 disabled:opacity-50">
+                                    <SparklesIcon className="h-4 w-4" /> Analyze Parlay Correlation
                                 </button>
                             )}
                             {isAnalyzingCorrelation && (
-                                <div className="text-sm text-gray-400 text-center p-2">Analyzing synergy...</div>
+                                <div className="text-center text-sm text-gray-400">
+                                    <RotateCwIcon className="h-4 w-4 inline mr-2 animate-spin" />
+                                    Analyzing synergy...
+                                </div>
                             )}
                             {correlationError && (
-                                <div className="text-sm text-red-400 bg-red-500/10 p-2 rounded-md text-center">{correlationError}</div>
+                                <div className="text-center text-xs text-red-400">
+                                    <p>Analysis failed: {correlationError}</p>
+                                    <button onClick={handleAnalyzeCorrelation} className="text-cyan-400 underline mt-1">Retry</button>
+                                </div>
                             )}
                             {correlationAnalysis && (
                                 <div>
                                     <div className="flex justify-between items-center">
-                                         <h4 className="text-sm font-semibold text-cyan-400 flex items-center gap-2"><LinkIcon className="h-4 w-4"/>Correlation Analysis</h4>
-                                         <button onClick={handleAnalyzeCorrelation} disabled={isAnalyzingCorrelation} className="p-1.5 rounded-md text-gray-400 hover:text-cyan-400 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors" aria-label="Re-analyze correlation">
-                                            <RotateCwIcon className={`h-4 w-4 ${isAnalyzingCorrelation ? 'animate-spin' : ''}`} />
-                                        </button>
-                                    </div>
-                                    <div className="mt-2 p-3 bg-gray-800/60 rounded-lg flex items-center gap-4">
-                                        <div className="text-center">
-                                            <div className="text-xs text-gray-400">Synergy</div>
-                                            <div className={`text-2xl font-bold font-mono ${getCorrelationScoreColor(correlationAnalysis.overallScore)}`}>
-                                                {correlationAnalysis.overallScore.toFixed(2)}
-                                            </div>
-                                        </div>
-                                        <div className="flex-1 text-sm text-gray-300">
-                                            {correlationAnalysis.summary}
+                                        <h4 className="text-sm font-semibold text-cyan-400">Synergy Analysis</h4>
+                                        <div className={`px-2 py-0.5 rounded-full text-xs font-bold font-mono ${correlationAnalysis.overallScore > 0.2 ? 'bg-green-500/20 text-green-300' : correlationAnalysis.overallScore < -0.2 ? 'bg-red-500/20 text-red-300' : 'bg-gray-600 text-gray-200'}`}>
+                                            Score: {correlationAnalysis.overallScore.toFixed(2)}
                                         </div>
                                     </div>
-                                    <button onClick={() => setIsCorrelationDetailsOpen(!isCorrelationDetailsOpen)} className="mt-2 text-xs text-cyan-400 hover:underline flex items-center gap-1">
-                                       Details <ChevronDownIcon className={`h-4 w-4 transition-transform ${isCorrelationDetailsOpen ? 'rotate-180' : ''}`} />
+                                    <p className="text-xs text-gray-400 mt-1 italic">{correlationAnalysis.summary}</p>
+                                    <button onClick={() => setIsCorrelationDetailsOpen(prev => !prev)} className="text-xs mt-2 text-cyan-400 hover:underline flex items-center gap-1">
+                                        Details <ChevronDownIcon className={`h-4 w-4 transition-transform ${isCorrelationDetailsOpen ? 'rotate-180' : ''}`} />
                                     </button>
-                                     {isCorrelationDetailsOpen && (
-                                        <div className="mt-2 space-y-2 border-t border-gray-700/50 pt-2">
+                                    {isCorrelationDetailsOpen && (
+                                        <div className="mt-2 pt-2 border-t border-gray-700/50 space-y-2 text-xs">
                                             {correlationAnalysis.analysis.map((detail, i) => {
                                                 const leg1 = legs[detail.leg1Index];
                                                 const leg2 = legs[detail.leg2Index];
-                                                const icon = detail.relationship === 'Positive' ? <LinkIcon className="h-5 w-5 text-green-400"/> : detail.relationship === 'Negative' ? <UnlinkIcon className="h-5 w-5 text-red-400"/> : <MinusCircleIcon className="h-5 w-5 text-yellow-400"/>;
+                                                const relationshipColor = detail.relationship === 'Positive' ? 'text-green-400' : detail.relationship === 'Negative' ? 'text-red-400' : 'text-gray-400';
+                                                const RelationshipIcon = detail.relationship === 'Positive' ? LinkIcon : detail.relationship === 'Negative' ? UnlinkIcon : MinusCircleIcon;
 
                                                 return (
-                                                    <div key={i} className="flex items-start gap-3 p-2 text-xs bg-gray-800/40 rounded">
-                                                        <div className="shrink-0 mt-0.5">{icon}</div>
-                                                        <div>
-                                                            <p className="font-semibold text-gray-300">
-                                                                {leg1.player} ({leg1.propType}) &harr; {leg2.player} ({leg2.propType})
-                                                            </p>
-                                                            <p className="text-gray-400">{detail.explanation}</p>
+                                                    <div key={i}>
+                                                        <div className="flex items-center gap-2 font-semibold">
+                                                             <RelationshipIcon className={`h-3.5 w-3.5 flex-shrink-0 ${relationshipColor}`} />
+                                                             <span className="text-gray-300">{leg1.player.split(' ')[1]} & {leg2.player.split(' ')[1]}:</span>
+                                                             <span className={relationshipColor}>{detail.relationship}</span>
                                                         </div>
+                                                        <p className="text-gray-500 pl-6">{detail.explanation}</p>
                                                     </div>
                                                 );
                                             })}
@@ -862,51 +832,51 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                             )}
                         </div>
                     )}
-                    
-                    <div className="mt-4 pt-4 border-t border-gray-700/50">
-                        <button onClick={() => onAnalyze(legs)} disabled={legs.length === 0} className="w-full flex items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-3 text-base font-semibold text-white transition-colors hover:bg-cyan-600 disabled:bg-gray-600 disabled:cursor-not-allowed">
+
+
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                        <button onClick={handleSaveParlay} className="flex items-center justify-center gap-2 rounded-md bg-gray-700 px-3 py-2 font-semibold text-gray-300 transition-colors hover:bg-gray-600 disabled:opacity-50" disabled={legs.length === 0}><SaveIcon className="h-4 w-4" /> Save</button>
+                        <button onClick={() => setIsParlayManagerOpen(true)} className="flex items-center justify-center gap-2 rounded-md bg-gray-700 px-3 py-2 font-semibold text-gray-300 transition-colors hover:bg-gray-600"><FolderOpenIcon className="h-4 w-4" /> Load</button>
+                        <button onClick={() => onAnalyze(legs)} className="col-span-2 flex items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-2.5 font-semibold text-white transition-colors hover:bg-cyan-600 disabled:bg-gray-600 disabled:cursor-not-allowed" disabled={legs.length === 0}>
                             <SendIcon className="h-5 w-5" />
-                            Analyze Parlay in Synoptic Lens
+                            Run Full Synoptic Analysis
                         </button>
                     </div>
                 </div>
             </div>
+        )}
+      </div>
 
-            {/* Parlay Manager Modal */}
-            {isParlayManagerOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/80 backdrop-blur-sm" onClick={() => setIsParlayManagerOpen(false)}>
-                    <div className="w-full max-w-lg rounded-xl border border-gray-700 bg-gray-900 text-gray-200 shadow-2xl" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center justify-between p-4 border-b border-gray-700">
-                            <h2 className="text-lg font-semibold flex items-center gap-2"><FolderOpenIcon className="h-5 w-5 text-cyan-400"/>Parlay Manager</h2>
-                            <button onClick={() => setIsParlayManagerOpen(false)} className="p-1.5 rounded-full hover:bg-gray-700"><XIcon className="h-5 w-5"/></button>
-                        </div>
-                        <div className="p-4 max-h-[60vh] overflow-y-auto">
-                            {savedParlays.length === 0 ? (
-                                <p className="text-center text-gray-500 py-8">No saved parlays found.</p>
-                            ) : (
-                                <div className="space-y-3">
-                                    {savedParlays.map(parlay => (
-                                        <div key={parlay.id} className="bg-gray-800/70 p-3 rounded-lg">
-                                            <div className="flex justify-between items-start">
-                                                <div>
-                                                    <p className="font-semibold">{parlay.name}</p>
-                                                    <p className="text-xs text-gray-400">{parlay.legs.length} Legs &bull; {formatAmericanOdds(parlay.odds)} &bull; Saved on {new Date(parlay.createdAt).toLocaleDateString()}</p>
-                                                </div>
-                                                <div className="flex items-center gap-2 shrink-0">
-                                                    <button onClick={() => handleLoadParlay(parlay)} className="px-3 py-1 text-sm bg-cyan-500/20 text-cyan-300 rounded hover:bg-cyan-500/30">Load</button>
-                                                    <button onClick={() => handleDeleteParlay(parlay.id)} className="p-1.5 text-gray-500 hover:text-red-400 rounded hover:bg-red-500/10"><Trash2Icon className="h-4 w-4"/></button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
+       {isParlayManagerOpen && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-gray-900/80 backdrop-blur-sm" onClick={() => setIsParlayManagerOpen(false)}>
+                <div className="w-full max-w-lg rounded-xl border border-gray-700 bg-gray-900/80 p-6 text-center shadow-2xl" onClick={e => e.stopPropagation()}>
+                    <div className="flex justify-between items-center mb-4">
+                       <h3 className="text-lg font-semibold text-gray-200">Parlay Manager</h3>
+                       <button onClick={() => setIsParlayManagerOpen(false)} className="p-1.5 rounded-full text-gray-400 hover:bg-gray-700"><XIcon className="h-5 w-5"/></button>
                     </div>
+                    {savedParlays.length === 0 ? (
+                        <p className="text-gray-500 py-8">No saved parlays yet.</p>
+                    ) : (
+                        <div className="space-y-2 max-h-96 overflow-y-auto">
+                            {savedParlays.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map(parlay => (
+                                <div key={parlay.id} className="group bg-gray-800 p-3 rounded-lg flex items-center justify-between">
+                                    <div>
+                                        <p className="font-semibold text-gray-200 text-left">{parlay.name}</p>
+                                        <p className="text-xs text-gray-400 text-left">{parlay.legs.length} Legs - <span className="font-mono">{formatAmericanOdds(parlay.odds)}</span></p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button onClick={() => handleLoadParlay(parlay)} className="px-3 py-1 text-xs rounded-md bg-cyan-500 text-white hover:bg-cyan-600">Load</button>
+                                        <button onClick={() => handleDeleteParlay(parlay.id)} className="p-2 rounded-md text-gray-500 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2Icon className="h-4 w-4"/></button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
-            )}
-        </div>
-    );
+            </div>
+        )}
+    </div>
+  );
 };
 
 export default BetBuilder;
