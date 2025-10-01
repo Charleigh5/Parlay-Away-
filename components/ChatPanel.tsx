@@ -1,19 +1,20 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { Message as MessageType, AnalysisResponse } from '../types';
 import { getAnalysis } from '../services/geminiService';
+import { useChatHistory } from '../contexts/ChatHistoryContext';
 import Message from './Message';
 import ChatInput from './ChatInput';
 
 const ChatPanel: React.FC = () => {
-  const [messages, setMessages] = useState<MessageType[]>([
-    {
-      id: 'init',
-      role: 'system',
-      content: 'Welcome to Synoptic Edge. Enter your query to begin analysis. For example: "Analyze the Chiefs vs. Ravens game, focusing on QB props for Lamar Jackson."',
-    },
-  ]);
-  const [isLoading, setIsLoading] = useState(false);
+  const { 
+    activeChat, 
+    addMessageToActiveChat, 
+    isLoading, 
+    setIsLoading 
+  } = useChatHistory();
   const scrollRef = useRef<HTMLDivElement>(null);
+  
+  const messages = activeChat?.messages ?? [];
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -29,7 +30,7 @@ const ChatPanel: React.FC = () => {
       role: 'user',
       content: query,
     };
-    setMessages((prev) => [...prev, userMessage]);
+    addMessageToActiveChat(userMessage);
     setIsLoading(true);
 
     try {
@@ -39,18 +40,35 @@ const ChatPanel: React.FC = () => {
         role: 'assistant',
         content: analysisResponse,
       };
-      setMessages((prev) => [...prev, assistantMessage]);
+      addMessageToActiveChat(assistantMessage);
     } catch (error) {
       const errorMessage: MessageType = {
         id: Date.now().toString() + '-err',
         role: 'system',
         content: error instanceof Error ? error.message : 'An unknown error occurred.',
       };
-      setMessages((prev) => [...prev, errorMessage]);
+      addMessageToActiveChat(errorMessage);
     } finally {
       setIsLoading(false);
     }
   };
+  
+  if (!activeChat) {
+    return (
+      <div className="flex flex-1 flex-col bg-gray-800/30">
+        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+            <div className="mb-4">
+              <h2 className="text-xl font-semibold text-gray-200">Analyzer Chat</h2>
+              <p className="text-gray-400">Start a new conversation or select one from the history.</p>
+            </div>
+            <div className="max-w-md text-sm text-gray-500">
+                <p>Example: "Analyze the Chiefs vs. Ravens game, focusing on QB props for Lamar Jackson."</p>
+            </div>
+        </div>
+        <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-1 flex-col bg-gray-800/30">

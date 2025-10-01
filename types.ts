@@ -44,6 +44,14 @@ export interface Message {
   content: string | AnalysisResponse;
 }
 
+// Represents a stored chat conversation
+export interface ChatSession {
+  id: string;
+  title: string;
+  createdAt: string; // ISO string
+  messages: Message[];
+}
+
 // Represents the raw data extracted from a bet slip image or built by the user, before analysis.
 export interface ExtractedBetLeg {
   player: string;

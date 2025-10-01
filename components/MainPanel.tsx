@@ -1,7 +1,10 @@
 
+
 import React, { useState } from 'react';
 import SynopticLens from './SynopticLens';
 import ChatPanel from './ChatPanel';
+import ChatHistorySidebar from './ChatHistorySidebar';
+import { ChatHistoryProvider } from '../contexts/ChatHistoryContext';
 import { MessageSquareIcon } from './icons/MessageSquareIcon';
 import { TestTubeIcon } from './icons/TestTubeIcon';
 
@@ -14,6 +17,23 @@ const MainPanel: React.FC = () => {
     return activeView === view
       ? 'border-b-2 border-cyan-400 text-cyan-300'
       : 'border-b-2 border-transparent text-gray-400 hover:border-gray-500 hover:text-gray-200';
+  };
+
+  const renderActiveView = () => {
+    if (activeView === 'lens') {
+      return <SynopticLens />;
+    }
+    if (activeView === 'chat') {
+      return (
+        <ChatHistoryProvider>
+          <div className="flex flex-1 overflow-hidden">
+            <ChatHistorySidebar />
+            <ChatPanel />
+          </div>
+        </ChatHistoryProvider>
+      );
+    }
+    return null;
   };
 
   return (
@@ -38,7 +58,7 @@ const MainPanel: React.FC = () => {
       </div>
       
       <div className="flex-1 overflow-hidden" role="tabpanel">
-        {activeView === 'lens' ? <SynopticLens /> : <ChatPanel />}
+        {renderActiveView()}
       </div>
     </div>
   );
