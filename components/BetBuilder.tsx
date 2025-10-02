@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { ExtractedBetLeg, Game, Player, PlayerProp, LineOdds, SavedParlay } from '../types';
+import { ExtractedBetLeg, Game, Player, PlayerProp, LineOdds, SavedParlay, ParlayCorrelationAnalysis } from '../types';
 import { calculateParlayOdds, formatAmericanOdds, normalCdf, calculateSingleLegEV } from '../utils';
 import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
 import { SendIcon } from './icons/SendIcon';
@@ -29,6 +29,9 @@ import { SparklesIcon } from './icons/SparklesIcon';
 import { analyzeParlayCorrelation } from '../services/geminiService';
 import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import useLocalStorage from '../hooks/useLocalStorage';
+import { LinkIcon } from './icons/LinkIcon';
+import { RotateCwIcon } from './icons/RotateCwIcon';
+
 
 interface BetBuilderProps {
   onAnalyze: (legs: ExtractedBetLeg[]) => void;
@@ -60,6 +63,11 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
   
   const [savedParlays, setSavedParlays] = useLocalStorage<SavedParlay[]>('synopticEdge_savedParlays', []);
   const [isLoadModalOpen, setIsLoadModalOpen] = useState(false);
+  
+  const [correlationAnalysis, setCorrelationAnalysis] = useState<ParlayCorrelationAnalysis | null>(null);
+  const [isCorrelationLoading, setIsCorrelationLoading] = useState(false);
+  const [correlationError, setCorrelationError] = useState<string | null>(null);
+  const [isCorrelationVisible, setIsCorrelationVisible] = useState(false);
 
   const marketData = useMemo(() => getMarketData(), []);
   
@@ -80,6 +88,13 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
     };
     loadGames();
   }, [marketData]);
+
+  useEffect(() => {
+    // Reset correlation analysis if legs change
+    setCorrelationAnalysis(null);
+    setCorrelationError(null);
+    setIsCorrelationVisible(false);
+  }, [parlayLegs]);
 
   const filteredGames = useMemo(() => {
     if (!searchTerm) return games;
@@ -126,6 +141,22 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
       onAnalyze(parlayLegs);
     }
   };
+
+  const handleAnalyzeCorrelation = async () => {
+    if (parlayLegs.length < 2) return;
+    setIsCorrelationLoading(true);
+    setCorrelationError(null);
+    setCorrelationAnalysis(null);
+    try {
+        const result = await analyzeParlayCorrelation(parlayLegs);
+        setCorrelationAnalysis(result);
+        if (!isCorrelationVisible) setIsCorrelationVisible(true);
+    } catch (error) {
+        setCorrelationError(error instanceof Error ? error.message : "An unknown error occurred.");
+    } finally {
+        setIsCorrelationLoading(false);
+    }
+  };
   
   const parlayOdds = useMemo(() => calculateParlayOdds(parlayLegs), [parlayLegs]);
 
@@ -165,6 +196,33 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
       setSavedParlays(prev => prev.filter(p => p.id !== id));
     }
   };
+  
+    const getScoreGradient = (score: number) => {
+        const positiveColor = [96, 234, 155]; // text-green-400
+        const neutralColor = [156, 163, 175]; // text-gray-400
+        const negativeColor = [248, 113, 113]; // text-red-400
+
+        let r, g, b;
+        if (score >= 0) {
+            r = Math.round(neutralColor[0] + (positiveColor[0] - neutralColor[0]) * score);
+            g = Math.round(neutralColor[1] + (positiveColor[1] - neutralColor[1]) * score);
+            b = Math.round(neutralColor[2] + (positiveColor[2] - neutralColor[2]) * score);
+        } else {
+            r = Math.round(neutralColor[0] + (negativeColor[0] - neutralColor[0]) * -score);
+            g = Math.round(neutralColor[1] + (negativeColor[1] - neutralColor[1]) * -score);
+            b = Math.round(neutralColor[2] + (negativeColor[2] - neutralColor[2]) * -score);
+        }
+        return `rgb(${r}, ${g}, ${b})`;
+    }
+
+    const getRelationshipColor = (relationship: 'Positive' | 'Negative' | 'Neutral') => {
+        switch (relationship) {
+            case 'Positive': return 'text-green-400';
+            case 'Negative': return 'text-red-400';
+            default: return 'text-gray-400';
+        }
+    };
+
 
   const renderSelectionPanel = () => {
     if (!selectedGame) {
@@ -373,15 +431,15 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
       </div>
       <div className="flex-1 p-4 flex flex-col">
         <h2 className="text-xl font-semibold mb-3">Bet Slip</h2>
-        <div className="flex-1 space-y-2 overflow-y-auto">
+        <div className="flex-1 space-y-2 overflow-y-auto pr-1">
             {parlayLegs.length === 0 ? (
-                <div className="text-center text-gray-500 py-10 border-2 border-dashed border-gray-700 rounded-lg">
+                <div className="text-center text-gray-500 py-10 border-2 border-dashed border-gray-700 rounded-lg h-full flex flex-col justify-center items-center">
                     <p>Your bet slip is empty.</p>
                     <p className="text-sm">Select a game, player, and prop to add a leg.</p>
                 </div>
             ) : (
                 parlayLegs.map((leg, index) => (
-                    <div key={index} className="p-3 bg-gray-800 rounded-md flex justify-between items-center">
+                    <div key={index} className="p-3 bg-gray-800 rounded-md flex justify-between items-center animate-fade-in">
                         <div>
                             <p className="font-semibold text-gray-200">{leg.player}</p>
                             <p className="text-sm text-gray-400">{`${leg.position} ${leg.line} ${leg.propType}`}</p>
@@ -397,6 +455,88 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
             )}
         </div>
         <div className="pt-4 border-t border-gray-700/50">
+            {parlayLegs.length > 1 && (
+                <div className="mb-4 p-3 bg-gray-900/50 rounded-lg border border-gray-700/50">
+                    <button
+                        onClick={() => setIsCorrelationVisible(!isCorrelationVisible)}
+                        className="w-full flex justify-between items-center text-left"
+                        aria-expanded={isCorrelationVisible}
+                    >
+                        <h4 className="flex items-center gap-2 font-semibold text-gray-200">
+                            <LinkIcon className="h-5 w-5 text-cyan-400" />
+                            Parlay Correlation Analysis
+                        </h4>
+                        <ChevronDownIcon className={`h-5 w-5 text-gray-400 transform transition-transform ${isCorrelationVisible ? 'rotate-180' : ''}`} />
+                    </button>
+                    {isCorrelationVisible && (
+                        <div className="mt-3 pt-3 border-t border-gray-700">
+                            {isCorrelationLoading && <div className="text-center text-sm text-gray-400 p-2">Analyzing...</div>}
+                            {correlationError && <div className="text-center text-sm text-red-400 p-2">{correlationError}</div>}
+                            
+                            {!isCorrelationLoading && !correlationAnalysis && (
+                                <button
+                                    onClick={handleAnalyzeCorrelation}
+                                    className="w-full text-center py-2 px-4 bg-gray-700 hover:bg-gray-600 rounded-md text-sm font-semibold"
+                                >
+                                    Analyze Correlation
+                                </button>
+                            )}
+
+                            {correlationAnalysis && (
+                                <div className="space-y-4 animate-fade-in">
+                                    <div>
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="text-sm text-gray-400">Overall Score</span>
+                                            <span className="font-bold text-lg" style={{ color: getScoreGradient(correlationAnalysis.overallScore) }}>
+                                                {correlationAnalysis.overallScore.toFixed(2)}
+                                            </span>
+                                        </div>
+                                        <div className="w-full bg-gray-700 rounded-full h-1.5 relative overflow-hidden">
+                                           <div className="absolute top-0 bottom-0 left-1/2 w-0.5 bg-gray-600"></div>
+                                           <div 
+                                               className="h-1.5 rounded-full transition-all duration-500"
+                                               style={{
+                                                   width: `${Math.abs(correlationAnalysis.overallScore) * 50}%`,
+                                                   marginLeft: correlationAnalysis.overallScore >= 0 ? '50%' : `${50 - Math.abs(correlationAnalysis.overallScore) * 50}%`,
+                                                   background: getScoreGradient(correlationAnalysis.overallScore)
+                                               }}
+                                           ></div>
+                                        </div>
+                                    </div>
+                                    <p className="text-sm text-gray-300 italic">"{correlationAnalysis.summary}"</p>
+
+                                    <div>
+                                        <h5 className="text-sm font-semibold mb-2">Detailed Breakdown</h5>
+                                        <div className="space-y-2 max-h-32 overflow-y-auto pr-2">
+                                            {correlationAnalysis.analysis.map((detail, i) => (
+                                                <div key={i} className="p-2 bg-gray-800/70 rounded-md text-xs">
+                                                    <p className="font-semibold text-gray-200 mb-1">
+                                                       Leg {detail.leg1Index + 1} vs Leg {detail.leg2Index + 1}
+                                                       <span className={`ml-2 font-bold ${getRelationshipColor(detail.relationship)}`}>
+                                                         ({detail.relationship})
+                                                       </span>
+                                                    </p>
+                                                    <p className="text-gray-400">{detail.explanation}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    
+                                    <button
+                                        onClick={handleAnalyzeCorrelation}
+                                        disabled={isCorrelationLoading}
+                                        className="w-full text-center py-1.5 px-3 bg-gray-700 hover:bg-gray-600 rounded-md text-xs font-semibold flex items-center justify-center gap-1.5 disabled:opacity-50"
+                                    >
+                                        <RotateCwIcon className={`h-3 w-3 ${isCorrelationLoading ? 'animate-spin' : ''}`} />
+                                        Re-analyze
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            )}
+            
             {parlayLegs.length > 0 && (
                 <div className="flex justify-between items-center mb-4">
                     <span className="text-gray-400">Total Odds</span>
