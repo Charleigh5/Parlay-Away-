@@ -8,6 +8,7 @@ export const MOCK_GAMES_SOURCE: Game[] = [
   {
     id: 'game1',
     name: 'Kansas City Chiefs @ Baltimore Ravens',
+    date: '2024-09-05',
     players: [
       {
         name: 'Patrick Mahomes',
@@ -139,7 +140,7 @@ export const MOCK_GAMES_SOURCE: Game[] = [
             {
                 propType: 'Rushing Yards',
                 lines: [{ line: 65.5, overOdds: -115, underOdds: -115 }],
-                historicalContext: { seasonAvg: 72.3, last5Avg: 78.1, gameLog: [80, 65, 92, 77, 70, 55, 101] }
+                historicalContext: { seasonAvg: 72.3, last5Avg: 78.1, gameLog: [80, 65, 92, 77, 70, 55, 101, 68, 85, 74] }
             }
         ]
       },
@@ -151,15 +152,51 @@ export const MOCK_GAMES_SOURCE: Game[] = [
           {
             propType: 'Receiving Yards',
             lines: [
-              { line: 55.5, overOdds: -115, underOdds: -105 },
+              { line: 55.5, overOdds: -110, underOdds: -110 },
             ],
             historicalContext: {
-              seasonAvg: 58.2,
-              last5Avg: 65.4,
-              gameLog: [45, 78, 53, 112, 60, 58, 41, 73, 25, 99],
+              seasonAvg: 61.2,
+              last5Avg: 58.5,
+              gameLog: [62, 45, 71, 59, 55, 80, 33, 65, 51, 75],
             }
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'game2',
+    name: 'Green Bay Packers @ Philadelphia Eagles',
+    date: '2024-09-06',
+    players: [
+      {
+        name: 'Jalen Hurts',
+        position: 'QB',
+        team: 'PHI',
+        props: [
+          {
+            propType: 'Passing Yards',
+            lines: [{ line: 240.5, overOdds: -115, underOdds: -115 }],
+            historicalContext: { seasonAvg: 235.1, last5Avg: 228.4, gameLog: [250, 210, 222, 280, 195, 240, 215, 230, 255, 205] }
+          },
+          {
+            propType: 'Rushing Yards',
+            lines: [{ line: 40.5, overOdds: -125, underOdds: 105 }],
+            historicalContext: { seasonAvg: 45.2, last5Avg: 38.1, gameLog: [35, 50, 41, 29, 60, 45, 33, 55, 48, 39] }
           }
-        ]
+        ],
+      },
+      {
+        name: 'Jordan Love',
+        position: 'QB',
+        team: 'GB',
+        props: [
+          {
+            propType: 'Passing Yards',
+            lines: [{ line: 255.5, overOdds: -110, underOdds: -110 }],
+            historicalContext: { seasonAvg: 265.8, last5Avg: 275.2, gameLog: [280, 310, 250, 266, 290, 270, 285, 260, 295, 255] }
+          }
+        ],
       },
       {
         name: 'Chris Jones',
@@ -169,67 +206,16 @@ export const MOCK_GAMES_SOURCE: Game[] = [
             {
                 propType: 'Sacks',
                 lines: [
-                    { line: 0.5, overOdds: -140, underOdds: 110 },
+                    { line: 0.5, overOdds: -140, underOdds: 120 },
                 ],
                 historicalContext: {
                     seasonAvg: 0.8,
                     last5Avg: 1.0,
-                    gameLog: [1, 1.5, 0.5, 1, 1, 0, 0.5, 2, 0, 1],
-                }
-            },
-            {
-                propType: 'Tackles + Assists',
-                lines: [
-                    { line: 2.5, overOdds: -120, underOdds: 100 }
-                ],
-                historicalContext: {
-                    seasonAvg: 3.2,
-                    last5Avg: 3.5,
-                    gameLog: [3, 4, 2, 3, 5, 2, 3, 4, 3, 2],
+                    gameLog: [1, 0, 1.5, 1, 0.5, 2, 0, 1, 0, 1.5],
                 }
             }
-        ],
-      },
-    ],
-  },
-  {
-    id: 'game2',
-    name: 'Green Bay Packers @ Philadelphia Eagles',
-    players: [
-      {
-        name: 'Jordan Love',
-        position: 'QB',
-        team: 'GB',
-        props: [
-          {
-            propType: 'Passing Yards',
-            lines: [
-              { line: 255.5, overOdds: -110, underOdds: -110 }
-            ],
-            historicalContext: {
-              seasonAvg: 265.1,
-              last5Avg: 272.9,
-              gameLog: [280, 250, 311, 268, 291, 245, 220, 322, 277, 261],
-            }
-          }
         ]
       },
-      {
-          name: 'A.J. Brown',
-          position: 'WR',
-          team: 'PHI',
-          injuryStatus: {
-              status: 'O',
-              news: 'Ruled out for Sunday\'s game with a significant knee sprain.',
-              impact: 'Will not play. His absence vacates a significant target share, likely benefiting DeVonta Smith and Dallas Goedert. (KM_05)'
-          },
-          props: [
-              {
-                  propType: 'Receiving Yards',
-                  lines: [{ line: 88.5, overOdds: -115, underOdds: -115 }],
-              }
-          ]
-      }
     ]
   }
 ];

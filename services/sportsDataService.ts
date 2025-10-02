@@ -40,6 +40,7 @@ const transformEventToGame = (event: SportsDBEvent, marketData: Game[]): Game =>
     return {
         id: event.idEvent,
         name: gameName,
+        date: event.dateEvent,
         players: matchingMockGame ? matchingMockGame.players : [], // Use mock players if available
     };
 };

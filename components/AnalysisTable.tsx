@@ -339,7 +339,10 @@ const AnalysisTable: React.FC<AnalysisTableProps> = ({ legs, originalLegs, image
                                     <div className="flex flex-wrap gap-3">
                                         {keyDrivers.map(({ icon, tooltipData }) => (
                                           <div key={tooltipData.id} id={`driver-${index}-${tooltipData.id}`} className="group relative text-gray-400 hover:text-cyan-400 transition-colors">
-                                            {React.cloneElement(icon, { className: "h-7 w-7"})}
+                                            {/* FIX: Cast icon to React.ReactElement to resolve TypeScript error with cloneElement.
+                                                This helps TypeScript understand that the element can accept a className prop,
+                                                which it fails to infer correctly in this context. */}
+                                            {React.cloneElement(icon as React.ReactElement, { className: "h-7 w-7"})}
                                             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 p-3 bg-gray-950 text-xs text-gray-300 border border-gray-700 rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
                                                 <p className="font-bold text-cyan-300 text-sm mb-1">{tooltipData.domain} <span className="font-mono text-xs">({tooltipData.id})</span></p>
                                                 <p className="mb-2 italic">{tooltipData.description}</p>

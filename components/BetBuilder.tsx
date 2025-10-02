@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { ExtractedBetLeg, Game, Player, PlayerProp, LineOdds, SavedParlay, ParlayCorrelationAnalysis } from '../types';
+import { ExtractedBetLeg, Game, Player, PlayerProp, LineOdds, SavedParlay, ParlayCorrelationAnalysis, AnalysisResponse, MarketAnalysis } from '../types';
 import { calculateParlayOdds, formatAmericanOdds, normalCdf, calculateSingleLegEV } from '../utils';
 import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
 import { SendIcon } from './icons/SendIcon';
@@ -15,22 +15,20 @@ import { getMarketData } from '../services/marketDataService';
 import HistoricalPerformanceChart from './HistoricalPerformanceChart';
 import { ADVANCED_STATS, AdvancedStat } from '../data/mockAdvancedStats';
 import { TrendingUpIcon } from './icons/TrendingUpIcon';
-import { XIcon } from './icons/XIcon';
-import { CrosshairIcon } from './icons/CrosshairIcon';
-import { TrendingDownIcon } from './icons/TrendingDownIcon';
-import { ArrowDownCircleIcon } from './icons/ArrowDownCircleIcon';
-import { ArrowUpCircleIcon } from './icons/ArrowUpCircleIcon';
 import { StethoscopeIcon } from './icons/StethoscopeIcon';
-import MicroPerformanceChart from './MicroPerformanceChart';
 import { HomeIcon } from './icons/HomeIcon';
 import { PlaneIcon } from './icons/PlaneIcon';
 import { SwordsIcon } from './icons/SwordsIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
-import { analyzeParlayCorrelation } from '../services/geminiService';
+import { analyzeParlayCorrelation, getAnalysis } from '../services/geminiService';
 import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import useLocalStorage from '../hooks/useLocalStorage';
 import { LinkIcon } from './icons/LinkIcon';
 import { RotateCwIcon } from './icons/RotateCwIcon';
+import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
+import MarketAnalysisChart from './MarketAnalysisChart';
+import { PackageSearchIcon } from './icons/PackageSearchIcon';
+import { XIcon } from './icons/XIcon';
 
 
 interface BetBuilderProps {
@@ -69,6 +67,24 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
   const [correlationError, setCorrelationError] = useState<string | null>(null);
   const [isCorrelationVisible, setIsCorrelationVisible] = useState(false);
 
+  const [propAnalysis, setPropAnalysis] = useState<AnalysisResponse | null>(null);
+  const [isPropAnalysisLoading, setIsPropAnalysisLoading] = useState(false);
+  const [propAnalysisError, setPropAnalysisError] = useState<string | null>(null);
+  const [marketAnalysis, setMarketAnalysis] = useState<MarketAnalysis | null>(null);
+
+  const [collapsedPanels, setCollapsedPanels] = useState<Record<string, boolean>>({
+    marketAnalysis: false,
+    historical: true,
+    advanced: true,
+    injury: false,
+    matchup: true,
+    splits: true,
+  });
+
+  const togglePanel = (panelKey: string) => {
+    setCollapsedPanels(prev => ({...prev, [panelKey]: !prev[panelKey]}));
+  };
+
   const marketData = useMemo(() => getMarketData(), []);
   
   useEffect(() => {
@@ -96,6 +112,77 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
     setIsCorrelationVisible(false);
   }, [parlayLegs]);
 
+  useEffect(() => {
+    if (selectedProp && selectedPlayer) {
+        const runFullPropAnalysis = async () => {
+            // Reset states
+            setIsPropAnalysisLoading(true);
+            setPropAnalysis(null);
+            setPropAnalysisError(null);
+            setMarketAnalysis(null);
+            
+            try {
+                // Step 1: Get base projection
+                const primaryLine = selectedProp.lines[Math.floor(selectedProp.lines.length / 2)] || selectedProp.lines[0];
+                const query = `Analyze the prop: ${selectedPlayer.name} ${selectedProp.propType}. Provide a detailed projection including a projectedMean and projectedStdDev for the final stat outcome, disregarding specific odds for now.`;
+                const baseAnalysis = await getAnalysis(query);
+                setPropAnalysis(baseAnalysis); // Set base analysis for context
+
+                // Step 2: Calculate market-wide EV using the projection
+                if (baseAnalysis.quantitative.projectedMean !== undefined && baseAnalysis.quantitative.projectedStdDev !== undefined) {
+                    const { projectedMean: mean, projectedStdDev: stdDev } = baseAnalysis.quantitative;
+                    if (stdDev <= 0) {
+                        throw new Error("Projected standard deviation must be positive to calculate probabilities.");
+                    }
+
+                    const lineAnalyses = selectedProp.lines.map(line => {
+                        const probOver = 1 - normalCdf(line.line, mean, stdDev);
+                        const probUnder = normalCdf(line.line, mean, stdDev);
+                        
+                        return {
+                            line: line.line,
+                            overOdds: line.overOdds,
+                            underOdds: line.underOdds,
+                            overEV: calculateSingleLegEV(probOver, line.overOdds),
+                            underEV: calculateSingleLegEV(probUnder, line.underOdds),
+                        };
+                    });
+
+                    let optimalBet: MarketAnalysis['optimalBet'] = null;
+                    let maxEv = 0;
+
+                    lineAnalyses.forEach(line => {
+                        if (line.overEV > maxEv) {
+                            maxEv = line.overEV;
+                            optimalBet = { line: line.line, position: 'Over', ev: line.overEV, odds: line.overOdds };
+                        }
+                        if (line.underEV > maxEv) {
+                            maxEv = line.underEV;
+                            optimalBet = { line: line.line, position: 'Under', ev: line.underEV, odds: line.underOdds };
+                        }
+                    });
+
+                    setMarketAnalysis({
+                        lines: lineAnalyses,
+                        optimalBet,
+                        baseAnalysis,
+                    });
+
+                } else {
+                     throw new Error("Base analysis did not return the required projections (mean, std dev).");
+                }
+
+            } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : 'Could not load real-time prop analysis.';
+                setPropAnalysisError(errorMessage);
+            } finally {
+                setIsPropAnalysisLoading(false);
+            }
+        };
+        runFullPropAnalysis();
+    }
+  }, [selectedProp, selectedPlayer]);
+
   const filteredGames = useMemo(() => {
     if (!searchTerm) return games;
     const lowercasedTerm = searchTerm.toLowerCase();
@@ -104,6 +191,20 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
       game.players.some(player => player.name.toLowerCase().includes(lowercasedTerm))
     );
   }, [games, searchTerm]);
+  
+  const gamesByDate = useMemo(() => {
+    const grouped: Record<string, Game[]> = {};
+    filteredGames.forEach(game => {
+        const date = game.date;
+        if (!grouped[date]) {
+            grouped[date] = [];
+        }
+        grouped[date].push(game);
+    });
+    return Object.fromEntries(
+        Object.entries(grouped).sort(([dateA], [dateB]) => new Date(dateA).getTime() - new Date(dateB).getTime())
+    );
+  }, [filteredGames]);
 
   const handleSelectGame = (game: Game) => {
     setSelectedGame(game);
@@ -223,6 +324,16 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
         }
     };
 
+    const formatDateForDisplay = (dateString: string) => {
+        const date = new Date(dateString + 'T00:00:00'); // Treat as local time
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        if (date.getTime() === today.getTime()) {
+            return 'Today';
+        }
+        return new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(date);
+    };
 
   const renderSelectionPanel = () => {
     if (!selectedGame) {
@@ -244,10 +355,20 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                 />
               </div>
               <div className="space-y-2 max-h-[70vh] overflow-y-auto">
-                {filteredGames.map(game => (
-                  <button key={game.id} onClick={() => handleSelectGame(game)} className="w-full text-left p-3 bg-gray-800 hover:bg-gray-700/70 rounded-md transition-colors">
-                    {game.name}
-                  </button>
+                {Object.entries(gamesByDate).map(([date, gamesForDate]) => (
+                  <div key={date}>
+                    <h3 className="flex items-center gap-2 text-xs uppercase font-bold text-gray-400 mt-4 mb-2 border-b border-gray-700/60 pb-1.5 sticky top-0 bg-gray-800/80 backdrop-blur-sm">
+                        <CalendarDaysIcon className="h-4 w-4 text-cyan-400" />
+                        {formatDateForDisplay(date)}
+                    </h3>
+                    <div className="space-y-2">
+                        {gamesForDate.map(game => (
+                            <button key={game.id} onClick={() => handleSelectGame(game)} className="w-full text-left p-3 bg-gray-800 hover:bg-gray-700/70 rounded-md transition-colors">
+                                {game.name}
+                            </button>
+                        ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             </>
@@ -319,281 +440,361 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
             </button>
             <h3 className="font-semibold text-lg text-gray-200">{selectedPlayer.name}</h3>
             <p className="text-md text-gray-300 mb-3">{selectedProp.propType}</p>
-            
+
             {/* Market Lines */}
             <div className="space-y-2 mb-4">
-                {selectedProp.lines.map((line) => (
-                    <div key={line.line} className="grid grid-cols-11 gap-2 items-center p-2 bg-gray-800 rounded-md">
-                        <div className="col-span-4 text-center">
-                            <button onClick={() => handleAddLeg(line, 'Over')} className="w-full p-2 text-sm rounded-md bg-gray-700/50 hover:bg-gray-700 transition-colors">
-                                <div>Over</div>
-                                <div className="font-semibold">{formatAmericanOdds(line.overOdds)}</div>
-                            </button>
+                {selectedProp.lines.map((line) => {
+                    const lineAnalysis = marketAnalysis?.lines.find(l => l.line === line.line);
+                    const overEv = lineAnalysis?.overEV;
+                    const underEv = lineAnalysis?.underEV;
+
+                    const renderEv = (ev: number | undefined) => {
+                        if (ev === undefined) return <div className="h-4"></div>; // Placeholder for alignment
+                        const color = ev > 0 ? 'text-green-400' : 'text-red-400';
+                        return (
+                            <div className={`text-xs font-mono h-4 ${color}`}>{ev.toFixed(1)}% EV</div>
+                        )
+                    }
+                    
+                    return (
+                        <div key={line.line} className="grid grid-cols-11 gap-2 items-center p-2 bg-gray-800 rounded-md">
+                            <div className="col-span-4 text-center">
+                                <button onClick={() => handleAddLeg(line, 'Over')} className="w-full p-2 text-sm rounded-md bg-gray-700/50 hover:bg-gray-700 transition-colors disabled:opacity-50" disabled={isPropAnalysisLoading}>
+                                    <div>Over</div>
+                                    <div className="font-semibold">{formatAmericanOdds(line.overOdds)}</div>
+                                    {renderEv(overEv)}
+                                </button>
+                            </div>
+                            <div className="col-span-3 text-center">
+                                <div className="text-lg font-bold text-gray-200">{line.line}</div>
+                            </div>
+                            <div className="col-span-4 text-center">
+                                 <button onClick={() => handleAddLeg(line, 'Under')} className="w-full p-2 text-sm rounded-md bg-gray-700/50 hover:bg-gray-700 transition-colors disabled:opacity-50" disabled={isPropAnalysisLoading}>
+                                    <div>Under</div>
+                                    <div className="font-semibold">{formatAmericanOdds(line.underOdds)}</div>
+                                    {renderEv(underEv)}
+                                </button>
+                            </div>
                         </div>
-                        <div className="col-span-3 text-center">
-                            <div className="text-lg font-bold text-gray-200">{line.line}</div>
-                        </div>
-                        <div className="col-span-4 text-center">
-                             <button onClick={() => handleAddLeg(line, 'Under')} className="w-full p-2 text-sm rounded-md bg-gray-700/50 hover:bg-gray-700 transition-colors">
-                                <div>Under</div>
-                                <div className="font-semibold">{formatAmericanOdds(line.underOdds)}</div>
-                            </button>
-                        </div>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
 
-            {/* Injury Status */}
-            {selectedPlayer.injuryStatus && (
-                <div className="mb-4 p-3 rounded-lg border border-yellow-500/30 bg-yellow-500/10">
-                    <h4 className="flex items-center gap-2 text-sm font-semibold text-yellow-300 mb-1">
-                        <StethoscopeIcon className="h-4 w-4" /> Injury Report
-                    </h4>
-                    <p className="text-xs text-gray-300">{selectedPlayer.injuryStatus.news}</p>
-                    <p className="text-xs text-gray-400 mt-1 italic">Impact: {selectedPlayer.injuryStatus.impact}</p>
+            {/* Market Analysis Panel */}
+            {isPropAnalysisLoading && (
+                <div className="my-4 p-4 text-center text-sm text-gray-400 border border-gray-700/50 bg-gray-800/80 rounded-lg animate-pulse">
+                    Running full market analysis...
                 </div>
             )}
-            
-            {/* Defensive Matchup */}
-            {defensiveStats && relevantDefensiveStat && 'value' in relevantDefensiveStat && (
-                 <div className="mb-4 p-3 rounded-lg border border-gray-700/50 bg-gray-800/80">
-                    <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-2">
-                        <ShieldIcon className="h-4 w-4 text-cyan-400" /> Defensive Matchup vs {opposingTeamName}
-                    </h4>
-                     <div className="flex justify-between items-center text-xs">
-                         <span className="text-gray-400">{selectedProp.propType} Allowed</span>
-                         <span className="font-mono text-gray-200">{relevantDefensiveStat.value} {relevantDefensiveStat.unit} (Rank: {relevantDefensiveStat.rank})</span>
-                     </div>
-                 </div>
-            )}
-            
-            {/* Performance Splits */}
-            { (selectedPlayer.homeAwaySplits || selectedPlayer.divisionalSplits) && (
-                <div className="mb-4 p-3 rounded-lg border border-gray-700/50 bg-gray-800/80">
-                     <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-2">
-                        <SparklesIcon className="h-4 w-4 text-cyan-400" /> Performance Splits
-                    </h4>
-                    <div className="space-y-1 text-xs">
-                        {selectedPlayer.homeAwaySplits && (
-                            <>
-                            <div className="flex justify-between items-center"><span className="flex items-center gap-1.5 text-gray-400"><HomeIcon className="h-3.5 w-3.5"/>Home Avg</span> <span className="font-mono text-gray-200">{selectedPlayer.homeAwaySplits.home[selectedProp.propType]?.toFixed(1)}</span></div>
-                            <div className="flex justify-between items-center"><span className="flex items-center gap-1.5 text-gray-400"><PlaneIcon className="h-3.5 w-3.5"/>Away Avg</span> <span className="font-mono text-gray-200">{selectedPlayer.homeAwaySplits.away[selectedProp.propType]?.toFixed(1)}</span></div>
-                            </>
-                        )}
-                         {selectedPlayer.divisionalSplits && (
-                             <div className="flex justify-between items-center"><span className="flex items-center gap-1.5 text-gray-400"><SwordsIcon className="h-3.5 w-3.5"/>Divisional Avg</span> <span className="font-mono text-gray-200">{selectedPlayer.divisionalSplits[selectedProp.propType]?.toFixed(1)}</span></div>
-                         )}
-                    </div>
+            {propAnalysisError && !isPropAnalysisLoading && (
+                <div className="my-4 p-3 text-center text-red-400 bg-red-500/10 rounded-md text-sm border border-red-500/30">
+                    {propAnalysisError}
                 </div>
             )}
-            
-             {/* Advanced Stats */}
-            {advancedStats && advancedStats.length > 0 && (
-                <div className="mb-4 p-3 rounded-lg border border-gray-700/50 bg-gray-800/80">
-                    <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-2">
-                        <TrendingUpIcon className="h-4 w-4 text-cyan-400" /> Advanced Metrics
-                    </h4>
-                    <div className="space-y-2">
-                        {advancedStats.map(stat => (
-                            <div key={stat.abbreviation} className="text-xs group relative">
-                                <div className="flex justify-between items-center">
-                                    <span className="text-gray-400">{stat.abbreviation}</span>
-                                    <span className="font-mono text-gray-200">{stat.value} (Rank: {stat.rank})</span>
+            {marketAnalysis && !isPropAnalysisLoading && (
+                <div className="my-4 p-3 rounded-lg border border-gray-700/50 bg-gray-800/80">
+                    <button onClick={() => togglePanel('marketAnalysis')} className="w-full flex justify-between items-center text-left mb-2">
+                        <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-300">
+                            <PackageSearchIcon className="h-4 w-4 text-cyan-400" /> Market Analysis
+                        </h4>
+                        <ChevronDownIcon className={`h-5 w-5 text-gray-400 transition-transform ${collapsedPanels.marketAnalysis ? '' : 'rotate-180'}`} />
+                    </button>
+                    {!collapsedPanels.marketAnalysis && (
+                        <div className="space-y-3 animate-fade-in">
+                            {marketAnalysis.optimalBet ? (
+                                <div className="p-2.5 rounded-md bg-green-500/10 border border-green-500/30">
+                                    <div className="text-xs text-green-300 font-semibold mb-1">Optimal Bet Identified</div>
+                                    <div className="flex justify-between items-center">
+                                        <div className="font-semibold text-gray-100">
+                                            {selectedPlayer.name} {marketAnalysis.optimalBet.position} {marketAnalysis.optimalBet.line}
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="font-mono text-lg text-green-400 font-bold">
+                                                {marketAnalysis.optimalBet.ev.toFixed(2)}% EV
+                                            </div>
+                                            <div className="text-xs text-gray-400 font-mono">
+                                                @{formatAmericanOdds(marketAnalysis.optimalBet.odds)}
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-60 p-2 bg-gray-950 text-xs text-gray-300 border border-gray-700 rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                                   <p className="font-bold">{stat.name}</p>
-                                   <p>{stat.description}</p>
+                            ) : (
+                                <div className="p-2.5 text-center text-sm text-gray-400 bg-gray-900/50 rounded-md">
+                                    No significant positive EV found in the current market.
                                 </div>
-                            </div>
-                        ))}
-                    </div>
+                            )}
+                            <MarketAnalysisChart marketAnalysis={marketAnalysis} />
+                            <p className="text-xs text-gray-400 mt-2 p-2 bg-gray-900/50 rounded-md italic">
+                                <strong>Base Analysis:</strong> {marketAnalysis.baseAnalysis.summary}
+                            </p>
+                        </div>
+                    )}
                 </div>
-            )}
-            
-            {/* Historical Performance */}
-            {selectedProp.historicalContext && selectedProp.historicalContext.gameLog && (
-                <HistoricalPerformanceChart 
-                    gameLog={selectedProp.historicalContext.gameLog}
-                    selectedLine={selectedProp.lines[0].line}
-                    seasonAvg={selectedProp.historicalContext.seasonAvg ?? null}
-                    last5Avg={selectedProp.historicalContext.last5Avg ?? null}
-                />
             )}
 
+            {/* Other Contextual Data Panels */}
+            <div className="mt-4 space-y-3 text-sm">
+                {selectedProp.historicalContext?.gameLog && (
+                    <div className="p-3 rounded-lg border border-gray-700/50 bg-gray-800/80">
+                        <button onClick={() => togglePanel('historical')} className="w-full flex justify-between items-center text-left">
+                            <h4 className="text-xs font-semibold text-gray-400 uppercase">Last 7 Games Performance</h4>
+                            <ChevronDownIcon className={`h-4 w-4 text-gray-400 transition-transform ${collapsedPanels.historical ? '' : 'rotate-180'}`} />
+                        </button>
+                        {!collapsedPanels.historical && (
+                            <div className="animate-fade-in pt-2">
+                                <HistoricalPerformanceChart
+                                    gameLog={selectedProp.historicalContext.gameLog}
+                                    selectedLine={selectedProp.lines[Math.floor(selectedProp.lines.length / 2)].line}
+                                    seasonAvg={selectedProp.historicalContext.seasonAvg}
+                                    last5Avg={selectedProp.historicalContext.last5Avg}
+                                />
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {advancedStats && advancedStats.length > 0 && (
+                    <div className="p-3 rounded-lg border border-gray-700/50 bg-gray-800/80">
+                        <button onClick={() => togglePanel('advanced')} className="w-full flex justify-between items-center text-left">
+                            <h4 className="flex items-center gap-2 text-xs font-semibold uppercase text-gray-400">
+                                <TrendingUpIcon className="h-4 w-4 text-cyan-400" /> Advanced Metrics
+                            </h4>
+                            <ChevronDownIcon className={`h-4 w-4 text-gray-400 transition-transform ${collapsedPanels.advanced ? '' : 'rotate-180'}`} />
+                        </button>
+                        {!collapsedPanels.advanced && (
+                            <div className="space-y-2 animate-fade-in mt-2">
+                                {advancedStats.map(stat => (
+                                    <div key={stat.abbreviation} className="group relative">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-gray-300">{stat.abbreviation}</span>
+                                            <span className="font-mono text-cyan-300">{stat.value}</span>
+                                        </div>
+                                        <div className="relative h-1.5 bg-gray-700 rounded-full mt-1">
+                                            <div className="absolute h-1.5 bg-cyan-500 rounded-full" style={{ width: `${stat.percentile}%` }}></div>
+                                        </div>
+                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-60 p-2 bg-gray-950 text-xs text-gray-300 border border-gray-700 rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                                            <p className="font-bold text-cyan-300">{stat.name}</p>
+                                            <p>{stat.description} Ranks #{stat.rank} ({stat.percentile}th percentile).</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {selectedPlayer.injuryStatus && (
+                    <div className="p-3 rounded-lg border border-gray-700/50 bg-gray-800/80">
+                        <button onClick={() => togglePanel('injury')} className="w-full flex justify-between items-center text-left">
+                            <h4 className="flex items-center gap-2 text-xs font-semibold uppercase text-gray-400">
+                                <StethoscopeIcon className="h-4 w-4 text-cyan-400" /> Injury Analysis
+                            </h4>
+                            <ChevronDownIcon className={`h-4 w-4 text-gray-400 transition-transform ${collapsedPanels.injury ? '' : 'rotate-180'}`} />
+                        </button>
+                        {!collapsedPanels.injury && (
+                            <div className="animate-fade-in mt-2">
+                                <p className="text-gray-300"><strong className={`font-bold ${selectedPlayer.injuryStatus.status === 'Q' ? 'text-yellow-300' : 'text-red-400'}`}>{selectedPlayer.injuryStatus.status === 'Q' ? 'Questionable' : 'Out'}:</strong> {selectedPlayer.injuryStatus.news}</p>
+                                <p className="text-gray-400 italic mt-1 text-xs"><strong>Impact:</strong> {selectedPlayer.injuryStatus.impact}</p>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {relevantDefensiveStat && (
+                    <div className="p-3 rounded-lg border border-gray-700/50 bg-gray-800/80">
+                         <button onClick={() => togglePanel('matchup')} className="w-full flex justify-between items-center text-left">
+                            <h4 className="flex items-center gap-2 text-xs font-semibold uppercase text-gray-400">
+                                <ShieldIcon className="h-4 w-4 text-cyan-400" /> Defensive Matchup ({TEAM_NAME_TO_ABBREVIATION[opposingTeamName!] || opposingTeamName})
+                            </h4>
+                            <ChevronDownIcon className={`h-4 w-4 text-gray-400 transition-transform ${collapsedPanels.matchup ? '' : 'rotate-180'}`} />
+                        </button>
+                        {!collapsedPanels.matchup && (
+                            <div className="animate-fade-in mt-2">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-gray-300">Allowed {relevantDefensiveStat.unit}</span>
+                                    <span className="font-mono text-cyan-300">{relevantDefensiveStat.value.toFixed(1)}</span>
+                                </div>
+                                <div className="flex justify-between items-center mt-1">
+                                    <span className="text-gray-300">League Rank</span>
+                                    <span className="font-mono text-cyan-300">#{relevantDefensiveStat.rank}</span>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+                
+                {selectedPlayer.homeAwaySplits && (
+                    <div className="p-3 rounded-lg border border-gray-700/50 bg-gray-800/80">
+                         <button onClick={() => togglePanel('splits')} className="w-full flex justify-between items-center text-left">
+                            <h4 className="flex items-center gap-2 text-xs font-semibold uppercase text-gray-400">Performance Splits</h4>
+                            <ChevronDownIcon className={`h-4 w-4 text-gray-400 transition-transform ${collapsedPanels.splits ? '' : 'rotate-180'}`} />
+                        </button>
+                        {!collapsedPanels.splits && (
+                             <div className="space-y-1 animate-fade-in mt-2">
+                                <div className="flex items-center gap-2 text-gray-300"><HomeIcon className="h-4 w-4" /> <span>Home: <span className="font-mono text-gray-200">{selectedPlayer.homeAwaySplits.home[selectedProp.propType]?.toFixed(1)}</span></span></div>
+                                <div className="flex items-center gap-2 text-gray-300"><PlaneIcon className="h-4 w-4" /> <span>Away: <span className="font-mono text-gray-200">{selectedPlayer.homeAwaySplits.away[selectedProp.propType]?.toFixed(1)}</span></span></div>
+                                {selectedPlayer.divisionalSplits?.[selectedProp.propType] && (
+                                    <div className="flex items-center gap-2 text-gray-300"><SwordsIcon className="h-4 w-4" /> <span>Divisional: <span className="font-mono text-gray-200">{selectedPlayer.divisionalSplits[selectedProp.propType]?.toFixed(1)}</span></span></div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
         </div>
     );
   }
 
   return (
-    <div className="flex flex-1 overflow-hidden">
-      <div className="w-1/3 border-r border-gray-700/50 p-4 overflow-y-auto">
+    <div className="flex h-full w-full">
+      {/* Left Panel: Game/Player/Prop Selection */}
+      <div className="w-full md:w-1/2 lg:w-2/5 p-4 border-r border-gray-700/50 overflow-y-auto">
         {renderSelectionPanel()}
       </div>
-      <div className="flex-1 p-4 flex flex-col">
-        <h2 className="text-xl font-semibold mb-3">Bet Slip</h2>
-        <div className="flex-1 space-y-2 overflow-y-auto pr-1">
-            {parlayLegs.length === 0 ? (
-                <div className="text-center text-gray-500 py-10 border-2 border-dashed border-gray-700 rounded-lg h-full flex flex-col justify-center items-center">
-                    <p>Your bet slip is empty.</p>
-                    <p className="text-sm">Select a game, player, and prop to add a leg.</p>
-                </div>
-            ) : (
-                parlayLegs.map((leg, index) => (
-                    <div key={index} className="p-3 bg-gray-800 rounded-md flex justify-between items-center animate-fade-in">
-                        <div>
-                            <p className="font-semibold text-gray-200">{leg.player}</p>
-                            <p className="text-sm text-gray-400">{`${leg.position} ${leg.line} ${leg.propType}`}</p>
-                        </div>
-                        <div className="flex items-center gap-4">
-                            <span className="font-mono text-gray-300">{formatAmericanOdds(leg.marketOdds)}</span>
-                            <button onClick={() => handleRemoveLeg(index)} className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors">
-                                <Trash2Icon className="h-4 w-4" />
-                            </button>
-                        </div>
-                    </div>
-                ))
-            )}
-        </div>
-        <div className="pt-4 border-t border-gray-700/50">
-            {parlayLegs.length > 1 && (
-                <div className="mb-4 p-3 bg-gray-900/50 rounded-lg border border-gray-700/50">
-                    <button
-                        onClick={() => setIsCorrelationVisible(!isCorrelationVisible)}
-                        className="w-full flex justify-between items-center text-left"
-                        aria-expanded={isCorrelationVisible}
-                    >
-                        <h4 className="flex items-center gap-2 font-semibold text-gray-200">
-                            <LinkIcon className="h-5 w-5 text-cyan-400" />
-                            Parlay Correlation Analysis
-                        </h4>
-                        <ChevronDownIcon className={`h-5 w-5 text-gray-400 transform transition-transform ${isCorrelationVisible ? 'rotate-180' : ''}`} />
+
+      {/* Right Panel: Parlay Slip */}
+      <div className="hidden md:flex flex-col w-1/2 lg:w-3/5 bg-gray-900/30 relative">
+        <div className="p-4 border-b border-gray-700/50">
+            <div className="flex justify-between items-center">
+                <h2 className="text-xl font-semibold text-gray-200">Parlay Slip</h2>
+                <div className="flex items-center gap-2">
+                    <button onClick={handleSaveParlay} disabled={parlayLegs.length === 0} className="p-2 rounded-md text-gray-400 hover:text-cyan-400 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors" aria-label="Save parlay">
+                        <SaveIcon className="h-5 w-5" />
                     </button>
-                    {isCorrelationVisible && (
-                        <div className="mt-3 pt-3 border-t border-gray-700">
-                            {isCorrelationLoading && <div className="text-center text-sm text-gray-400 p-2">Analyzing...</div>}
-                            {correlationError && <div className="text-center text-sm text-red-400 p-2">{correlationError}</div>}
-                            
-                            {!isCorrelationLoading && !correlationAnalysis && (
-                                <button
-                                    onClick={handleAnalyzeCorrelation}
-                                    className="w-full text-center py-2 px-4 bg-gray-700 hover:bg-gray-600 rounded-md text-sm font-semibold"
-                                >
-                                    Analyze Correlation
-                                </button>
-                            )}
-
-                            {correlationAnalysis && (
-                                <div className="space-y-4 animate-fade-in">
+                    <button onClick={() => setIsLoadModalOpen(true)} className="p-2 rounded-md text-gray-400 hover:text-cyan-400 hover:bg-gray-700 transition-colors" aria-label="Load parlay">
+                        <FolderOpenIcon className="h-5 w-5" />
+                    </button>
+                </div>
+            </div>
+          <div className="mt-2 text-sm text-gray-400">Total Odds: <span className="font-mono text-lg font-bold text-cyan-300">{formatAmericanOdds(parlayOdds)}</span></div>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {parlayLegs.length === 0 ? (
+            <div className="text-center text-gray-500 pt-10">Add selections to build your parlay.</div>
+          ) : (
+            parlayLegs.map((leg, index) => (
+              <div key={index} className="p-3 bg-gray-800/70 rounded-md flex justify-between items-center animate-fade-in">
+                <div>
+                  <p className="font-semibold text-gray-200">{leg.player}</p>
+                  <p className="text-sm text-gray-400">{`${leg.position} ${leg.line} ${leg.propType}`}</p>
+                </div>
+                <div className="flex items-center gap-4">
+                    <span className="font-mono text-gray-300">{formatAmericanOdds(leg.marketOdds)}</span>
+                    <button onClick={() => handleRemoveLeg(index)} className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors">
+                        <Trash2Icon className="h-4 w-4" />
+                    </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+        
+        {/* Correlation Analysis Section */}
+        {parlayLegs.length >= 2 && (
+             <div className="p-4 border-t border-gray-700/50">
+                 <button onClick={() => setIsCorrelationVisible(!isCorrelationVisible)} className="w-full flex justify-between items-center text-left text-gray-300 hover:text-cyan-300 transition-colors">
+                    <div className="flex items-center gap-2">
+                         <LinkIcon className="h-5 w-5" />
+                         <span className="font-semibold">Correlation Analysis</span>
+                    </div>
+                    <ChevronDownIcon className={`h-5 w-5 transition-transform ${isCorrelationVisible ? 'rotate-180' : ''}`} />
+                 </button>
+                 {isCorrelationVisible && (
+                     <div className="mt-3 animate-fade-in">
+                        {!correlationAnalysis && !isCorrelationLoading && !correlationError && (
+                             <button onClick={handleAnalyzeCorrelation} className="w-full flex items-center justify-center gap-2 rounded-md bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-300 transition-colors hover:bg-cyan-500/20">
+                                 <SparklesIcon className="h-4 w-4" /> Analyze Correlation
+                             </button>
+                        )}
+                        {isCorrelationLoading && <div className="text-center text-sm text-gray-400 p-2">Analyzing...</div>}
+                        {correlationError && <div className="text-center text-sm text-red-400 p-2 bg-red-500/10 rounded-md">{correlationError}</div>}
+                        {correlationAnalysis && (
+                            <div className="space-y-3">
+                                <div className="flex justify-between items-center p-3 bg-gray-800 rounded-md">
                                     <div>
-                                        <div className="flex justify-between items-center mb-1">
-                                            <span className="text-sm text-gray-400">Overall Score</span>
-                                            <span className="font-bold text-lg" style={{ color: getScoreGradient(correlationAnalysis.overallScore) }}>
-                                                {correlationAnalysis.overallScore.toFixed(2)}
-                                            </span>
-                                        </div>
-                                        <div className="w-full bg-gray-700 rounded-full h-1.5 relative overflow-hidden">
-                                           <div className="absolute top-0 bottom-0 left-1/2 w-0.5 bg-gray-600"></div>
-                                           <div 
-                                               className="h-1.5 rounded-full transition-all duration-500"
-                                               style={{
-                                                   width: `${Math.abs(correlationAnalysis.overallScore) * 50}%`,
-                                                   marginLeft: correlationAnalysis.overallScore >= 0 ? '50%' : `${50 - Math.abs(correlationAnalysis.overallScore) * 50}%`,
-                                                   background: getScoreGradient(correlationAnalysis.overallScore)
-                                               }}
-                                           ></div>
+                                        <div className="text-xs text-gray-400">Overall Score</div>
+                                        <div className="text-lg font-bold" style={{ color: getScoreGradient(correlationAnalysis.overallScore) }}>
+                                            {correlationAnalysis.overallScore.toFixed(2)}
                                         </div>
                                     </div>
-                                    <p className="text-sm text-gray-300 italic">"{correlationAnalysis.summary}"</p>
-
-                                    <div>
-                                        <h5 className="text-sm font-semibold mb-2">Detailed Breakdown</h5>
-                                        <div className="space-y-2 max-h-32 overflow-y-auto pr-2">
-                                            {correlationAnalysis.analysis.map((detail, i) => (
-                                                <div key={i} className="p-2 bg-gray-800/70 rounded-md text-xs">
-                                                    <p className="font-semibold text-gray-200 mb-1">
-                                                       Leg {detail.leg1Index + 1} vs Leg {detail.leg2Index + 1}
-                                                       <span className={`ml-2 font-bold ${getRelationshipColor(detail.relationship)}`}>
-                                                         ({detail.relationship})
-                                                       </span>
-                                                    </p>
-                                                    <p className="text-gray-400">{detail.explanation}</p>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                    
-                                    <button
-                                        onClick={handleAnalyzeCorrelation}
-                                        disabled={isCorrelationLoading}
-                                        className="w-full text-center py-1.5 px-3 bg-gray-700 hover:bg-gray-600 rounded-md text-xs font-semibold flex items-center justify-center gap-1.5 disabled:opacity-50"
-                                    >
-                                        <RotateCwIcon className={`h-3 w-3 ${isCorrelationLoading ? 'animate-spin' : ''}`} />
-                                        Re-analyze
+                                    <button onClick={handleAnalyzeCorrelation} className="p-1.5 rounded-md text-gray-400 hover:text-cyan-400 hover:bg-gray-700" aria-label="Re-analyze correlation">
+                                        <RotateCwIcon className={`h-4 w-4 ${isCorrelationLoading ? 'animate-spin' : ''}`} />
                                     </button>
                                 </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-            )}
-            
-            {parlayLegs.length > 0 && (
-                <div className="flex justify-between items-center mb-4">
-                    <span className="text-gray-400">Total Odds</span>
-                    <span className="text-xl font-bold text-cyan-400">{formatAmericanOdds(parlayOdds)}</span>
-                </div>
-            )}
-            <div className="flex gap-2">
-                <button onClick={() => setIsLoadModalOpen(true)} className="p-2.5 bg-gray-700/70 hover:bg-gray-700 rounded-md transition-colors" aria-label="Load Parlay">
-                    <FolderOpenIcon className="h-5 w-5" />
-                </button>
-                <button onClick={handleSaveParlay} disabled={parlayLegs.length === 0} className="p-2.5 bg-gray-700/70 hover:bg-gray-700 rounded-md transition-colors disabled:opacity-50" aria-label="Save Parlay">
-                    <SaveIcon className="h-5 w-5" />
-                </button>
-                <button onClick={handleAnalyzeClick} disabled={parlayLegs.length === 0} className="flex-1 flex items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cyan-600 disabled:opacity-50 disabled:cursor-not-allowed">
-                    <SendIcon className="h-5 w-5" />
-                    Analyze ({parlayLegs.length}) Leg{parlayLegs.length !== 1 && 's'}
-                </button>
-            </div>
-             <button onClick={onBack} className="w-full mt-2 text-center text-sm text-gray-400 hover:text-gray-200 p-2">
-                Back to Input Selection
-            </button>
-        </div>
-      </div>
-      {isLoadModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/80 backdrop-blur-sm" onClick={() => setIsLoadModalOpen(false)}>
-            <div className="bg-gray-800 rounded-lg shadow-xl w-full max-w-lg border border-gray-700" onClick={e => e.stopPropagation()}>
-                <div className="flex justify-between items-center p-4 border-b border-gray-700">
-                    <h3 className="text-lg font-semibold">Load Saved Parlay</h3>
-                    <button onClick={() => setIsLoadModalOpen(false)} className="p-1 rounded-md hover:bg-gray-700">
-                        <XIcon className="h-5 w-5" />
-                    </button>
-                </div>
-                <div className="p-4 max-h-[60vh] overflow-y-auto">
-                    {savedParlays.length === 0 ? (
-                        <p className="text-center text-gray-500 py-8">No saved parlays found.</p>
-                    ) : (
-                        <div className="space-y-2">
-                            {savedParlays.map(parlay => (
-                                <div key={parlay.id} className="group p-3 bg-gray-900/50 rounded-md flex justify-between items-center">
-                                    <div>
-                                        <p className="font-semibold">{parlay.name}</p>
-                                        <p className="text-xs text-gray-400">{parlay.legs.length} Legs &bull; {formatAmericanOdds(parlay.odds)}</p>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <button onClick={() => handleDeleteSavedParlay(parlay.id)} className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors opacity-0 group-hover:opacity-100" aria-label="Delete saved parlay">
-                                            <Trash2Icon className="h-4 w-4" />
-                                        </button>
-                                        <button onClick={() => handleLoadParlay(parlay)} className="px-3 py-1.5 text-sm bg-cyan-600 hover:bg-cyan-700 rounded-md">Load</button>
-                                    </div>
+                                <p className="text-xs text-gray-400 italic p-2 bg-gray-800 rounded-md">{correlationAnalysis.summary}</p>
+                                <div className="text-xs space-y-1.5 max-h-40 overflow-y-auto pr-2">
+                                    {correlationAnalysis.analysis.map((detail, index) => {
+                                        const leg1 = parlayLegs[detail.leg1Index];
+                                        const leg2 = parlayLegs[detail.leg2Index];
+                                        return (
+                                            <div key={index} className="p-2 bg-gray-950/60 rounded">
+                                                <div className={`font-semibold mb-1 text-sm ${getRelationshipColor(detail.relationship)}`}>
+                                                    {detail.relationship}
+                                                </div>
+                                                <p className="text-gray-400">
+                                                    {leg1.player} ({leg1.propType}) &amp; {leg2.player} ({leg2.propType})
+                                                </p>
+                                                <p className="text-gray-500 italic mt-1">{detail.explanation}</p>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
+                            </div>
+                        )}
+                     </div>
+                 )}
             </div>
+        )}
+        
+        <div className="p-4 border-t border-gray-700/50">
+          <button 
+            onClick={handleAnalyzeClick} 
+            disabled={parlayLegs.length === 0}
+            className="w-full flex items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-cyan-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <SendIcon className="h-5 w-5" />
+            Analyze {parlayLegs.length > 0 ? `${parlayLegs.length} Leg Parlay` : 'Parlay'}
+          </button>
         </div>
-      )}
+
+        {isLoadModalOpen && (
+          <div className="absolute inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-20" onClick={() => setIsLoadModalOpen(false)}>
+              <div className="w-full max-w-lg bg-gray-800 border border-gray-700 rounded-lg shadow-xl m-4" onClick={e => e.stopPropagation()}>
+                  <div className="p-4 border-b border-gray-700 flex justify-between items-center">
+                      <h3 className="text-lg font-semibold text-gray-200">Load Saved Parlay</h3>
+                      <button onClick={() => setIsLoadModalOpen(false)} className="p-1 rounded-md text-gray-400 hover:text-white hover:bg-gray-600">
+                        <XIcon className="h-5 w-5" />
+                      </button>
+                  </div>
+                  <div className="p-4 max-h-[60vh] overflow-y-auto">
+                      {savedParlays.length === 0 ? (
+                          <p className="text-center text-gray-500 py-8">No saved parlays found.</p>
+                      ) : (
+                          <div className="space-y-3">
+                              {savedParlays.map(parlay => (
+                                  <div key={parlay.id} className="p-3 bg-gray-900/50 rounded-md group">
+                                      <div className="flex justify-between items-start">
+                                          <div>
+                                              <p className="font-semibold text-gray-200">{parlay.name}</p>
+                                              <p className="text-xs text-gray-400">{parlay.legs.length} Legs &bull; {formatAmericanOdds(parlay.odds)}</p>
+                                          </div>
+                                          <div className="flex items-center gap-2 flex-shrink-0">
+                                              <button onClick={() => handleLoadParlay(parlay)} className="px-3 py-1 text-sm rounded-md bg-cyan-500 text-white hover:bg-cyan-600">Load</button>
+                                              <button onClick={() => handleDeleteSavedParlay(parlay.id)} className="p-2 rounded-md text-gray-500 hover:text-red-400 hover:bg-red-500/10">
+                                                  <Trash2Icon className="h-4 w-4" />
+                                              </button>
+                                          </div>
+                                      </div>
+                                  </div>
+                              ))}
+                          </div>
+                      )}
+                  </div>
+              </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

@@ -1,5 +1,4 @@
 
-
 import React, { useState, Suspense } from 'react';
 import { ChatHistoryProvider } from '../contexts/ChatHistoryContext';
 import { MessageSquareIcon } from './icons/MessageSquareIcon';
@@ -31,23 +30,6 @@ const MainPanel: React.FC = () => {
       : 'border-b-2 border-transparent text-gray-400 hover:border-gray-500 hover:text-gray-200';
   };
 
-  const renderActiveView = () => {
-    if (activeView === 'lens') {
-      return <SynopticLens />;
-    }
-    if (activeView === 'chat') {
-      return (
-        <ChatHistoryProvider>
-          <div className="flex flex-1 overflow-hidden">
-            <ChatHistorySidebar />
-            <ChatPanel />
-          </div>
-        </ChatHistoryProvider>
-      );
-    }
-    return null;
-  };
-
   return (
     <div className="flex flex-1 flex-col bg-gray-800/30">
       <div className="flex border-b border-gray-700/50">
@@ -71,7 +53,15 @@ const MainPanel: React.FC = () => {
       
       <div className="flex-1 overflow-hidden" role="tabpanel">
         <Suspense fallback={<LoadingFallback />}>
-            {renderActiveView()}
+          {activeView === 'lens' && <SynopticLens />}
+          {activeView === 'chat' && (
+            <ChatHistoryProvider>
+              <div className="flex flex-1 overflow-hidden">
+                <ChatHistorySidebar />
+                <ChatPanel />
+              </div>
+            </ChatHistoryProvider>
+          )}
         </Suspense>
       </div>
     </div>

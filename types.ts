@@ -111,6 +111,7 @@ export interface Player {
 export interface Game {
   id: string;
   name: string; // e.g., "Kansas City Chiefs @ Baltimore Ravens"
+  date: string; // YYYY-MM-DD
   players: Player[];
 }
 
