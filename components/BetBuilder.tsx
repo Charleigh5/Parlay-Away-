@@ -89,17 +89,10 @@ const getRankCategory = (rank: number | null) => {
     return { text: `Mid-tier`, color: 'text-gray-300', bgColor: 'bg-gray-700/50', borderColor: 'border-gray-600' };
 };
 
-const getInjuryStatusStyle = (status: 'Healthy' | 'Questionable' | 'Probable' | 'Out') => {
-    switch (status) {
-        case 'Healthy':
-            return { text: 'Healthy', color: 'text-green-300', bgColor: 'bg-green-500/10' };
-        case 'Questionable':
-            return { text: 'Questionable', color: 'text-yellow-300', bgColor: 'bg-yellow-500/10' };
-        case 'Probable':
-             return { text: 'Probable', color: 'text-blue-300', bgColor: 'bg-blue-500/10' };
-        case 'Out':
-             return { text: 'Out', color: 'text-red-300', bgColor: 'bg-red-500/10' };
-    }
+const INJURY_STATUS_MAP = {
+    P: { text: 'Probable', color: 'text-blue-300', bgColor: 'bg-blue-500/10' },
+    Q: { text: 'Questionable', color: 'text-yellow-300', bgColor: 'bg-yellow-500/10' },
+    O: { text: 'Out', color: 'text-red-300', bgColor: 'bg-red-500/10' },
 };
 
 const RenderImpactText: React.FC<{ text: string; }> = ({ text }) => {
@@ -516,15 +509,24 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                     </div>
                     <div className="space-y-1 max-h-96 overflow-y-auto">
                         {filteredPlayers.map(player => (
-                            <button key={player.name} onClick={() => setSelectedPlayerName(player.name)} className="w-full text-left p-2 rounded-md hover:bg-gray-700/80 transition-colors flex items-center justify-between">
+                            <button key={player.name} onClick={() => setSelectedPlayerName(player.name)} className="w-full text-left p-2 rounded-md hover:bg-gray-700/80 transition-colors flex items-center justify-between group">
                                 <div>
                                     <span className="text-gray-200 text-sm font-medium">{player.name}</span>
                                     <span className="text-gray-500 text-xs ml-2">{player.position}</span>
                                 </div>
                                 {player.injuryStatus && (
-                                     <span className={`text-xs px-1.5 py-0.5 rounded-full ${getInjuryStatusStyle(player.injuryStatus.status).bgColor} ${getInjuryStatusStyle(player.injuryStatus.status).color}`}>
-                                        {player.injuryStatus.status.charAt(0)}
-                                    </span>
+                                     <div className="relative">
+                                        <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${INJURY_STATUS_MAP[player.injuryStatus.status].bgColor} ${INJURY_STATUS_MAP[player.injuryStatus.status].color}`}>
+                                            {player.injuryStatus.status}
+                                        </span>
+                                        <div className="absolute bottom-full left-1/2 z-20 mb-2 w-64 -translate-x-1/2 rounded-md border border-gray-700 bg-gray-950 p-2 text-xs text-gray-300 shadow-lg opacity-0 transition-opacity group-hover:opacity-100 pointer-events-none">
+                                            <strong className={`font-semibold ${INJURY_STATUS_MAP[player.injuryStatus.status].color}`}>{INJURY_STATUS_MAP[player.injuryStatus.status].text}</strong>
+                                            <p className="mt-1 text-gray-400">{player.injuryStatus.news}</p>
+                                            <div className="mt-1.5 pt-1.5 border-t border-gray-700/50 text-gray-400 italic">
+                                                <RenderImpactText text={player.injuryStatus.impact} />
+                                            </div>
+                                        </div>
+                                    </div>
                                 )}
                             </button>
                         ))}
@@ -604,7 +606,7 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                     {selectedPlayer.injuryStatus && (
                          <div className="mb-3 p-2 border border-gray-700/50 rounded-lg bg-gray-900/30">
                             <h4 className="flex items-center gap-1.5 text-xs text-gray-400 uppercase font-semibold mb-1"><StethoscopeIcon className="h-3.5 w-3.5" />Injury Status</h4>
-                            <div className={`text-sm font-semibold ${getInjuryStatusStyle(selectedPlayer.injuryStatus.status).color}`}>{getInjuryStatusStyle(selectedPlayer.injuryStatus.status).text}</div>
+                            <div className={`text-sm font-semibold ${INJURY_STATUS_MAP[selectedPlayer.injuryStatus.status].color}`}>{INJURY_STATUS_MAP[selectedPlayer.injuryStatus.status].text}</div>
                             <p className="text-xs text-gray-500 mt-0.5">{selectedPlayer.injuryStatus.news}</p>
                             <div className="mt-1.5 pt-1.5 border-t border-gray-700/50 text-xs text-gray-400 italic">
                                 <strong className="text-gray-300 not-italic">Impact: </strong>

@@ -85,7 +85,7 @@ export interface PlayerProp {
 }
 
 export interface InjuryStatus {
-  status: 'Healthy' | 'Questionable' | 'Probable' | 'Out';
+  status: 'P' | 'Q' | 'O'; // Probable, Questionable, Out
   news: string;
   impact: string;
 }
@@ -103,7 +103,7 @@ export interface Player {
   position: string;
   team: string;
   props: PlayerProp[];
-  injuryStatus?: InjuryStatus;
+  injuryStatus?: InjuryStatus; // Optional: undefined implies Healthy
   homeAwaySplits?: HomeAwaySplits;
   divisionalSplits?: StatSplits;
 }

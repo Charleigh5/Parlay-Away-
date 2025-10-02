@@ -13,11 +13,6 @@ export const MOCK_GAMES_SOURCE: Game[] = [
         name: 'Patrick Mahomes',
         position: 'QB',
         team: 'KC',
-        injuryStatus: {
-          status: 'Healthy',
-          news: 'No recent injury concerns reported. Participated fully in all recent practices.',
-          impact: 'Player is at full capacity. No negative performance impact is expected from an injury standpoint. (KM_05)'
-        },
         ...PLAYER_SPLITS['Patrick Mahomes'],
         props: [
           {
@@ -59,11 +54,6 @@ export const MOCK_GAMES_SOURCE: Game[] = [
         name: 'Lamar Jackson',
         position: 'QB',
         team: 'BAL',
-        injuryStatus: {
-          status: 'Healthy',
-          news: 'Cleared from the injury report this week after dealing with a minor calf issue.',
-          impact: 'Returns to 100% health. No physical limitations anticipated, which is critical for his dual-threat ability. (KM_05)'
-        },
         ...PLAYER_SPLITS['Lamar Jackson'],
         props: [
           {
@@ -106,9 +96,9 @@ export const MOCK_GAMES_SOURCE: Game[] = [
           position: 'TE',
           team: 'KC',
           injuryStatus: {
-              status: 'Questionable',
+              status: 'Q',
               news: 'Listed as questionable with a minor ankle sprain sustained in last week\'s game.',
-              impact: 'Practiced in a limited capacity this week. While expected to play, explosiveness might be slightly hampered on deep routes. Monitor in-game usage. (KM_05)'
+              impact: 'Practiced in a limited capacity. Explosiveness might be slightly hampered on deep routes. Monitor in-game usage. (KM_05)'
           },
           ...PLAYER_SPLITS['Travis Kelce'],
           props: [
@@ -136,6 +126,23 @@ export const MOCK_GAMES_SOURCE: Game[] = [
               },
           ],
       },
+       {
+        name: 'Isiah Pacheco',
+        position: 'RB',
+        team: 'KC',
+        injuryStatus: {
+            status: 'P',
+            news: 'Listed as probable with a bruised shoulder. Was a full participant in Friday\'s practice.',
+            impact: 'Expected to play without significant limitations. May see slightly reduced goal-line work as a precaution. (KM_05)'
+        },
+        props: [
+            {
+                propType: 'Rushing Yards',
+                lines: [{ line: 65.5, overOdds: -115, underOdds: -115 }],
+                historicalContext: { seasonAvg: 72.3, last5Avg: 78.1, gameLog: [80, 65, 92, 77, 70, 55, 101] }
+            }
+        ]
+      },
       {
         name: 'Zay Flowers',
         position: 'WR',
@@ -158,11 +165,6 @@ export const MOCK_GAMES_SOURCE: Game[] = [
         name: 'Chris Jones',
         position: 'DT',
         team: 'KC',
-        injuryStatus: {
-            status: 'Healthy',
-            news: 'No injury concerns.',
-            impact: 'At full strength to anchor the defensive line. (KM_05)',
-        },
         props: [
             {
                 propType: 'Sacks',
@@ -211,6 +213,22 @@ export const MOCK_GAMES_SOURCE: Game[] = [
             }
           }
         ]
+      },
+      {
+          name: 'A.J. Brown',
+          position: 'WR',
+          team: 'PHI',
+          injuryStatus: {
+              status: 'O',
+              news: 'Ruled out for Sunday\'s game with a significant knee sprain.',
+              impact: 'Will not play. His absence vacates a significant target share, likely benefiting DeVonta Smith and Dallas Goedert. (KM_05)'
+          },
+          props: [
+              {
+                  propType: 'Receiving Yards',
+                  lines: [{ line: 88.5, overOdds: -115, underOdds: -115 }],
+              }
+          ]
       }
     ]
   }
