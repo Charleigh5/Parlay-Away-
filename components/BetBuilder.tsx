@@ -399,6 +399,12 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
         setCorrelationAnalysis(null);
     };
 
+    const handleClearSlip = () => {
+        setLegs([]);
+        setCorrelationAnalysis(null);
+        setCorrelationError(null);
+    };
+
     const handleSaveParlay = () => {
         if (legs.length === 0) return;
 
@@ -772,7 +778,19 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                {renderSelectionPanel()}
             </div>
             <div className="w-96 shrink-0 bg-gray-900/50 p-4 flex flex-col">
-                <h3 className="text-lg font-semibold text-gray-200 mb-2">Bet Slip</h3>
+                <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-lg font-semibold text-gray-200">Bet Slip</h3>
+                    {legs.length > 0 && (
+                        <button 
+                            onClick={handleClearSlip}
+                            className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-gray-400 transition-colors hover:bg-red-500/10 hover:text-red-400"
+                            aria-label="Clear all legs from the bet slip"
+                        >
+                            <Trash2Icon className="h-3.5 w-3.5" />
+                            Clear All
+                        </button>
+                    )}
+                </div>
                 {legs.length === 0 ? (
                     <div className="flex-1 flex flex-col items-center justify-center text-center text-gray-500 border-2 border-dashed border-gray-700 rounded-lg p-4">
                         <TestTubeIcon className="h-8 w-8 text-gray-600 mb-2"/>
