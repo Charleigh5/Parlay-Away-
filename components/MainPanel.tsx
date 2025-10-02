@@ -1,14 +1,26 @@
 
 
-import React, { useState } from 'react';
-import SynopticLens from './SynopticLens';
-import ChatPanel from './ChatPanel';
-import ChatHistorySidebar from './ChatHistorySidebar';
+import React, { useState, Suspense } from 'react';
 import { ChatHistoryProvider } from '../contexts/ChatHistoryContext';
 import { MessageSquareIcon } from './icons/MessageSquareIcon';
 import { TestTubeIcon } from './icons/TestTubeIcon';
 
 type View = 'chat' | 'lens';
+
+const SynopticLens = React.lazy(() => import('./SynopticLens'));
+const ChatPanel = React.lazy(() => import('./ChatPanel'));
+const ChatHistorySidebar = React.lazy(() => import('./ChatHistorySidebar'));
+
+const LoadingFallback = () => (
+    <div className="flex flex-1 items-center justify-center">
+        <div className="flex items-center gap-3 rounded-lg p-4">
+            <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse [animation-delay:-0.3s]"></div>
+            <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse [animation-delay:-0.15s]"></div>
+            <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></div>
+        </div>
+    </div>
+);
+
 
 const MainPanel: React.FC = () => {
   const [activeView, setActiveView] = useState<View>('lens');
@@ -58,7 +70,9 @@ const MainPanel: React.FC = () => {
       </div>
       
       <div className="flex-1 overflow-hidden" role="tabpanel">
-        {renderActiveView()}
+        <Suspense fallback={<LoadingFallback />}>
+            {renderActiveView()}
+        </Suspense>
       </div>
     </div>
   );

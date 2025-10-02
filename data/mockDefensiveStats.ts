@@ -38,14 +38,14 @@ export const DEFENSIVE_STATS: Record<string, TeamDefensiveStats> = {
   'Baltimore Ravens': {
     overall: { rank: 1 },
     'Passing Yards': { value: 215.5, rank: 5, unit: 'YPG' },
-    '1st Half Passing Yards Allowed': { value: 105.2, rank: 3, unit: 'YPG' },
+    '1st Half Passing Yards': { value: 105.2, rank: 3, unit: 'YPG' },
     'Passing Touchdowns': { value: 0.9, rank: 1, unit: 'PG' },
     'Rushing Yards': { value: 105.2, rank: 12, unit: 'YPG' },
     'Receiving Yards': { value: 220.4, rank: 6, unit: 'YPG' },
     'Receptions': { value: 16.1, rank: 5, unit: 'Allowed PG' },
     'vsTE': { value: 48.5, rank: 4, unit: 'YPG' },
     'vsWR': { value: 161.9, rank: 9, unit: 'YPG' },
-    'Sacks Allowed': { value: 2.8, rank: 22, unit: 'PG' },
+    'Sacks': { value: 3.5, rank: 1, unit: 'PG' },
   },
   'Green Bay Packers': {
     overall: { rank: 22 },
