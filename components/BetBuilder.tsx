@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { ExtractedBetLeg, Game, Player, PlayerProp, AnalysisResponse, LineOdds, ParlayCorrelationAnalysis, SavedParlay } from '../types';
+import { ExtractedBetLeg, Game, Player, PlayerProp, AnalysisResponse, LineOdds, ParlayCorrelationAnalysis, SavedParlay, MarketAnalysis, MarketLineAnalysis } from '../types';
 import { calculateParlayOdds, formatAmericanOdds, generateHistoricalOdds, normalCdf, calculateSingleLegEV } from '../utils';
 import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
 import { SendIcon } from './icons/SendIcon';
@@ -64,19 +64,6 @@ interface BetBuilderProps {
 interface EnrichedLeg extends ExtractedBetLeg {
     playerDetails?: Player;
     propDetails?: PlayerProp;
-}
-
-interface MarketLineAnalysis {
-    line: number;
-    overOdds: number;
-    underOdds: number;
-    overEV: number;
-    underEV: number;
-}
-interface MarketAnalysis {
-    lines: MarketLineAnalysis[];
-    optimalBet: { line: number; position: 'Over' | 'Under'; ev: number; odds: number } | null;
-    baseAnalysis: AnalysisResponse;
 }
 
 const getConciseStatLabel = (propType: string): string => {
@@ -349,6 +336,10 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                     optimalBet = { line: line.line, position: 'Under', ev: line.underEV, odds: line.underOdds };
                 }
             });
+
+            if (optimalBet && optimalBet.ev < 0) {
+              optimalBet = null; // Only show optimal bet if it's +EV
+            }
 
             setMarketAnalysis({
                 lines: marketLines,

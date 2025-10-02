@@ -155,3 +155,18 @@ export interface SavedParlay {
   legs: ExtractedBetLeg[];
   createdAt: string;
 }
+
+// Types for Market Analysis
+export interface MarketLineAnalysis {
+    line: number;
+    overOdds: number;
+    underOdds: number;
+    overEV: number;
+    underEV: number;
+}
+
+export interface MarketAnalysis {
+    lines: MarketLineAnalysis[];
+    optimalBet: { line: number; position: 'Over' | 'Under'; ev: number; odds: number } | null;
+    baseAnalysis: AnalysisResponse;
+}
