@@ -1,3 +1,5 @@
+
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { ExtractedBetLeg, Game, Player, PlayerProp, AnalysisResponse, LineOdds, ParlayCorrelationAnalysis, SavedParlay, MarketAnalysis, MarketLineAnalysis } from '../types';
 import { calculateParlayOdds, formatAmericanOdds, generateHistoricalOdds, normalCdf, calculateSingleLegEV } from '../utils';
@@ -294,7 +296,14 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
         setMarketAnalysisError(null);
 
         try {
-            const query = `Analyze the market for ${selectedPlayer.name} - ${selectedPropType}. His historical season average is ${selectedProp.historicalContext?.seasonAvg} and his last 5 games average is ${selectedProp.historicalContext?.last5Avg}. Provide your core projections (mean and std dev) for the final outcome.`;
+            let query = `Analyze the market for ${selectedPlayer.name} - ${selectedPropType}. His historical season average is ${selectedProp.historicalContext?.seasonAvg} and his last 5 games average is ${selectedProp.historicalContext?.last5Avg}.`;
+
+            if (selectedPlayer.injuryStatus) {
+                query += ` CRITICAL CONTEXT: This player has an injury. Status: ${selectedPlayer.injuryStatus.status}. News: ${selectedPlayer.injuryStatus.news}. Expected Impact: ${selectedPlayer.injuryStatus.impact}. Factor this into your projections.`;
+            }
+            
+            query += ` Provide your core projections (mean and std dev) for the final outcome.`;
+            
             const baseAnalysis = await getAnalysis(query);
 
             const { projectedMean, projectedStdDev } = baseAnalysis.quantitative;
@@ -760,8 +769,9 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                                 className={`w-full text-sm rounded-md bg-gray-700 px-3 py-2 text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 ${errors.odds ? 'border border-red-500' : 'border border-gray-600'}`}
                             />
                             <div className="flex items-center gap-2 mt-2">
-                                <button onClick={handleAddLeg} className="w-full flex items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-cyan-600">
-                                    <PlusIcon className="h-5 w-5" /> Add to Slip
+                                <button onClick={handleAddLeg} className="w-full flex items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-cyan-600 disabled:bg-gray-600" disabled={!lineInput || !oddsInput || !selectedPosition}>
+                                    <PlusIcon className="h-5 w-5" />
+                                    Add to Slip
                                 </button>
                             </div>
                         </div>
@@ -770,170 +780,173 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
 
             </div>
         );
-    }
+    };
     
     return (
-        <div className="flex h-full w-full">
-            <div className="flex-1 flex flex-col bg-gray-900/30 border-r border-gray-700/50">
-               {renderSelectionPanel()}
-            </div>
-            <div className="w-96 shrink-0 bg-gray-900/50 p-4 flex flex-col">
-                <div className="flex justify-between items-center mb-2">
-                    <h3 className="text-lg font-semibold text-gray-200">Bet Slip</h3>
-                    {legs.length > 0 && (
-                        <button 
-                            onClick={handleClearSlip}
-                            className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-gray-400 transition-colors hover:bg-red-500/10 hover:text-red-400"
-                            aria-label="Clear all legs from the bet slip"
-                        >
-                            <Trash2Icon className="h-3.5 w-3.5" />
-                            Clear All
-                        </button>
-                    )}
+        <div className="flex flex-1 flex-col overflow-hidden">
+            <div className="p-4 border-b border-gray-700/50 flex items-center justify-between">
+                <button onClick={onBack} className="flex items-center gap-2 rounded-md bg-gray-700/50 px-3 py-1.5 text-sm font-medium text-gray-300 transition-colors hover:bg-gray-700">
+                    <ChevronLeftIcon className="h-4 w-4" />
+                    Back
+                </button>
+                 <h2 className="text-xl font-semibold text-gray-100">Bet Builder</h2>
+                <div className="flex items-center gap-2">
+                    <button onClick={() => setIsParlayManagerOpen(true)} className="flex items-center gap-2 rounded-md bg-gray-700/50 px-3 py-1.5 text-sm font-medium text-gray-300 transition-colors hover:bg-gray-700" title="Manage saved parlays">
+                        <FolderOpenIcon className="h-4 w-4" />
+                    </button>
+                    <button onClick={resetBuilder} className="flex items-center gap-2 rounded-md bg-gray-700/50 px-3 py-1.5 text-sm font-medium text-gray-300 transition-colors hover:bg-gray-700" title="Reset Builder">
+                        <RotateCwIcon className="h-4 w-4" />
+                    </button>
                 </div>
-                {legs.length === 0 ? (
-                    <div className="flex-1 flex flex-col items-center justify-center text-center text-gray-500 border-2 border-dashed border-gray-700 rounded-lg p-4">
-                        <TestTubeIcon className="h-8 w-8 text-gray-600 mb-2"/>
-                        <p className="text-sm font-medium text-gray-400">Your bet slip is empty.</p>
-                        <p className="text-xs">Add props from the panel on the left to build your parlay.</p>
+            </div>
+
+            <div className="flex flex-1 overflow-hidden">
+                {/* Main Panel */}
+                <div className="w-2/3 flex flex-col bg-gray-800/60">
+                    {renderSelectionPanel()}
+                </div>
+
+                {/* Bet Slip Panel */}
+                <div className="w-1/3 border-l border-gray-700/50 flex flex-col bg-gray-900/50">
+                    <div className="p-4 border-b border-gray-700/50 flex justify-between items-center">
+                        <h3 className="text-lg font-semibold text-gray-200">Bet Slip</h3>
+                        {legs.length > 0 && (
+                            <button
+                                onClick={handleClearSlip}
+                                className="flex items-center gap-1.5 px-2 py-1 text-xs rounded-md bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
+                            >
+                                <Trash2Icon className="h-3.5 w-3.5" />
+                                Clear All
+                            </button>
+                        )}
                     </div>
-                ) : (
-                    <>
-                        <div className="flex-1 space-y-2 overflow-y-auto pr-2 -mr-2">
-                            {legs.map((leg, index) => (
-                                <div key={index} className="bg-gray-800 p-2 rounded-md border border-gray-700/50">
-                                    <div className="flex justify-between items-start">
-                                        <div>
-                                            <p className="text-sm font-semibold text-gray-200">{leg.player}</p>
-                                            <p className="text-xs text-gray-400">{leg.position} {leg.line} {leg.propType}</p>
-                                        </div>
-                                        <button onClick={() => handleRemoveLeg(index)} className="p-1 text-gray-500 hover:text-red-400 rounded-full hover:bg-red-500/10 transition-colors">
-                                            <XIcon className="h-4 w-4"/>
-                                        </button>
+                    <div className="flex-grow overflow-y-auto p-4 space-y-3">
+                        {legs.length === 0 ? (
+                            <div className="text-center text-gray-500 pt-10">
+                                <p>Your bet slip is empty.</p>
+                                <p className="text-sm">Select a market to get started.</p>
+                            </div>
+                        ) : (
+                            legs.map((leg, index) => (
+                                <div key={index} className="bg-gray-800 p-3 rounded-lg flex items-center justify-between">
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-semibold text-sm text-gray-200 truncate">{leg.player}</p>
+                                        <p className="text-xs text-gray-400">{leg.position} {leg.line} {leg.propType}</p>
                                     </div>
-                                    <p className="text-right font-mono text-cyan-300">{formatAmericanOdds(leg.marketOdds)}</p>
+                                    <div className="text-right ml-2">
+                                        <p className="font-mono text-cyan-400 text-sm">{formatAmericanOdds(leg.marketOdds)}</p>
+                                    </div>
+                                    <button
+                                        onClick={() => handleRemoveLeg(index)}
+                                        className="ml-3 p-1.5 rounded-full text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors flex-shrink-0"
+                                        aria-label={`Remove ${leg.player} from slip`}
+                                    >
+                                        <XIcon className="h-4 w-4" />
+                                    </button>
                                 </div>
-                            ))}
-                        </div>
-                        <div className="mt-4 pt-4 border-t border-gray-700/50">
-
-                            {legs.length >= 2 && (
-                                <div className="mb-4">
-                                    {!correlationAnalysis && (
-                                        <button 
-                                            onClick={handleAnalyzeCorrelation}
-                                            disabled={isAnalyzingCorrelation}
-                                            className="w-full flex items-center justify-center gap-2 rounded-md bg-gray-700 px-3 py-2 text-sm font-semibold text-cyan-300 transition-colors hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                            {isAnalyzingCorrelation ? (
-                                                <>
-                                                 <RotateCwIcon className="h-4 w-4 animate-spin" />
-                                                 Analyzing Synergy...
-                                                </>
-                                            ) : (
-                                                 <>
-                                                 <SparklesIcon className="h-4 w-4" />
-                                                 Analyze Parlay Correlation
-                                                </>
-                                            )}
-                                        </button>
-                                    )}
-                                    {correlationError && <p className="text-xs text-red-400 mt-2">{correlationError}</p>}
-                                    {correlationAnalysis && (
-                                        <div className="p-3 rounded-lg border border-cyan-500/30 bg-gray-950">
-                                            <div className="flex justify-between items-center mb-2">
-                                                <h4 className="text-sm font-semibold text-cyan-400 flex items-center gap-1.5"><LinkIcon className="h-4 w-4"/> Parlay Synergy Analysis</h4>
-                                                <button onClick={handleAnalyzeCorrelation} disabled={isAnalyzingCorrelation} className="p-1 rounded-full text-gray-400 hover:text-cyan-300 hover:bg-gray-700 transition-colors">
-                                                    <RotateCwIcon className={`h-3 w-3 ${isAnalyzingCorrelation ? 'animate-spin' : ''}`} />
-                                                </button>
+                            ))
+                        )}
+                    </div>
+                    {legs.length > 0 && (
+                        <div className="p-4 border-t border-gray-700/50 space-y-3">
+                            {legs.length > 1 && (
+                                <div className="p-3 rounded-lg bg-gray-800/70">
+                                    {correlationAnalysis ? (
+                                        <div>
+                                            <div className="flex justify-between items-center">
+                                                <h4 className="text-sm font-semibold text-gray-300 flex items-center gap-2"><LinkIcon className="h-4 w-4 text-cyan-400" /> Parlay Correlation</h4>
+                                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${getSynergyStyle(correlationAnalysis.overallScore).bgColor} ${getSynergyStyle(correlationAnalysis.overallScore).color}`}>{getSynergyStyle(correlationAnalysis.overallScore).text}</span>
                                             </div>
-                                            <div className="flex justify-between items-center bg-gray-800/50 p-2 rounded-md mb-2">
-                                                <span className="text-xs text-gray-300">Overall Synergy Score</span>
-                                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${getSynergyStyle(correlationAnalysis.overallScore).bgColor} ${getSynergyStyle(correlationAnalysis.overallScore).color}`}>
-                                                    {correlationAnalysis.overallScore.toFixed(2)}
-                                                </span>
-                                            </div>
-                                            <p className="text-xs text-gray-400 italic mb-2">"{correlationAnalysis.summary}"</p>
-                                            
-                                            <button onClick={() => setIsCorrelationDetailsOpen(prev => !prev)} className="text-xs flex items-center gap-1 text-cyan-400 hover:underline w-full justify-between">
-                                                <span>Detailed Breakdown</span>
-                                                <ChevronDownIcon className={`h-4 w-4 transition-transform ${isCorrelationDetailsOpen ? 'rotate-180' : ''}`} />
+                                            <p className="text-xs text-gray-400 mt-1">{correlationAnalysis.summary}</p>
+                                            <button onClick={() => setIsCorrelationDetailsOpen(!isCorrelationDetailsOpen)} className="text-xs text-cyan-400 hover:underline mt-2 flex items-center gap-1">
+                                                {isCorrelationDetailsOpen ? 'Hide' : 'Show'} Details <ChevronDownIcon className={`h-4 w-4 transition-transform ${isCorrelationDetailsOpen ? 'rotate-180' : ''}`} />
                                             </button>
-
                                             {isCorrelationDetailsOpen && (
-                                                <div className="mt-2 pt-2 border-t border-gray-700/50 space-y-2">
-                                                    {correlationAnalysis.analysis.map((detail, i) => {
-                                                        const leg1 = legs[detail.leg1Index];
-                                                        const leg2 = legs[detail.leg2Index];
-                                                        return (
-                                                            <div key={i} className="text-xs bg-gray-800/50 p-1.5 rounded">
-                                                                <div className="flex items-center gap-2 font-semibold text-gray-300 mb-1">
-                                                                     {detail.relationship === 'Positive' && <LinkIcon className="h-3 w-3 text-green-400" />}
-                                                                     {detail.relationship === 'Negative' && <UnlinkIcon className="h-3 w-3 text-red-400" />}
-                                                                     {detail.relationship === 'Neutral' && <MinusCircleIcon className="h-3 w-3 text-gray-400" />}
-                                                                    <span>{leg1.player.split(' ').pop()} & {leg2.player.split(' ').pop()}</span>
-                                                                    <span className="ml-auto font-mono text-xs">{detail.relationship}</span>
-                                                                </div>
-                                                                <p className="text-gray-400 pl-5">{detail.explanation}</p>
-                                                            </div>
-                                                        )
-                                                    })}
+                                                <div className="mt-2 pt-2 border-t border-gray-700 space-y-2 text-xs">
+                                                    {correlationAnalysis.analysis.map((detail, i) => (
+                                                        <div key={i}>
+                                                            <p className="text-gray-300 font-medium">
+                                                                <span className="font-mono bg-gray-700/80 px-1 rounded">{legs[detail.leg1Index].player.split(' ').pop()}</span> vs <span className="font-mono bg-gray-700/80 px-1 rounded">{legs[detail.leg2Index].player.split(' ').pop()}</span>
+                                                                <span className={`ml-2 font-bold ${detail.relationship === 'Positive' ? 'text-green-400' : detail.relationship === 'Negative' ? 'text-red-400' : 'text-gray-400'}`}>{detail.relationship}</span>
+                                                            </p>
+                                                            <p className="text-gray-500 italic pl-2">{detail.explanation}</p>
+                                                        </div>
+                                                    ))}
                                                 </div>
                                             )}
                                         </div>
+                                    ) : (
+                                        <button 
+                                            onClick={handleAnalyzeCorrelation} 
+                                            disabled={isAnalyzingCorrelation}
+                                            className="w-full text-center text-sm text-cyan-400 hover:text-cyan-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            {isAnalyzingCorrelation ? 'Analyzing...' : 'Analyze Parlay Correlation'}
+                                        </button>
                                     )}
+                                    {correlationError && <p className="text-xs text-red-400 mt-1">{correlationError}</p>}
                                 </div>
                             )}
 
-                            <div className="flex justify-between items-center text-sm mb-3">
-                                <span className="text-gray-400">{legs.length} Legs</span>
-                                <div className="text-right">
-                                    <span className="text-gray-400 block text-xs">Total Odds</span>
-                                    <span className="font-mono text-2xl font-bold text-yellow-300">{formatAmericanOdds(parlayOdds)}</span>
-                                </div>
+                            <div className="flex justify-between items-center font-bold">
+                                <span className="text-gray-300">Total Odds:</span>
+                                <span className="text-xl text-yellow-300 font-mono">{formatAmericanOdds(parlayOdds)}</span>
                             </div>
+
                             <div className="flex gap-2">
-                                <button onClick={() => setIsParlayManagerOpen(true)} className="flex items-center justify-center gap-2 rounded-md bg-gray-700/80 px-3 py-2 text-xs font-semibold text-gray-200 transition-colors hover:bg-gray-700 flex-1" title="Load a saved parlay">
-                                    <FolderOpenIcon className="h-4 w-4" /> Load
+                                <button onClick={handleSaveParlay} className="w-full flex items-center justify-center gap-2 rounded-md bg-gray-700 px-4 py-2 text-sm font-semibold text-gray-300 transition-colors hover:bg-gray-600">
+                                    <SaveIcon className="h-5 w-5" />
+                                    Save
                                 </button>
-                                <button onClick={handleSaveParlay} disabled={legs.length === 0} className="flex items-center justify-center gap-2 rounded-md bg-gray-700/80 px-3 py-2 text-xs font-semibold text-gray-200 transition-colors hover:bg-gray-700 flex-1 disabled:opacity-50" title="Save this parlay">
-                                    <SaveIcon className="h-4 w-4" /> Save
+                                <button
+                                    onClick={() => onAnalyze(legs.map(({ playerDetails, propDetails, ...rest }) => rest))}
+                                    className="w-full flex items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cyan-600"
+                                >
+                                    <TestTubeIcon className="h-5 w-5" />
+                                    Run Analysis
                                 </button>
                             </div>
-                            <button onClick={() => onAnalyze(legs)} disabled={legs.length === 0} className="w-full mt-2 flex items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cyan-600 disabled:bg-gray-600 disabled:cursor-not-allowed">
-                                <SendIcon className="h-5 w-5" />
-                                Run Full Analysis
-                            </button>
                         </div>
-                    </>
-                )}
+                    )}
+                </div>
             </div>
             
             {isParlayManagerOpen && (
-                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/80 backdrop-blur-sm" onClick={() => setIsParlayManagerOpen(false)}>
-                    <div className="w-full max-w-lg bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-6" onClick={e => e.stopPropagation()}>
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/80 backdrop-blur-sm" onClick={() => setIsParlayManagerOpen(false)}>
+                    <div className="w-full max-w-lg rounded-xl border border-gray-700 bg-gray-900 p-6" onClick={e => e.stopPropagation()}>
                         <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-semibold text-gray-100">Saved Parlays</h3>
-                            <button onClick={() => setIsParlayManagerOpen(false)} className="p-1 rounded-full text-gray-400 hover:bg-gray-700"><XIcon className="h-5 w-5"/></button>
+                            <h3 className="text-lg font-semibold text-gray-200">Saved Parlays</h3>
+                            <button onClick={() => setIsParlayManagerOpen(false)} className="p-1.5 rounded-full hover:bg-gray-700">
+                                <XIcon className="h-5 w-5 text-gray-400"/>
+                            </button>
                         </div>
-                        <div className="max-h-96 overflow-y-auto space-y-2">
-                            {savedParlays.length > 0 ? savedParlays.map(p => (
-                                <div key={p.id} className="bg-gray-900/50 p-3 rounded-lg flex items-center justify-between group">
-                                    <div>
-                                        <p className="font-semibold text-gray-200">{p.name}</p>
-                                        <p className="text-xs text-gray-400">{p.legs.length} legs &middot; {formatAmericanOdds(p.odds)} &middot; {new Date(p.createdAt).toLocaleDateString()}</p>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <button onClick={() => handleDeleteParlay(p.id)} className="p-1.5 rounded-md text-gray-500 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-opacity" aria-label="Delete parlay"><Trash2Icon className="h-4 w-4"/></button>
-                                        <button onClick={() => handleLoadParlay(p)} className="px-3 py-1.5 rounded-md bg-cyan-500/20 text-cyan-300 text-xs font-semibold hover:bg-cyan-500/40">Load</button>
-                                    </div>
-                                </div>
-                            )) : (
+                        <div className="space-y-3 max-h-96 overflow-y-auto">
+                            {savedParlays.length === 0 ? (
                                 <p className="text-center text-gray-500 py-8">No saved parlays yet.</p>
+                            ) : (
+                                savedParlays.map(parlay => (
+                                    <div key={parlay.id} className="group bg-gray-800/50 p-3 rounded-lg">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <p className="font-semibold text-gray-200">{parlay.name}</p>
+                                                <p className="text-xs text-gray-400">{parlay.legs.length} Legs &bull; {formatAmericanOdds(parlay.odds)}</p>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <button onClick={() => handleLoadParlay(parlay)} className="text-xs bg-cyan-500/10 text-cyan-300 px-2 py-1 rounded-md hover:bg-cyan-500/20">Load</button>
+                                                <button onClick={() => handleDeleteParlay(parlay.id)} className="text-xs bg-red-500/10 text-red-400 px-2 py-1 rounded-md hover:bg-red-500/20">Delete</button>
+                                            </div>
+                                        </div>
+                                        <div className="text-xs mt-2 pt-2 border-t border-gray-700/50 space-y-1">
+                                            {parlay.legs.map((leg, i) => (
+                                                <p key={i} className="text-gray-500">{leg.player} - {leg.position} {leg.line} {leg.propType}</p>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))
                             )}
                         </div>
                     </div>
-                 </div>
+                </div>
             )}
         </div>
     );
