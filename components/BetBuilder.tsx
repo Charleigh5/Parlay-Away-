@@ -338,53 +338,53 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
   const renderSelectionPanel = () => {
     if (!selectedGame) {
       return (
-        <div>
-           {gameLoadError && <div className="p-2 mb-2 text-center text-yellow-300 bg-yellow-500/10 rounded-md text-sm">{gameLoadError}</div>}
+        <>
+           {gameLoadError && <div className="p-2 mb-2 text-center text-yellow-300 bg-yellow-500/10 rounded-md text-sm shrink-0">{gameLoadError}</div>}
+           <div className="relative mb-2 shrink-0">
+             <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-500" />
+             <input
+               type="text"
+               placeholder="Search games or players..."
+               value={searchTerm}
+               onChange={(e) => setSearchTerm(e.target.value)}
+               className="w-full bg-gray-900 border border-gray-700 rounded-md pl-10 pr-4 py-2 text-gray-200 focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500"
+             />
+           </div>
            {isLoadingGames ? (
-             <div className="text-center p-4">Loading schedule...</div>
+             <div className="text-center p-4 flex-1">Loading schedule...</div>
            ) : (
-            <>
-              <div className="relative mb-2">
-                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-500" />
-                <input
-                  type="text"
-                  placeholder="Search games or players..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full bg-gray-900 border border-gray-700 rounded-md pl-10 pr-4 py-2 text-gray-200 focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500"
-                />
-              </div>
-              <div className="space-y-2 max-h-[70vh] overflow-y-auto">
-                {Object.entries(gamesByDate).map(([date, gamesForDate]) => (
-                  <div key={date}>
-                    <h3 className="flex items-center gap-2 text-xs uppercase font-bold text-gray-400 mt-4 mb-2 border-b border-gray-700/60 pb-1.5 sticky top-0 bg-gray-800/80 backdrop-blur-sm">
-                        <CalendarDaysIcon className="h-4 w-4 text-cyan-400" />
-                        {formatDateForDisplay(date)}
-                    </h3>
-                    <div className="space-y-2">
-                        {gamesForDate.map(game => (
-                            <button key={game.id} onClick={() => handleSelectGame(game)} className="w-full text-left p-3 bg-gray-800 hover:bg-gray-700/70 rounded-md transition-colors">
-                                {game.name}
-                            </button>
-                        ))}
-                    </div>
+            <div className="flex-1 overflow-y-auto -mr-4 pr-4">
+              {Object.entries(gamesByDate).map(([date, gamesForDate]) => (
+                <div key={date}>
+                  <h3 className="flex items-center gap-2 text-xs uppercase font-bold text-gray-400 mt-4 mb-2 border-b border-gray-700/60 pb-1.5 sticky top-0 bg-gray-800/80 backdrop-blur-sm z-10">
+                      <CalendarDaysIcon className="h-4 w-4 text-cyan-400" />
+                      {formatDateForDisplay(date)}
+                  </h3>
+                  <div className="space-y-2">
+                      {gamesForDate.map(game => (
+                          <button key={game.id} onClick={() => handleSelectGame(game)} className="w-full text-left p-3 bg-gray-800 hover:bg-gray-700/70 rounded-md transition-colors">
+                              {game.name}
+                          </button>
+                      ))}
                   </div>
-                ))}
-              </div>
-            </>
+                </div>
+              ))}
+            </div>
            )}
-        </div>
+        </>
       );
     }
 
     if (!selectedPlayer) {
       return (
-         <div>
-            <button onClick={() => setSelectedGame(null)} className="flex items-center gap-1 text-sm text-cyan-400 mb-2 hover:underline">
-                <ChevronLeftIcon className="h-4 w-4" /> Back to Games
-            </button>
-            <h3 className="font-semibold text-lg text-gray-200 mb-2">{selectedGame.name}</h3>
-            <div className="space-y-2">
+         <>
+            <div className='shrink-0'>
+                <button onClick={() => setSelectedGame(null)} className="flex items-center gap-1 text-sm text-cyan-400 mb-2 hover:underline">
+                    <ChevronLeftIcon className="h-4 w-4" /> Back to Games
+                </button>
+                <h3 className="font-semibold text-lg text-gray-200 mb-2">{selectedGame.name}</h3>
+            </div>
+            <div className="space-y-2 flex-1 overflow-y-auto -mr-4 pr-4">
                 {selectedGame.players.map(player => (
                     <button key={player.name} onClick={() => handleSelectPlayer(player)} disabled={player.injuryStatus?.status === 'O'} className="w-full text-left p-3 bg-gray-800 hover:bg-gray-700/70 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-between items-center">
                         <span>{player.name} <span className="text-gray-400 text-xs">{player.position}</span></span>
@@ -396,25 +396,27 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                     </button>
                 ))}
             </div>
-        </div>
+        </>
       )
     }
     
     if (!selectedProp) {
         return (
-            <div>
-               <button onClick={() => setSelectedPlayer(null)} className="flex items-center gap-1 text-sm text-cyan-400 mb-2 hover:underline">
-                   <ChevronLeftIcon className="h-4 w-4" /> Back to Players
-               </button>
-               <h3 className="font-semibold text-lg text-gray-200 mb-2">{selectedPlayer.name}</h3>
-               <div className="space-y-2">
+            <>
+               <div className='shrink-0'>
+                   <button onClick={() => setSelectedPlayer(null)} className="flex items-center gap-1 text-sm text-cyan-400 mb-2 hover:underline">
+                       <ChevronLeftIcon className="h-4 w-4" /> Back to Players
+                   </button>
+                   <h3 className="font-semibold text-lg text-gray-200 mb-2">{selectedPlayer.name}</h3>
+               </div>
+               <div className="space-y-2 flex-1 overflow-y-auto -mr-4 pr-4">
                    {selectedPlayer.props.map(prop => (
                        <button key={prop.propType} onClick={() => handleSelectProp(prop)} className="w-full text-left p-3 bg-gray-800 hover:bg-gray-700/70 rounded-md transition-colors">
                            {prop.propType}
                        </button>
                    ))}
                </div>
-           </div>
+           </>
         )
     }
     
@@ -434,7 +436,7 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
     const advancedStats = ADVANCED_STATS[selectedPlayer.name]?.[selectedProp.propType];
     
     return (
-        <div className="max-h-[80vh] overflow-y-auto pr-2">
+        <div className="overflow-y-auto -mr-4 pr-4">
             <button onClick={() => setSelectedProp(null)} className="flex items-center gap-1 text-sm text-cyan-400 mb-2 hover:underline">
                 <ChevronLeftIcon className="h-4 w-4" /> Back to Props
             </button>
@@ -648,7 +650,7 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
   return (
     <div className="flex h-full w-full">
       {/* Left Panel: Game/Player/Prop Selection */}
-      <div className="w-full md:w-1/2 lg:w-2/5 p-4 border-r border-gray-700/50 overflow-y-auto">
+      <div className="w-full md:w-1/2 lg:w-2/5 p-4 border-r border-gray-700/50 flex flex-col">
         {renderSelectionPanel()}
       </div>
 

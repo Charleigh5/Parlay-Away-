@@ -18,7 +18,7 @@ const SynopticLens: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [partialError, setPartialError] = useState<string | null>(null);
+  const [analysisErrors, setAnalysisErrors] = useState<{ leg: ExtractedBetLeg; reason: string }[] | null>(null);
   const [mode, setMode] = useState<'home' | 'upload' | 'build'>('home');
 
   useEffect(() => {
@@ -38,7 +38,7 @@ const SynopticLens: React.FC = () => {
     
     setIsLoading(true);
     setError(null);
-    setPartialError(null);
+    setAnalysisErrors(null);
     setAnalyzedLegs(null);
 
     try {
@@ -52,28 +52,25 @@ const SynopticLens: React.FC = () => {
       const settledResults = await Promise.allSettled(analysisPromises);
       
       const successfulAnalyses: AnalyzedBetLeg[] = [];
-      const failedReasons: string[] = [];
+      const failedAnalyses: { leg: ExtractedBetLeg; reason: string }[] = [];
       settledResults.forEach((result, index) => {
         if (result.status === 'fulfilled') {
           successfulAnalyses.push(result.value);
         } else {
           const leg = legs[index];
           const reason = result.reason instanceof Error ? result.reason.message : 'Unknown analysis error.';
-          failedReasons.push(reason);
+          failedAnalyses.push({ leg, reason });
           console.error(`Failed to analyze leg: ${leg.player} ${leg.propType}`, result.reason);
         }
       });
 
-      if (successfulAnalyses.length === 0) {
-        const reason = failedReasons[0] || "All legs failed to analyze due to an unknown issue.";
+      if (successfulAnalyses.length === 0 && failedAnalyses.length > 0) {
+        const reason = failedAnalyses[0].reason || "All legs failed to analyze due to an unknown issue.";
         throw new Error(`Analysis failed for all legs. The first error was: "${reason}"`);
       }
 
       setAnalyzedLegs(successfulAnalyses);
-
-      if (failedReasons.length > 0) {
-        setPartialError(`Could not analyze ${failedReasons.length} of ${legs.length} leg(s). They have been excluded from the results.`);
-      }
+      setAnalysisErrors(failedAnalyses.length > 0 ? failedAnalyses : null);
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred during analysis.';
@@ -88,7 +85,7 @@ const SynopticLens: React.FC = () => {
     setIsLoading(true);
     setError(null);
     setAnalyzedLegs(null);
-    setPartialError(null);
+    setAnalysisErrors(null);
     setOriginalLegs(null);
     if (uploadedImageUrl) {
       URL.revokeObjectURL(uploadedImageUrl);
@@ -125,7 +122,7 @@ const SynopticLens: React.FC = () => {
   const handleReset = () => {
     setAnalyzedLegs(null);
     setError(null);
-    setPartialError(null);
+    setAnalysisErrors(null);
     setIsLoading(false);
     setOriginalLegs(null);
     if (uploadedImageUrl) {
@@ -163,26 +160,14 @@ const SynopticLens: React.FC = () => {
     }
     if (analyzedLegs) {
       return (
-        <>
-          {partialError && (
-            <div className="m-4 md:m-6 mb-0 p-3 bg-yellow-500/10 border border-yellow-500/30 text-yellow-300 rounded-lg flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <AlertTriangleIcon className="h-5 w-5 flex-shrink-0" />
-                <p className="text-sm">{partialError}</p>
-              </div>
-              <button onClick={() => setPartialError(null)} className="p-1 rounded-md hover:bg-yellow-500/20 transition-colors" aria-label="Dismiss warning">
-                <XIcon className="h-5 w-5" />
-              </button>
-            </div>
-          )}
-          <AnalysisTable 
-            legs={analyzedLegs}
-            originalLegs={originalLegs || undefined}
-            imageUrl={uploadedImageUrl}
-            onViewImage={() => setIsImageViewerOpen(true)}
-            onReset={handleReset} 
-          />
-        </>
+        <AnalysisTable 
+          legs={analyzedLegs}
+          originalLegs={originalLegs || undefined}
+          analysisErrors={analysisErrors}
+          imageUrl={uploadedImageUrl}
+          onViewImage={() => setIsImageViewerOpen(true)}
+          onReset={handleReset} 
+        />
       );
     }
 

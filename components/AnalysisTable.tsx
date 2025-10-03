@@ -1,4 +1,3 @@
-
 import React, { useState, Fragment, useMemo } from 'react';
 import { AnalyzedBetLeg, QuantitativeAnalysis, ReasoningStep, ExtractedBetLeg, KnowledgeModule } from '../types';
 import { RotateCwIcon } from './icons/RotateCwIcon';
@@ -19,11 +18,13 @@ import { MaximizeIcon } from './icons/MaximizeIcon';
 import { TargetIcon } from './icons/TargetIcon';
 import { CrosshairIcon } from './icons/CrosshairIcon';
 import MicroPerformanceChart from './MicroPerformanceChart';
+import { AlertTriangleIcon } from './icons/AlertTriangleIcon';
 
 
 interface AnalysisTableProps {
   legs: AnalyzedBetLeg[];
   originalLegs?: ExtractedBetLeg[];
+  analysisErrors?: { leg: ExtractedBetLeg; reason: string }[] | null;
   imageUrl?: string | null;
   onViewImage?: () => void;
   onReset: () => void;
@@ -87,6 +88,9 @@ const AnalysisRow: React.FC<{ leg: AnalyzedBetLeg }> = ({ leg }) => {
         <td className="p-4 align-top">
           <div className="font-semibold text-gray-100">{leg.player}</div>
           <div className="text-sm text-gray-400">{`${leg.position} ${leg.line} ${leg.propType}`}</div>
+          <p className="mt-2 text-xs text-gray-400/80 italic max-w-xs line-clamp-2" title={leg.analysis.summary}>
+            {leg.analysis.summary}
+          </p>
         </td>
         <td className="p-4 align-top font-mono text-center text-gray-200">{formatAmericanOdds(leg.marketOdds)}</td>
         <td className="p-4 align-top font-mono text-center">
@@ -205,7 +209,7 @@ const ParlaySummary: React.FC<{ legs: AnalyzedBetLeg[] }> = ({ legs }) => {
     )
 }
 
-const AnalysisTable: React.FC<AnalysisTableProps> = ({ legs, originalLegs, imageUrl, onViewImage, onReset }) => {
+const AnalysisTable: React.FC<AnalysisTableProps> = ({ legs, originalLegs, imageUrl, onViewImage, onReset, analysisErrors }) => {
     return (
         <div className="flex-1 overflow-y-auto p-4 md:p-6">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-3">
@@ -248,6 +252,23 @@ const AnalysisTable: React.FC<AnalysisTableProps> = ({ legs, originalLegs, image
                     </tbody>
                 </table>
             </div>
+
+            {analysisErrors && analysisErrors.length > 0 && (
+                <div className="mt-6">
+                    <h3 className="flex items-center gap-2 text-lg font-semibold text-yellow-300 mb-3">
+                        <AlertTriangleIcon className="h-5 w-5" />
+                        Failed Analyses ({analysisErrors.length})
+                    </h3>
+                    <div className="space-y-3">
+                    {analysisErrors.map(({ leg, reason }, index) => (
+                        <div key={index} className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                        <p className="font-semibold text-gray-200">{leg.player} - {leg.propType} {leg.position} {leg.line}</p>
+                        <p className="text-sm text-yellow-200 mt-1">{reason}</p>
+                        </div>
+                    ))}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
