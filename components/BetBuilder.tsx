@@ -11,7 +11,7 @@ import { SearchIcon } from './icons/SearchIcon';
 import { fetchNFLEvents } from '../services/sportsDataService';
 import { ShieldIcon } from './icons/ShieldIcon';
 import { DEFENSIVE_STATS, TEAM_ABBREVIATION_TO_NAME, TEAM_NAME_TO_ABBREVIATION } from '../data/mockDefensiveStats';
-import { getMarketData } from '../services/marketDataService';
+import { getMarketData, getDraftKingsMarketData } from '../services/marketDataService';
 import HistoricalPerformanceChart from './HistoricalPerformanceChart';
 import { ADVANCED_STATS, AdvancedStat } from '../data/mockAdvancedStats';
 import { TrendingUpIcon } from './icons/TrendingUpIcon';
@@ -29,6 +29,7 @@ import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
 import MarketAnalysisChart from './MarketAnalysisChart';
 import { PackageSearchIcon } from './icons/PackageSearchIcon';
 import { XIcon } from './icons/XIcon';
+import { LandmarkIcon } from './icons/LandmarkIcon';
 
 
 interface BetBuilderProps {
@@ -71,9 +72,11 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
   const [isPropAnalysisLoading, setIsPropAnalysisLoading] = useState(false);
   const [propAnalysisError, setPropAnalysisError] = useState<string | null>(null);
   const [marketAnalysis, setMarketAnalysis] = useState<MarketAnalysis | null>(null);
+  const [draftKingsOdds, setDraftKingsOdds] = useState<PlayerProp | null>(null);
 
   const [collapsedPanels, setCollapsedPanels] = useState<Record<string, boolean>>({
     marketAnalysis: false,
+    draftKingsMarket: true,
     historical: true,
     advanced: true,
     injury: false,
@@ -113,13 +116,14 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
   }, [parlayLegs]);
 
   useEffect(() => {
-    if (selectedProp && selectedPlayer) {
+    if (selectedProp && selectedPlayer && selectedGame) {
         const runFullPropAnalysis = async () => {
             // Reset states
             setIsPropAnalysisLoading(true);
             setPropAnalysis(null);
             setPropAnalysisError(null);
             setMarketAnalysis(null);
+            setDraftKingsOdds(null);
             
             try {
                 // Step 1: Get base projection
@@ -172,6 +176,13 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                      throw new Error("Base analysis did not return the required projections (mean, std dev).");
                 }
 
+                 // Step 3: Fetch DraftKings odds for comparison
+                const dkMarket = getDraftKingsMarketData();
+                const game = dkMarket.find(g => g.id === selectedGame.id);
+                const player = game?.players.find(p => p.name === selectedPlayer.name);
+                const prop = player?.props.find(p => p.propType === selectedProp.propType);
+                setDraftKingsOdds(prop || null);
+
             } catch (error) {
                 const errorMessage = error instanceof Error ? error.message : 'Could not load real-time prop analysis.';
                 setPropAnalysisError(errorMessage);
@@ -181,7 +192,7 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
         };
         runFullPropAnalysis();
     }
-  }, [selectedProp, selectedPlayer]);
+  }, [selectedProp, selectedPlayer, selectedGame]);
 
   const filteredGames = useMemo(() => {
     if (!searchTerm) return games;
@@ -533,6 +544,36 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                     )}
                 </div>
             )}
+
+             {/* DraftKings Market Panel */}
+             {draftKingsOdds && !isPropAnalysisLoading && (
+                <div className="my-4 p-3 rounded-lg border border-gray-700/50 bg-gray-800/80">
+                    <button onClick={() => togglePanel('draftKingsMarket')} className="w-full flex justify-between items-center text-left mb-2">
+                        <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-300">
+                            <LandmarkIcon className="h-4 w-4 text-cyan-400" /> DraftKings Market
+                        </h4>
+                        <ChevronDownIcon className={`h-5 w-5 text-gray-400 transition-transform ${collapsedPanels.draftKingsMarket ? '' : 'rotate-180'}`} />
+                    </button>
+                    {!collapsedPanels.draftKingsMarket && (
+                        <div className="space-y-2 animate-fade-in">
+                            {draftKingsOdds.lines.map((line) => (
+                                <div key={line.line} className="grid grid-cols-11 gap-2 items-center p-2 bg-gray-800 rounded-md text-sm">
+                                    <div className="col-span-4 text-center font-semibold text-gray-300">
+                                        {formatAmericanOdds(line.overOdds)}
+                                    </div>
+                                    <div className="col-span-3 text-center">
+                                        <div className="text-lg font-bold text-gray-200">{line.line}</div>
+                                    </div>
+                                    <div className="col-span-4 text-center font-semibold text-gray-300">
+                                        {formatAmericanOdds(line.underOdds)}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
+
 
             {/* Other Contextual Data Panels */}
             <div className="mt-4 space-y-3 text-sm">
