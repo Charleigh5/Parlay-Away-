@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Game, Player, PlayerProp, LineOdds, PropSelectionDetails } from '../types';
 import { fetchNFLEvents } from '../services/sportsDataService';
-import { getMarketData } from '../services/marketDataService';
+import { getMarketData, getDraftKingsMarketData } from '../services/marketDataService';
 import { formatAmericanOdds } from '../utils';
 import { XIcon } from './icons/XIcon';
 import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
@@ -27,6 +27,7 @@ const PropSelectorModal: React.FC<PropSelectorModalProps> = ({ isOpen, onClose, 
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [selectedProp, setSelectedProp] = useState<PlayerProp | null>(null);
+  const [draftKingsProp, setDraftKingsProp] = useState<PlayerProp | null>(null);
 
   const marketData = useMemo(() => getMarketData(), []);
 
@@ -49,11 +50,24 @@ const PropSelectorModal: React.FC<PropSelectorModalProps> = ({ isOpen, onClose, 
     }
   }, [isOpen, marketData]);
 
+  useEffect(() => {
+    if (step === 'line' && selectedGame && selectedPlayer && selectedProp) {
+        const dkMarket = getDraftKingsMarketData();
+        const game = dkMarket.find(g => g.id === selectedGame.id);
+        const player = game?.players.find(p => p.name === selectedPlayer.name);
+        const prop = player?.props.find(p => p.propType === selectedProp.propType);
+        setDraftKingsProp(prop || null);
+    } else {
+        setDraftKingsProp(null);
+    }
+  }, [step, selectedGame, selectedPlayer, selectedProp]);
+
   const resetSelection = () => {
     setStep('game');
     setSelectedGame(null);
     setSelectedPlayer(null);
     setSelectedProp(null);
+    setDraftKingsProp(null);
     setSearchTerm('');
   };
 
@@ -181,6 +195,7 @@ const PropSelectorModal: React.FC<PropSelectorModalProps> = ({ isOpen, onClose, 
         return (
             <div className="space-y-2 p-4">
                 {selectedProp?.lines.map((line) => {
+                    const dkLine = draftKingsProp?.lines.find(dkL => dkL.line === line.line);
                     const handleSelectLine = (position: 'Over' | 'Under') => {
                         if (!selectedGame || !selectedPlayer || !selectedProp) return;
                         onSelect({
@@ -198,6 +213,11 @@ const PropSelectorModal: React.FC<PropSelectorModalProps> = ({ isOpen, onClose, 
                                 <button onClick={() => handleSelectLine('Over')} className="w-full p-2 text-sm rounded-md bg-gray-700/50 hover:bg-gray-700 transition-colors">
                                     <div>Over</div>
                                     <div className="font-semibold">{formatAmericanOdds(line.overOdds)}</div>
+                                    {dkLine ? (
+                                        <div className="text-xs text-gray-400 font-mono">DK {formatAmericanOdds(dkLine.overOdds)}</div>
+                                    ) : (
+                                        <div className="h-[18px]"></div>
+                                    )}
                                 </button>
                             </div>
                             <div className="col-span-3 text-center">
@@ -207,6 +227,11 @@ const PropSelectorModal: React.FC<PropSelectorModalProps> = ({ isOpen, onClose, 
                                  <button onClick={() => handleSelectLine('Under')} className="w-full p-2 text-sm rounded-md bg-gray-700/50 hover:bg-gray-700 transition-colors">
                                     <div>Under</div>
                                     <div className="font-semibold">{formatAmericanOdds(line.underOdds)}</div>
+                                    {dkLine ? (
+                                        <div className="text-xs text-gray-400 font-mono">DK {formatAmericanOdds(dkLine.underOdds)}</div>
+                                    ) : (
+                                        <div className="h-[18px]"></div>
+                                    )}
                                 </button>
                             </div>
                         </div>
