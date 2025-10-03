@@ -171,3 +171,12 @@ export interface MarketAnalysis {
     optimalBet: { line: number; position: 'Over' | 'Under'; ev: number; odds: number } | null;
     baseAnalysis: AnalysisResponse;
 }
+
+// Represents a full selection for the Prop Comparator
+export interface PropSelectionDetails {
+  game: Game;
+  player: Player;
+  prop: PlayerProp;
+  selectedLine: LineOdds;
+  selectedPosition: 'Over' | 'Under';
+}

@@ -162,6 +162,24 @@ export const MOCK_GAMES_SOURCE: Game[] = [
           },
         ],
       },
+       {
+        name: 'Chris Jones',
+        position: 'DT',
+        team: 'KC',
+        props: [
+            {
+                propType: 'Sacks',
+                lines: [
+                    { line: 0.5, overOdds: -140, underOdds: 120 },
+                ],
+                historicalContext: {
+                    seasonAvg: 0.8,
+                    last5Avg: 1.0,
+                    gameLog: [1, 0, 1.5, 1, 0.5, 2, 0, 1, 0, 1.5],
+                }
+            }
+        ]
+      },
     ],
   },
   {
@@ -197,24 +215,6 @@ export const MOCK_GAMES_SOURCE: Game[] = [
             historicalContext: { seasonAvg: 265.8, last5Avg: 275.2, gameLog: [280, 310, 250, 266, 290, 270, 285, 260, 295, 255] }
           }
         ],
-      },
-      {
-        name: 'Chris Jones',
-        position: 'DT',
-        team: 'KC',
-        props: [
-            {
-                propType: 'Sacks',
-                lines: [
-                    { line: 0.5, overOdds: -140, underOdds: 120 },
-                ],
-                historicalContext: {
-                    seasonAvg: 0.8,
-                    last5Avg: 1.0,
-                    gameLog: [1, 0, 1.5, 1, 0.5, 2, 0, 1, 0, 1.5],
-                }
-            }
-        ]
       },
     ]
   }

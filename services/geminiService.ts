@@ -236,3 +236,33 @@ export const analyzeParlayCorrelation = async (legs: ExtractedBetLeg[]): Promise
         throw new Error("Failed to analyze parlay correlation. The AI model may be temporarily unavailable.");
     }
 };
+
+export const getComparativeAnalysis = async (
+  propADetails: string,
+  propBDetails: string
+): Promise<string> => {
+  try {
+    const systemInstruction = `You are 'The Arbiter', an expert sports betting analyst AI. Your sole function is to compare two distinct player props and provide a concise, reasoned recommendation on which one offers a better betting opportunity. Your analysis should be based on factors like value (EV), risk, confidence, and underlying projections. Do not return JSON. Respond with only the analysis text.`;
+    
+    const query = `
+      Compare the following two player props and determine which is the superior bet. Provide a brief summary of your reasoning, followed by a clear "Recommendation:" line stating which prop you favor.
+
+      Prop A: ${propADetails}
+      Prop B: ${propBDetails}
+    `;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: query,
+      config: {
+        systemInstruction,
+        temperature: 0.6,
+      }
+    });
+
+    return response.text.trim();
+  } catch (error) {
+    console.error("Error fetching comparative analysis from Gemini:", error);
+    throw new Error("Failed to get comparative analysis.");
+  }
+};

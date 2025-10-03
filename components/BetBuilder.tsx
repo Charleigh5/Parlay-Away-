@@ -693,22 +693,27 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
         {/* Correlation Analysis Section */}
         {parlayLegs.length >= 2 && (
              <div className="p-4 border-t border-gray-700/50">
-                 <button onClick={() => setIsCorrelationVisible(!isCorrelationVisible)} className="w-full flex justify-between items-center text-left text-gray-300 hover:text-cyan-300 transition-colors">
+                 <button 
+                    onClick={() => setIsCorrelationVisible(!isCorrelationVisible)} 
+                    className="w-full flex justify-between items-center text-left text-gray-300 hover:text-cyan-300 transition-colors"
+                    aria-expanded={isCorrelationVisible}
+                    aria-controls="correlation-analysis-panel"
+                 >
                     <div className="flex items-center gap-2">
                          <LinkIcon className="h-5 w-5" />
-                         <span className="font-semibold">Correlation Analysis</span>
+                         <span className="font-semibold" id="correlation-analysis-heading">Correlation Analysis</span>
                     </div>
                     <ChevronDownIcon className={`h-5 w-5 transition-transform ${isCorrelationVisible ? 'rotate-180' : ''}`} />
                  </button>
                  {isCorrelationVisible && (
-                     <div className="mt-3 animate-fade-in">
+                     <div id="correlation-analysis-panel" className="mt-3 animate-fade-in" role="region" aria-labelledby="correlation-analysis-heading">
                         {!correlationAnalysis && !isCorrelationLoading && !correlationError && (
                              <button onClick={handleAnalyzeCorrelation} className="w-full flex items-center justify-center gap-2 rounded-md bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-300 transition-colors hover:bg-cyan-500/20">
                                  <SparklesIcon className="h-4 w-4" /> Analyze Correlation
                              </button>
                         )}
-                        {isCorrelationLoading && <div className="text-center text-sm text-gray-400 p-2">Analyzing...</div>}
-                        {correlationError && <div className="text-center text-sm text-red-400 p-2 bg-red-500/10 rounded-md">{correlationError}</div>}
+                        {isCorrelationLoading && <div className="text-center text-sm text-gray-400 p-2" role="status" aria-live="polite">Analyzing...</div>}
+                        {correlationError && <div className="text-center text-sm text-red-400 p-2 bg-red-500/10 rounded-md" role="alert">{correlationError}</div>}
                         {correlationAnalysis && (
                             <div className="space-y-3">
                                 <div className="flex justify-between items-center p-3 bg-gray-800 rounded-md">
@@ -780,8 +785,10 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                                               <p className="text-xs text-gray-400">{parlay.legs.length} Legs &bull; {formatAmericanOdds(parlay.odds)}</p>
                                           </div>
                                           <div className="flex items-center gap-2 flex-shrink-0">
-                                              <button onClick={() => handleLoadParlay(parlay)} className="px-3 py-1 text-sm rounded-md bg-cyan-500 text-white hover:bg-cyan-600">Load</button>
-                                              <button onClick={() => handleDeleteSavedParlay(parlay.id)} className="p-2 rounded-md text-gray-500 hover:text-red-400 hover:bg-red-500/10">
+                                              <button onClick={() => handleLoadParlay(parlay)} className="px-3 py-1 text-sm rounded-md bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 transition-colors">
+                                                  Load
+                                              </button>
+                                              <button onClick={() => handleDeleteSavedParlay(parlay.id)} className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-md opacity-0 group-hover:opacity-100 transition-colors">
                                                   <Trash2Icon className="h-4 w-4" />
                                               </button>
                                           </div>
@@ -794,6 +801,7 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
               </div>
           </div>
         )}
+
       </div>
     </div>
   );

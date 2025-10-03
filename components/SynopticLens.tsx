@@ -19,8 +19,7 @@ const SynopticLens: React.FC = () => {
   const [loadingMessage, setLoadingMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [partialError, setPartialError] = useState<string | null>(null);
-  const [mode, setMode] = useState<'home' | 'upload' | 'build' | 'canvas'>('home');
-  const [parlayLegs, setParlayLegs] = useState<ExtractedBetLeg[]>([]);
+  const [mode, setMode] = useState<'home' | 'upload' | 'build'>('home');
 
   useEffect(() => {
     // Clean up the object URL when the component unmounts or the URL changes

@@ -1,14 +1,17 @@
 
+
 import React, { useState, Suspense } from 'react';
 import { ChatHistoryProvider } from '../contexts/ChatHistoryContext';
 import { MessageSquareIcon } from './icons/MessageSquareIcon';
 import { TestTubeIcon } from './icons/TestTubeIcon';
+import { ScaleIcon } from './icons/ScaleIcon';
 
-type View = 'chat' | 'lens';
+type View = 'chat' | 'lens' | 'comparator';
 
 const SynopticLens = React.lazy(() => import('./SynopticLens'));
 const ChatPanel = React.lazy(() => import('./ChatPanel'));
 const ChatHistorySidebar = React.lazy(() => import('./ChatHistorySidebar'));
+const PropComparator = React.lazy(() => import('./PropComparator'));
 
 const LoadingFallback = () => (
     <div className="flex flex-1 items-center justify-center">
@@ -42,6 +45,14 @@ const MainPanel: React.FC = () => {
           Synoptic Lens
         </button>
         <button
+          onClick={() => setActiveView('comparator')}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${getTabClass('comparator')}`}
+          aria-current={activeView === 'comparator'}
+        >
+          <ScaleIcon className="h-5 w-5" />
+          Prop Comparator
+        </button>
+        <button
           onClick={() => setActiveView('chat')}
           className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${getTabClass('chat')}`}
           aria-current={activeView === 'chat'}
@@ -50,13 +61,13 @@ const MainPanel: React.FC = () => {
           Analyzer Chat
         </button>
       </div>
-      
-      <div className="flex-1 overflow-hidden" role="tabpanel">
+      <div className="flex flex-1 overflow-y-auto">
         <Suspense fallback={<LoadingFallback />}>
           {activeView === 'lens' && <SynopticLens />}
+          {activeView === 'comparator' && <PropComparator />}
           {activeView === 'chat' && (
             <ChatHistoryProvider>
-              <div className="flex flex-1 overflow-hidden">
+              <div className="flex flex-1">
                 <ChatHistorySidebar />
                 <ChatPanel />
               </div>
