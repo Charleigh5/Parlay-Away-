@@ -1,3 +1,4 @@
+
 import { Game } from '../types';
 import type { SportsDBResponse, SportsDBEvent } from '../types';
 
@@ -6,17 +7,9 @@ import type { SportsDBResponse, SportsDBEvent } from '../types';
 // in an environment variable `process.env.THESPORTSDB_API_KEY`.
 const API_KEY = process.env.THESPORTSDB_API_KEY || '1';
 const NFL_LEAGUE_ID = '4391';
-// Fetching for specific dates at the start of the season is more reliable with the free key
-// than fetching the entire season, which was causing a 404 error.
-const SEASON_START_DATES = [
-    '2024-09-05', // Season Opener
-    '2024-09-08', // Week 1 Sunday
-    '2024-09-09', // Week 1 Monday
-    '2024-09-15', // Week 2 Sunday
-    '2024-09-16', // Week 2 Monday
-];
+const CURRENT_SEASON = '2024';
 
-const buildApiUrlForDate = (date: string) => `https://www.thesportsdb.com/api/v1/json/${API_KEY}/eventsday.php?d=${date}&l=${NFL_LEAGUE_ID}`;
+const buildApiUrlForSeason = () => `https://www.thesportsdb.com/api/v1/json/${API_KEY}/eventsseason.php?id=${NFL_LEAGUE_ID}&s=${CURRENT_SEASON}`;
 
 
 /**
@@ -47,41 +40,39 @@ const transformEventToGame = (event: SportsDBEvent, marketData: Game[]): Game =>
 
 /**
  * Fetches the NFL schedule for the current season from TheSportsDB.
- * This function will throw an error if the underlying fetch calls fail,
- * allowing the calling component to handle the error state and fallback UI.
+ * This implementation targets the 'eventsseason' endpoint for better reliability
+ * and gracefully falls back to local market data if the API fails or returns no events.
  */
 export const fetchNFLEvents = async (marketData: Game[]): Promise<Game[]> => {
-    const fetchPromises = SEASON_START_DATES.map(date => {
-        const url = buildApiUrlForDate(date);
-        return fetch(url).then(res => {
-            if (!res.ok) {
-                // By not throwing, but returning null, we allow Promise.all to succeed
-                // even if some requests fail. We will check later if all failed.
-                console.error(`API request for date ${date} failed with status ${res.status}`);
-                return null;
-            }
-            return res.json();
-        });
-    });
-
-    // If a fetch promise rejects (e.g., network error), Promise.all will reject.
-    // This is the desired behavior to trigger the component's catch block.
-    const results = await Promise.all(fetchPromises);
+    const url = buildApiUrlForSeason();
+    try {
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+            // The API might return non-OK status if the season hasn't started or for other reasons with a free key.
+            console.warn(`API request for season ${CURRENT_SEASON} failed with status ${response.status}. Falling back to local market data.`);
+            return marketData;
+        }
+        
+        const data: SportsDBResponse = await response.json();
+        
+        // The free API may return a success response but with a null `events` field if no data is available.
+        if (!data.events || data.events.length === 0) {
+             console.warn(`No events found for season ${CURRENT_SEASON} via API. Falling back to local market data.`);
+             return marketData;
+        }
     
-    const allEvents: SportsDBEvent[] = results
-        .filter((data): data is SportsDBResponse => data !== null && !!data.events)
-        .flatMap(data => data.events!);
+        const allEvents: SportsDBEvent[] = data.events;
+        const upcomingGames = allEvents.map(event => transformEventToGame(event, marketData));
+    
+        // Remove duplicates in case API returns same event on different queries
+        const uniqueGames = Array.from(new Map(upcomingGames.map(game => [game.id, game])).values());
 
-    // If API calls succeed but return no events, fall back to mocks as a business rule.
-    if (allEvents.length === 0) {
-         console.warn("No events found for the specified dates. Falling back to market data.");
-         return marketData;
+        return uniqueGames;
+    } catch (error) {
+        // This will catch network errors or other issues with the fetch call itself.
+        console.error("Failed to fetch NFL events due to a network error:", error);
+        console.warn("Falling back to local market data due to network error.");
+        return marketData;
     }
-    
-    const upcomingGames = allEvents.map(event => transformEventToGame(event, marketData));
-    
-    // Remove duplicates in case API returns same event on different queries
-    const uniqueGames = Array.from(new Map(upcomingGames.map(game => [game.id, game])).values());
-
-    return uniqueGames;
 };

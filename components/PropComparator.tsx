@@ -99,121 +99,188 @@ const PropComparator: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handlePropSelected = (selection: PropSelectionDetails) => {
+  const handlePropSelected = async (selection: PropSelectionDetails) => {
+    setIsModalOpen(false);
+    
+    // Clear comparative analysis whenever a prop changes
+    setComparativeAnalysis(null);
+    setComparativeError(null);
+    setIsComparativeLoading(false);
+
+    const { player, prop, selectedLine, selectedPosition } = selection;
+    const marketOdds = selectedPosition === 'Over' ? selectedLine.overOdds : selectedLine.underOdds;
+    const query = `Analyze the prop bet: ${player.name} ${selectedPosition} ${selectedLine.line} ${prop.propType} at ${formatAmericanOdds(marketOdds)} odds.`;
+
     if (activeSlot === 'A') {
       setPropA(selection);
       setAnalysisA(null);
       setErrorA(null);
-    } else {
+      setIsLoadingA(true);
+      try {
+        const result = await getAnalysis(query);
+        setAnalysisA(result.quantitative);
+      } catch (err) {
+        setErrorA(err instanceof Error ? err.message : 'Analysis failed.');
+      } finally {
+        setIsLoadingA(false);
+      }
+    } else if (activeSlot === 'B') {
       setPropB(selection);
       setAnalysisB(null);
       setErrorB(null);
-    }
-    setIsModalOpen(false);
-    setActiveSlot(null);
-  };
-
-  const runAnalysis = async (prop: PropSelectionDetails, slot: Slot) => {
-    if (slot === 'A') setIsLoadingA(true);
-    else setIsLoadingB(true);
-
-    try {
-      const { player, prop: propData, selectedLine, selectedPosition } = prop;
-      const marketOdds = selectedPosition === 'Over' ? selectedLine.overOdds : selectedLine.underOdds;
-      const query = `Analyze the prop bet: ${player.name} ${selectedPosition} ${selectedLine.line} ${propData.propType} at ${marketOdds} odds.`;
-      const response = await getAnalysis(query);
-
-      if (slot === 'A') setAnalysisA(response.quantitative);
-      else setAnalysisB(response.quantitative);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Analysis failed.";
-      if (slot === 'A') setErrorA(message);
-      else setErrorB(message);
-    } finally {
-      if (slot === 'A') setIsLoadingA(false);
-      else setIsLoadingB(false);
+      setIsLoadingB(true);
+      try {
+        const result = await getAnalysis(query);
+        setAnalysisB(result.quantitative);
+      } catch (err) {
+        setErrorB(err instanceof Error ? err.message : 'Analysis failed.');
+      } finally {
+        setIsLoadingB(false);
+      }
     }
   };
 
   useEffect(() => {
-    if (propA) runAnalysis(propA, 'A');
-  }, [propA]);
+    const runComparativeAnalysis = async () => {
+      if (!propA || !analysisA || !propB || !analysisB) {
+        return;
+      }
 
-  useEffect(() => {
-    if (propB) runAnalysis(propB, 'B');
-  }, [propB]);
+      setIsComparativeLoading(true);
+      setComparativeError(null);
+      setComparativeAnalysis(null);
 
-  useEffect(() => {
-    setComparativeAnalysis(null);
-    setComparativeError(null);
-    if (propA && analysisA && propB && analysisB) {
-      const runComparativeAnalysis = async () => {
-        setIsComparativeLoading(true);
-        try {
-            const oddsA = propA.selectedPosition === 'Over' ? propA.selectedLine.overOdds : propA.selectedLine.underOdds;
-            const propADetails = `${propA.player.name} ${propA.selectedPosition} ${propA.selectedLine.line} ${propA.prop.propType} (${formatAmericanOdds(oddsA)}) with EV ${analysisA.expectedValue.toFixed(2)}% and Confidence: ${(analysisA.confidenceScore * 100).toFixed(0)}%`;
-            
-            const oddsB = propB.selectedPosition === 'Over' ? propB.selectedLine.overOdds : propB.selectedLine.underOdds;
-            const propBDetails = `${propB.player.name} ${propB.selectedPosition} ${propB.selectedLine.line} ${propB.prop.propType} (${formatAmericanOdds(oddsB)}) with EV ${analysisB.expectedValue.toFixed(2)}% and Confidence: ${(analysisB.confidenceScore * 100).toFixed(0)}%`;
+      try {
+        const formatPropDetails = (prop: PropSelectionDetails, analysis: QuantitativeAnalysis) => {
+          const { player, prop: propData, selectedLine, selectedPosition } = prop;
+          const marketOdds = selectedPosition === 'Over' ? selectedLine.overOdds : selectedLine.underOdds;
+          return `${player.name} ${selectedPosition} ${selectedLine.line} ${propData.propType} at ${formatAmericanOdds(marketOdds)}. Quantitative analysis results: Expected Value of ${analysis.expectedValue.toFixed(2)}% and a Confidence Score of ${(analysis.confidenceScore * 100).toFixed(0)}%.`;
+        };
 
-            const result = await getComparativeAnalysis(propADetails, propBDetails);
-            setComparativeAnalysis(result);
-        } catch (err) {
-            setComparativeError(err instanceof Error ? err.message : "Failed to get comparative analysis.");
-        } finally {
-            setIsComparativeLoading(false);
-        }
-      };
-      runComparativeAnalysis();
-    }
-  }, [analysisA, analysisB, propA, propB]);
+        const propADetails = formatPropDetails(propA, analysisA);
+        const propBDetails = formatPropDetails(propB, analysisB);
+
+        const verdict = await getComparativeAnalysis(propADetails, propBDetails);
+        setComparativeAnalysis(verdict);
+
+      } catch (err) {
+        setComparativeError(err instanceof Error ? err.message : 'Failed to get comparative analysis.');
+      } finally {
+        setIsComparativeLoading(false);
+      }
+    };
+
+    runComparativeAnalysis();
+  }, [propA, analysisA, propB, analysisB]);
+  
+  const ArbiterPanel = () => {
+      if (!propA || !propB) {
+          return (
+            <div className="flex flex-col items-center justify-center text-center p-4">
+              <SparklesIcon className="h-8 w-8 text-gray-600" />
+              <p className="mt-2 text-sm font-semibold text-gray-500">The Arbiter</p>
+              <p className="text-xs text-gray-600">Select two props to begin comparison.</p>
+            </div>
+          );
+      }
+
+      if (isComparativeLoading) {
+          return (
+              <div className="flex flex-col items-center justify-center text-center p-4">
+                <div className="flex items-center gap-2 text-sm text-gray-400">
+                  <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse [animation-delay:-0.3s]"></div>
+                  <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse [animation-delay:-0.15s]"></div>
+                  <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></div>
+                </div>
+                <p className="mt-2 text-sm text-gray-300">Arbiter is thinking...</p>
+              </div>
+          );
+      }
+
+      if (comparativeError) {
+          return (
+              <div className="flex flex-col items-center justify-center text-center p-4 rounded-lg bg-red-500/10 border border-red-500/30">
+                  <p className="text-sm font-semibold text-red-300">Comparison Failed</p>
+                  <p className="text-xs text-red-400 mt-1">{comparativeError}</p>
+              </div>
+          );
+      }
+
+      if (comparativeAnalysis) {
+        return (
+            <div className="p-4 rounded-lg bg-gray-800/70 border border-gray-700/50 h-full flex flex-col">
+              <h4 className="flex items-center gap-2 text-md font-semibold text-cyan-400 mb-3 shrink-0">
+                <BrainCircuitIcon className="h-5 w-5" />
+                AI Arbiter's Verdict
+              </h4>
+              <div className="text-sm text-gray-300 overflow-y-auto prose prose-sm prose-invert max-w-none">
+                {comparativeAnalysis.split('\n').map((line, index) => {
+                  const trimmedLine = line.trim();
+                  if (trimmedLine.startsWith('Recommendation:')) {
+                    return (
+                      <p key={index} className="font-bold text-cyan-300">{trimmedLine}</p>
+                    );
+                  }
+                  return (
+                    <p key={index}>{trimmedLine ? trimmedLine : <br/>}</p>
+                  )
+                })}
+              </div>
+            </div>
+        )
+      }
+
+      if (analysisA && analysisB) {
+         return (
+            <div className="flex flex-col items-center justify-center text-center p-4">
+              <SparklesIcon className="h-8 w-8 text-cyan-400" />
+              <p className="mt-2 text-sm font-semibold text-gray-400">Ready for Comparison</p>
+              <p className="text-xs text-gray-500">Analysis for both props is complete.</p>
+            </div>
+          );
+      }
+      
+      return (
+         <div className="flex flex-col items-center justify-center text-center p-4">
+           <div className="text-5xl font-black text-gray-700/50">VS</div>
+        </div>
+      )
+  };
+
 
   return (
-    <div className="flex h-full w-full flex-col p-4 md:p-6 lg:p-8">
-      <div className="text-center mb-6">
+    <div className="flex h-full w-full flex-col p-4 md:p-8">
+      <div className="mb-6 text-center">
         <h2 className="text-2xl font-bold text-gray-100">Prop Comparator</h2>
-        <p className="text-gray-400">Select two props for a side-by-side AI-powered analysis.</p>
+        <p className="text-gray-400">Side-by-side quantitative analysis of two different props.</p>
       </div>
-      <div className="flex flex-1 flex-col lg:flex-row items-stretch gap-6">
-        <div className="w-full lg:w-5/12">
-          <PropSlot prop={propA} analysis={analysisA} isLoading={isLoadingA} error={errorA} onSelect={() => handleSelectClick('A')} />
-        </div>
-        
-        <div className="flex w-full lg:w-2/12 flex-col items-center justify-center text-center px-4">
-            <div className="text-3xl font-bold text-gray-500 mb-4">VS</div>
-            {(analysisA && analysisB) && (
-                <div className="w-full">
-                    {isComparativeLoading && (
-                         <div className="flex flex-col items-center gap-2 text-sm text-gray-400">
-                            <BrainCircuitIcon className="h-6 w-6 text-cyan-400 animate-pulse" />
-                            Arbiter is comparing...
-                        </div>
-                    )}
-                    {comparativeError && <div className="text-sm text-red-400 bg-red-500/10 p-2 rounded-md">{comparativeError}</div>}
-                    {comparativeAnalysis && (
-                        <div className="p-4 rounded-lg bg-gray-800/70 border border-cyan-500/30 animate-fade-in">
-                            <h4 className="flex items-center justify-center gap-2 text-md font-semibold text-cyan-300 mb-2">
-                                <SparklesIcon className="h-5 w-5" />
-                                AI Arbiter Verdict
-                            </h4>
-                            <p className="text-sm text-gray-300 whitespace-pre-wrap">{comparativeAnalysis}</p>
-                        </div>
-                    )}
-                </div>
-            )}
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-6 items-stretch">
+        <PropSlot
+          prop={propA}
+          analysis={analysisA}
+          isLoading={isLoadingA}
+          error={errorA}
+          onSelect={() => handleSelectClick('A')}
+        />
+
+        <div className="flex items-center justify-center w-full lg:w-80">
+          <ArbiterPanel />
         </div>
 
-        <div className="w-full lg:w-5/12">
-          <PropSlot prop={propB} analysis={analysisB} isLoading={isLoadingB} error={errorB} onSelect={() => handleSelectClick('B')} />
-        </div>
-      </div>
-      {isModalOpen && (
-        <PropSelectorModal
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-          onSelect={handlePropSelected}
+        <PropSlot
+          prop={propB}
+          analysis={analysisB}
+          isLoading={isLoadingB}
+          error={errorB}
+          onSelect={() => handleSelectClick('B')}
         />
-      )}
+      </div>
+
+      <PropSelectorModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSelect={handlePropSelected}
+      />
     </div>
   );
 };
