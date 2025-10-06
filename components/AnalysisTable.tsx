@@ -82,6 +82,25 @@ const AnalysisRow: React.FC<{ leg: AnalyzedBetLeg }> = ({ leg }) => {
 
   const historicalOdds = useMemo(() => generateHistoricalOdds(leg.marketOdds), [leg.marketOdds]);
 
+  const hitRateInfo = useMemo(() => {
+    const { gameLog, line, position } = leg;
+    if (!gameLog || gameLog.length === 0) {
+        return null;
+    }
+
+    const hits = gameLog.reduce((count, value) => {
+        if (position === 'Over' && value > line) {
+            return count + 1;
+        }
+        if (position === 'Under' && value < line) {
+            return count + 1;
+        }
+        return count;
+    }, 0);
+    
+    return { hits, total: gameLog.length };
+  }, [leg]);
+
   return (
     <Fragment>
       <tr className="border-b border-gray-700/50 hover:bg-gray-800/40">
@@ -103,6 +122,12 @@ const AnalysisRow: React.FC<{ leg: AnalyzedBetLeg }> = ({ leg }) => {
             <div className="w-full bg-gray-700 rounded-full h-2.5">
                 <div className="bg-cyan-500 h-2.5 rounded-full" style={{ width: `${leg.analysis.quantitative.confidenceScore * 100}%` }}></div>
             </div>
+            {hitRateInfo && (
+                <div className="mt-1.5 text-xs text-gray-400" title={`The player has gone ${leg.position} this line in ${hitRateInfo.hits} of the last ${hitRateInfo.total} games.`}>
+                    <span className="font-mono font-bold text-gray-200">{hitRateInfo.hits} / {hitRateInfo.total}</span>
+                    <span className="text-gray-500 ml-1.5">Hits (L{hitRateInfo.total})</span>
+                </div>
+            )}
         </td>
         <td className="p-4 align-top text-center">
           <button onClick={() => setIsExpanded(!isExpanded)} className="p-1 text-gray-400 hover:text-cyan-400">

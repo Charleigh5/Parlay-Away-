@@ -61,6 +61,7 @@ export interface ExtractedBetLeg {
   line: number;
   position: 'Over' | 'Under';
   marketOdds: number;
+  gameLog?: number[];
 }
 
 export interface AnalyzedBetLeg extends ExtractedBetLeg {

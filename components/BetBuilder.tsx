@@ -157,7 +157,7 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
             try {
                 // Step 1: Get base projection
                 const primaryLine = selectedProp.lines[Math.floor(selectedProp.lines.length / 2)] || selectedProp.lines[0];
-                const query = `Analyze the prop: ${selectedPlayer.name} ${selectedProp.propType}. Provide a detailed projection including a projectedMean and projectedStdDev for the final stat outcome, disregarding specific odds for now.`;
+                const query = `Analyze the prop: ${selectedPlayer.name} ${selectedProp.propType}. Provide a detailed projection including a projectedMean and projectedStdDev for the final stat outcome, disregard specific odds for now.`;
                 const baseAnalysis = await getAnalysis(query);
                 setPropAnalysis(baseAnalysis); // Set base analysis for context
 
@@ -270,6 +270,7 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
       line: line.line,
       position,
       marketOdds: position === 'Over' ? line.overOdds : line.underOdds,
+      gameLog: selectedProp.historicalContext?.gameLog,
     };
     setParlayLegs(prev => [...prev, newLeg]);
   };
@@ -864,43 +865,4 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                   </div>
                   <div className="p-4 max-h-[60vh] overflow-y-auto">
                       {savedParlays.length === 0 ? (
-                          <p className="text-center text-gray-500 py-8">No saved parlays found.</p>
-                      ) : (
-                          <div className="space-y-3">
-                              {savedParlays.map(parlay => (
-                                  <div key={parlay.id} className="p-3 bg-gray-900/50 rounded-md group">
-                                      <div className="flex justify-between items-start">
-                                          <div>
-                                              <p className="font-semibold text-gray-200">{parlay.name}</p>
-                                              <p className="text-xs text-gray-400">{parlay.legs.length} Legs &bull; {formatAmericanOdds(parlay.odds)}</p>
-                                          </div>
-                                          <div className="flex items-center gap-2 flex-shrink-0">
-                                              <button onClick={() => handleLoadParlay(parlay)} className="px-3 py-1 text-sm rounded-md bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 transition-colors">
-                                                  Load
-                                              </button>
-                                              <button onClick={() => handleDeleteSavedParlay(parlay.id)} className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-md opacity-0 group-hover:opacity-100 transition-colors">
-                                                  <Trash2Icon className="h-4 w-4" />
-                                              </button>
-                                          </div>
-                                      </div>
-                                  </div>
-                              ))}
-                          </div>
-                      )}
-                  </div>
-              </div>
-          </div>
-        )}
-
-        <CreatePropModal
-          isOpen={isCreatePropModalOpen}
-          onClose={() => setIsCreatePropModalOpen(false)}
-          onPropCreated={handlePropCreated}
-        />
-
-      </div>
-    </div>
-  );
-};
-
-export default BetBuilder;
+                          <p className="text
