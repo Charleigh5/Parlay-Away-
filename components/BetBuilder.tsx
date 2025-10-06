@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { ExtractedBetLeg, Game, Player, PlayerProp, LineOdds, SavedParlay, ParlayCorrelationAnalysis, AnalysisResponse, MarketAnalysis } from '../types';
 import { calculateParlayOdds, formatAmericanOdds, normalCdf, calculateSingleLegEV } from '../utils';
@@ -865,4 +866,38 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                   </div>
                   <div className="p-4 max-h-[60vh] overflow-y-auto">
                       {savedParlays.length === 0 ? (
-                          <p className="text
+                          <p className="text-center text-gray-500 py-10">You have no saved parlays.</p>
+                      ) : (
+                          <div className="space-y-2">
+                              {savedParlays.map(parlay => (
+                                  <div key={parlay.id} className="group p-3 bg-gray-900/70 rounded-md flex justify-between items-center">
+                                      <div>
+                                          <p className="font-semibold text-gray-200">{parlay.name}</p>
+                                          <p className="text-sm text-gray-400">{parlay.legs.length} legs &bull; <span className="font-mono">{formatAmericanOdds(parlay.odds)}</span></p>
+                                          <p className="text-xs text-gray-500">Saved: {new Date(parlay.createdAt).toLocaleDateString()}</p>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                          <button onClick={() => handleLoadParlay(parlay)} className="px-3 py-1.5 text-sm rounded-md bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 transition-colors">Load</button>
+                                          <button onClick={() => handleDeleteSavedParlay(parlay.id)} className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors opacity-0 group-hover:opacity-100">
+                                              <Trash2Icon className="h-4 w-4" />
+                                          </button>
+                                      </div>
+                                  </div>
+                              ))}
+                          </div>
+                      )}
+                  </div>
+              </div>
+          </div>
+        )}
+        <CreatePropModal 
+            isOpen={isCreatePropModalOpen}
+            onClose={() => setIsCreatePropModalOpen(false)}
+            onPropCreated={handlePropCreated}
+        />
+      </div>
+    </div>
+  );
+};
+
+export default BetBuilder;
