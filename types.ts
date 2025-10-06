@@ -112,7 +112,12 @@ export interface Game {
   id: string;
   name: string; // e.g., "Kansas City Chiefs @ Baltimore Ravens"
   date: string; // YYYY-MM-DD
-  players: Player[];
+  players?: Player[];
+  homeTeam?: { id: string; fullName: string };
+  awayTeam?: { id: string; fullName: string };
+  startTimeUTC?: string;
+  status?: string;
+  venue?: string;
 }
 
 // Types for TheSportsDB API

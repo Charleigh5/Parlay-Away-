@@ -8,6 +8,7 @@ interface ChatHistoryContextType {
   createNewChat: () => void;
   setActiveChat: (chatId: string | null) => void;
   deleteChat: (chatId: string) => void;
+  renameChat: (chatId: string, newTitle: string) => void;
   addMessageToActiveChat: (message: Message) => void;
   isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
@@ -35,6 +36,15 @@ export const ChatHistoryProvider: React.FC<{ children: ReactNode }> = ({ childre
     if (activeChatId === chatId) {
       setActiveChatId(null);
     }
+  };
+  
+  const renameChat = (chatId: string, newTitle: string) => {
+    if (!newTitle.trim()) return;
+    setHistory(prev =>
+      prev.map(chat =>
+        chat.id === chatId ? { ...chat, title: newTitle.trim() } : chat
+      )
+    );
   };
 
   const addMessageToActiveChat = (message: Message) => {
@@ -77,6 +87,7 @@ export const ChatHistoryProvider: React.FC<{ children: ReactNode }> = ({ childre
     createNewChat,
     setActiveChat,
     deleteChat,
+    renameChat,
     addMessageToActiveChat,
     isLoading,
     setIsLoading,

@@ -8,10 +8,10 @@ import { Trash2Icon } from './icons/Trash2Icon';
 import { SaveIcon } from './icons/SaveIcon';
 import { FolderOpenIcon } from './icons/FolderOpenIcon';
 import { SearchIcon } from './icons/SearchIcon';
-import { fetchNFLEvents } from '../services/sportsDataService';
+import { getScheduleByWeek, getTeamRoster } from '../services/nflDataService';
 import { ShieldIcon } from './icons/ShieldIcon';
 import { DEFENSIVE_STATS, TEAM_ABBREVIATION_TO_NAME, TEAM_NAME_TO_ABBREVIATION } from '../data/mockDefensiveStats';
-import { getMarketData, getDraftKingsMarketData } from '../services/marketDataService';
+import { getDraftKingsMarketData } from '../services/marketDataService';
 import HistoricalPerformanceChart from './HistoricalPerformanceChart';
 import { ADVANCED_STATS, AdvancedStat } from '../data/mockAdvancedStats';
 import { TrendingUpIcon } from './icons/TrendingUpIcon';
@@ -30,6 +30,8 @@ import MarketAnalysisChart from './MarketAnalysisChart';
 import { PackageSearchIcon } from './icons/PackageSearchIcon';
 import { XIcon } from './icons/XIcon';
 import { LandmarkIcon } from './icons/LandmarkIcon';
+import { FilePlus2Icon } from './icons/FilePlus2Icon';
+import CreatePropModal from './CreatePropModal';
 
 
 interface BetBuilderProps {
@@ -55,11 +57,14 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
   const [searchTerm, setSearchTerm] = useState('');
   
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
+  const [playersInSelectedGame, setPlayersInSelectedGame] = useState<Player[]>([]);
+  const [isLoadingPlayers, setIsLoadingPlayers] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [selectedProp, setSelectedProp] = useState<PlayerProp | null>(null);
   
   const [parlayLegs, setParlayLegs] = useState<ExtractedBetLeg[]>([]);
   
+  const [isCreatePropModalOpen, setIsCreatePropModalOpen] = useState(false);
   const [savedParlays, setSavedParlays] = useLocalStorage<SavedParlay[]>('synopticEdge_savedParlays', []);
   const [isLoadModalOpen, setIsLoadModalOpen] = useState(false);
   
@@ -87,26 +92,50 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
   const togglePanel = (panelKey: string) => {
     setCollapsedPanels(prev => ({...prev, [panelKey]: !prev[panelKey]}));
   };
-
-  const marketData = useMemo(() => getMarketData(), []);
   
   useEffect(() => {
     const loadGames = async () => {
       try {
         setGameLoadError(null);
         setIsLoadingGames(true);
-        const fetchedGames = await fetchNFLEvents(marketData);
-        setGames(fetchedGames);
+        const response = await getScheduleByWeek(2024, 1);
+        setGames(response.games);
       } catch (error) {
         console.error("Failed to fetch NFL events:", error);
-        setGameLoadError("Could not load live schedule. Falling back to mock data.");
-        setGames(marketData); // Fallback to mocks
+        setGameLoadError(error instanceof Error ? error.message : "Could not load schedule.");
       } finally {
         setIsLoadingGames(false);
       }
     };
     loadGames();
-  }, [marketData]);
+  }, []);
+
+  useEffect(() => {
+     // Fetch rosters when a game is selected
+    const loadPlayersForGame = async () => {
+        if (!selectedGame || !selectedGame.homeTeam || !selectedGame.awayTeam) {
+            setPlayersInSelectedGame([]);
+            return;
+        }
+
+        setIsLoadingPlayers(true);
+        try {
+            const [homeRoster, awayRoster] = await Promise.all([
+                getTeamRoster(selectedGame.homeTeam.id),
+                getTeamRoster(selectedGame.awayTeam.id)
+            ]);
+            // The service returns the full roster object which contains players
+            setPlayersInSelectedGame([...homeRoster.players, ...awayRoster.players]);
+        } catch (error) {
+            console.error("Failed to fetch rosters for game:", error);
+            // Handle error state in UI if necessary
+        } finally {
+            setIsLoadingPlayers(false);
+        }
+    };
+
+    loadPlayersForGame();
+  }, [selectedGame])
 
   useEffect(() => {
     // Reset correlation analysis if legs change
@@ -197,9 +226,10 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
   const filteredGames = useMemo(() => {
     if (!searchTerm) return games;
     const lowercasedTerm = searchTerm.toLowerCase();
+    // Since players aren't loaded with games, we can't search by player here yet.
+    // This could be enhanced later if needed.
     return games.filter(game =>
-      game.name.toLowerCase().includes(lowercasedTerm) ||
-      game.players.some(player => player.name.toLowerCase().includes(lowercasedTerm))
+      game.name.toLowerCase().includes(lowercasedTerm)
     );
   }, [games, searchTerm]);
   
@@ -274,12 +304,14 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
 
   const getOpposingTeam = (playerTeamAbbr: string): string | null => {
       if (!selectedGame) return null;
-      const teams = selectedGame.name.split(' @ ');
       const playerTeamName = TEAM_ABBREVIATION_TO_NAME[playerTeamAbbr];
       if (!playerTeamName) return null;
+      
+      const opposingTeamName = selectedGame.name.includes(playerTeamName) 
+        ? (selectedGame.homeTeam?.fullName === playerTeamName ? selectedGame.awayTeam?.fullName : selectedGame.homeTeam?.fullName)
+        : null;
 
-      const opposingTeamName = teams.find(team => team !== playerTeamName);
-      return opposingTeamName || null;
+      return opposingTeamName ?? null;
   }
 
   const handleSaveParlay = () => {
@@ -296,6 +328,11 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
       setSavedParlays(prev => [newSave, ...prev]);
       alert("Parlay saved!");
     }
+  };
+
+  const handlePropCreated = (newLeg: ExtractedBetLeg) => {
+    setParlayLegs(prev => [...prev, newLeg]);
+    setIsCreatePropModalOpen(false);
   };
 
   const handleLoadParlay = (parlay: SavedParlay) => {
@@ -355,7 +392,7 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-500" />
              <input
                type="text"
-               placeholder="Search games or players..."
+               placeholder="Search games..."
                value={searchTerm}
                onChange={(e) => setSearchTerm(e.target.value)}
                className="w-full bg-gray-900 border border-gray-700 rounded-md pl-10 pr-4 py-2 text-gray-200 focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500"
@@ -389,24 +426,34 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
     if (!selectedPlayer) {
       return (
          <>
-            <div className='shrink-0'>
-                <button onClick={() => setSelectedGame(null)} className="flex items-center gap-1 text-sm text-cyan-400 mb-2 hover:underline">
-                    <ChevronLeftIcon className="h-4 w-4" /> Back to Games
-                </button>
+            <div className="shrink-0">
+                <div className="flex justify-between items-center mb-2">
+                    <button onClick={() => setSelectedGame(null)} className="flex items-center gap-1 text-sm text-cyan-400 hover:underline">
+                        <ChevronLeftIcon className="h-4 w-4" /> Back to Games
+                    </button>
+                    <button onClick={() => setIsCreatePropModalOpen(true)} className="flex items-center gap-1.5 text-sm text-cyan-400 bg-cyan-500/10 px-2 py-1 rounded-md hover:bg-cyan-500/20">
+                        <FilePlus2Icon className="h-4 w-4" />
+                        Create Prop
+                    </button>
+                </div>
                 <h3 className="font-semibold text-lg text-gray-200 mb-2">{selectedGame.name}</h3>
             </div>
-            <div className="space-y-2 flex-1 overflow-y-auto -mr-4 pr-4">
-                {selectedGame.players.map(player => (
-                    <button key={player.name} onClick={() => handleSelectPlayer(player)} disabled={player.injuryStatus?.status === 'O'} className="w-full text-left p-3 bg-gray-800 hover:bg-gray-700/70 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-between items-center">
-                        <span>{player.name} <span className="text-gray-400 text-xs">{player.position}</span></span>
-                        {player.injuryStatus?.status && (
-                            <span className={`text-xs font-bold px-1.5 py-0.5 rounded-md ${player.injuryStatus.status === 'Q' ? 'bg-yellow-500/20 text-yellow-300' : 'bg-red-500/20 text-red-400'}`}>
-                                {player.injuryStatus.status}
-                            </span>
-                        )}
-                    </button>
-                ))}
-            </div>
+            {isLoadingPlayers ? (
+                <div className="text-center p-4 flex-1">Loading players...</div>
+            ) : (
+                <div className="space-y-2 flex-1 overflow-y-auto -mr-4 pr-4">
+                    {playersInSelectedGame.map(player => (
+                        <button key={player.name} onClick={() => handleSelectPlayer(player)} disabled={player.injuryStatus?.status === 'O'} className="w-full text-left p-3 bg-gray-800 hover:bg-gray-700/70 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-between items-center">
+                            <span>{player.name} <span className="text-gray-400 text-xs">{player.position}</span></span>
+                            {player.injuryStatus?.status && (
+                                <span className={`text-xs font-bold px-1.5 py-0.5 rounded-md ${player.injuryStatus.status === 'Q' ? 'bg-yellow-500/20 text-yellow-300' : 'bg-red-500/20 text-red-400'}`}>
+                                    {player.injuryStatus.status}
+                                </span>
+                            )}
+                        </button>
+                    ))}
+                </div>
+            )}
         </>
       )
     }
@@ -844,6 +891,12 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
               </div>
           </div>
         )}
+
+        <CreatePropModal
+          isOpen={isCreatePropModalOpen}
+          onClose={() => setIsCreatePropModalOpen(false)}
+          onPropCreated={handlePropCreated}
+        />
 
       </div>
     </div>
