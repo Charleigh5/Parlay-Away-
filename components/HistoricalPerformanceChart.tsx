@@ -36,8 +36,7 @@ const HistoricalPerformanceChart: React.FC<HistoricalPerformanceChartProps> = ({
     const barSpacing = (width - paddingX * 2) / data.length * 0.3;
 
     return (
-        <div className="mt-4">
-            <h4 className="text-xs font-semibold text-gray-400 uppercase mb-2">Last 7 Games Performance</h4>
+        <>
             <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto" aria-label={`Chart of last 7 games performance for a prop with line ${selectedLine}`}>
                 {/* Y-axis labels */}
                 <text x={paddingX - 4} y={yScale(yMax * 0.9)} textAnchor="end" alignmentBaseline="middle" className="text-[8px] fill-gray-500">{Math.round(yMax * 0.9)}</text>
@@ -99,7 +98,7 @@ const HistoricalPerformanceChart: React.FC<HistoricalPerformanceChartProps> = ({
                 <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-sm bg-cyan-600/70"></div> Under</span>
                 <span className="flex items-center gap-1.5"><div className="w-3 h-px bg-yellow-400 border-yellow-400 border-t border-dashed"></div> Line</span>
             </div>
-        </div>
+        </>
     );
 };
 
