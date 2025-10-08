@@ -8,7 +8,7 @@ export interface KnowledgeModule {
 
 export interface SystemUpdate {
   id:string;
-  status: 'Pending Review' | 'Approved & Deployed' | 'Backtesting Failed';
+  status: 'Pending Review' | 'Approved & Deployed' | 'Backtesting Failed' | 'Rejected';
   featureName: string;
   description: string;
   integrationStrategy?: string;

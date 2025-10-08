@@ -128,6 +128,34 @@ export const proposeModelUpdate = async (): Promise<SystemUpdate> => {
   throw new Error("Failed to propose a model update. The AI core may be temporarily unavailable.");
 };
 
+export const sendUpdateFeedback = async (update: SystemUpdate, decision: 'accepted' | 'rejected'): Promise<void> => {
+  try {
+    const systemInstruction = `You are an expert in quantitative analysis and sports betting. You have previously proposed a feature update for the 'Project Synoptic Edge' platform. You are now receiving user feedback on that proposal. Your task is to acknowledge this feedback thoughtfully.`;
+
+    const decisionText = decision === 'accepted'
+      ? `The user has ACCEPTED your proposal. They found the feature '${update.featureName}' valuable. This is a positive signal, and similar innovative ideas are encouraged for future proposals.`
+      : `The user has REJECTED your proposal for the feature '${update.featureName}'. Please consider why this might have been rejected. Factors could include the perceived ROI, the complexity of the integration strategy, or the overall utility of the feature. Use this feedback to refine your next proposal to better align with user needs for high-impact, actionable analytical tools.`;
+
+    const query = `Feedback received on your proposal:\n\n${decisionText}\n\nAcknowledge this feedback and state that you will incorporate it into your future research and development cycles.`;
+
+    // Fire-and-forget. We don't need the response for anything in the UI.
+    await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: query,
+      config: {
+        systemInstruction,
+        temperature: 0.5,
+      }
+    });
+
+    console.log(`Feedback for update ${update.id} (${decision}) sent to AI.`);
+
+  } catch (error) {
+    console.error("Error sending update feedback to Gemini:", error);
+    // Don't throw, as this is a background task and shouldn't fail the UI action.
+  }
+};
+
 const extractedBetLegSchema = {
     type: Type.ARRAY,
     items: {

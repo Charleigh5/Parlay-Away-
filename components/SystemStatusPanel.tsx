@@ -1,11 +1,15 @@
 import React, { useState, useCallback } from 'react';
 import { SystemUpdate } from '../types';
-import { proposeModelUpdate } from '../services/geminiService';
+import { proposeModelUpdate, sendUpdateFeedback } from '../services/geminiService';
 import { ZapIcon } from './icons/ZapIcon';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { ClockIcon } from './icons/ClockIcon';
 import { RotateCwIcon } from './icons/RotateCwIcon';
 import { Settings2Icon } from './icons/Settings2Icon';
+import { XCircleIcon } from './icons/XCircleIcon';
+import { CheckIcon } from './icons/CheckIcon';
+import { XIcon } from './icons/XIcon';
+
 
 const SystemStatusPanel: React.FC = () => {
   const [updates, setUpdates] = useState<SystemUpdate[]>([]);
@@ -36,12 +40,24 @@ const SystemStatusPanel: React.FC = () => {
     }
   }, []);
 
+  const handleFeedback = (update: SystemUpdate, decision: 'accepted' | 'rejected') => {
+    // Fire-and-forget feedback
+    sendUpdateFeedback(update, decision);
+
+    const newStatus = decision === 'accepted' ? 'Approved & Deployed' : 'Rejected';
+    setUpdates(prev =>
+      prev.map(u => (u.id === update.id ? { ...u, status: newStatus } : u))
+    );
+  };
+
   const StatusIcon = ({ status }: { status: SystemUpdate['status'] }) => {
     switch (status) {
       case 'Approved & Deployed':
         return <CheckCircleIcon className="h-5 w-5 text-green-400" />;
       case 'Pending Review':
         return <ClockIcon className="h-5 w-5 text-yellow-400" />;
+      case 'Rejected':
+        return <XCircleIcon className="h-5 w-5 text-red-400" />;
       case 'Backtesting Failed':
         return <div className="h-5 w-5 text-red-400 font-bold flex items-center justify-center">X</div>;
       default:
@@ -55,6 +71,7 @@ const SystemStatusPanel: React.FC = () => {
         return 'border-green-500/30 bg-green-500/10';
       case 'Pending Review':
         return 'border-yellow-500/30 bg-yellow-500/10';
+      case 'Rejected':
       case 'Backtesting Failed':
         return 'border-red-500/30 bg-red-500/10';
       default:
@@ -125,6 +142,27 @@ const SystemStatusPanel: React.FC = () => {
                     <div className="text-yellow-400 font-semibold">{update.backtestResults.sharpeRatio.toFixed(2)}</div>
                 </div>
             </div>
+
+            {update.status === 'Pending Review' && (
+              <div className="mt-3 pt-3 border-t border-gray-700/50 flex justify-end gap-2">
+                <button
+                  onClick={() => handleFeedback(update, 'rejected')}
+                  className="flex items-center gap-1.5 px-3 py-1 text-xs rounded-md bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-red-400 transition-colors"
+                  aria-label="Reject update"
+                >
+                  <XIcon className="h-3.5 w-3.5" />
+                  Reject
+                </button>
+                <button
+                  onClick={() => handleFeedback(update, 'accepted')}
+                  className="flex items-center gap-1.5 px-3 py-1 text-xs rounded-md bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 transition-colors"
+                  aria-label="Accept update"
+                >
+                  <CheckIcon className="h-3.5 w-3.5" />
+                  Accept
+                </button>
+              </div>
+            )}
           </div>
         ))}
       </div>
