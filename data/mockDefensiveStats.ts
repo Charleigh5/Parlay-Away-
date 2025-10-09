@@ -1,8 +1,4 @@
-interface DefensiveStat {
-  value: number;
-  rank: number;
-  unit: string;
-}
+import { DefensiveStat } from '../types';
 
 // FIX: Redefined TeamDefensiveStats to properly type the `overall` property and other string-indexed stats.
 // The index signature now allows for either a `DefensiveStat` or the shape of the `overall` property,

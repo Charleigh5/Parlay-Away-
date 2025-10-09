@@ -186,3 +186,9 @@ export interface PropSelectionDetails {
   selectedLine: LineOdds;
   selectedPosition: 'Over' | 'Under';
 }
+
+export interface DefensiveStat {
+  value: number;
+  rank: number;
+  unit: string;
+}
