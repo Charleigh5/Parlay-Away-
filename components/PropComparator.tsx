@@ -10,6 +10,7 @@ import { BrainCircuitIcon } from './icons/BrainCircuitIcon';
 
 type Slot = 'A' | 'B';
 
+// PropSlot component to display individual prop information and analysis
 const PropSlot: React.FC<{
   prop: PropSelectionDetails | null;
   analysis: QuantitativeAnalysis | null;
@@ -17,6 +18,7 @@ const PropSlot: React.FC<{
   error: string | null;
   onSelect: () => void;
 }> = ({ prop, analysis, isLoading, error, onSelect }) => {
+  // Render the "Select Prop" button if no prop is selected
   if (!prop) {
     return (
       <button
@@ -35,6 +37,7 @@ const PropSlot: React.FC<{
   const { player, prop: propData, selectedLine, selectedPosition } = prop;
   const marketOdds = selectedPosition === 'Over' ? selectedLine.overOdds : selectedLine.underOdds;
 
+  // Render the detailed prop view with analysis
   return (
     <div className="flex h-full w-full flex-col rounded-xl border border-gray-700/80 bg-gray-900/40 p-6">
       <div className="flex-1">
@@ -76,21 +79,26 @@ const PropSlot: React.FC<{
   );
 };
 
+// Main PropComparator component
 const PropComparator: React.FC = () => {
+  // State for Prop A
   const [propA, setPropA] = useState<PropSelectionDetails | null>(null);
   const [analysisA, setAnalysisA] = useState<QuantitativeAnalysis | null>(null);
   const [isLoadingA, setIsLoadingA] = useState(false);
   const [errorA, setErrorA] = useState<string | null>(null);
 
+  // State for Prop B
   const [propB, setPropB] = useState<PropSelectionDetails | null>(null);
   const [analysisB, setAnalysisB] = useState<QuantitativeAnalysis | null>(null);
   const [isLoadingB, setIsLoadingB] = useState(false);
   const [errorB, setErrorB] = useState<string | null>(null);
 
+  // State for comparative analysis
   const [comparativeAnalysis, setComparativeAnalysis] = useState<string | null>(null);
   const [isComparativeLoading, setIsComparativeLoading] = useState(false);
   const [comparativeError, setComparativeError] = useState<string | null>(null);
 
+  // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeSlot, setActiveSlot] = useState<Slot | null>(null);
 
@@ -111,6 +119,7 @@ const PropComparator: React.FC = () => {
     const marketOdds = selectedPosition === 'Over' ? selectedLine.overOdds : selectedLine.underOdds;
     const query = `Analyze the prop bet: ${player.name} ${selectedPosition} ${selectedLine.line} ${prop.propType} at ${formatAmericanOdds(marketOdds)} odds.`;
 
+    // Process analysis for Slot A
     if (activeSlot === 'A') {
       setPropA(selection);
       setAnalysisA(null);
@@ -124,7 +133,9 @@ const PropComparator: React.FC = () => {
       } finally {
         setIsLoadingA(false);
       }
-    } else if (activeSlot === 'B') {
+    } 
+    // Process analysis for Slot B
+    else if (activeSlot === 'B') {
       setPropB(selection);
       setAnalysisB(null);
       setErrorB(null);
@@ -140,6 +151,7 @@ const PropComparator: React.FC = () => {
     }
   };
 
+  // Effect to run comparative analysis when both props have their analysis ready
   useEffect(() => {
     const runComparativeAnalysis = async () => {
       if (!propA || !analysisA || !propB || !analysisB) {
@@ -173,7 +185,9 @@ const PropComparator: React.FC = () => {
     runComparativeAnalysis();
   }, [propA, analysisA, propB, analysisB]);
   
+  // ArbiterPanel component to display the comparative verdict
   const ArbiterPanel = () => {
+      // Initial state before both props are selected
       if (!propA || !propB) {
           return (
             <div className="flex flex-col items-center justify-center text-center p-4">
@@ -184,6 +198,7 @@ const PropComparator: React.FC = () => {
           );
       }
 
+      // Loading state for the comparative analysis
       if (isComparativeLoading) {
           return (
               <div className="flex flex-col items-center justify-center text-center p-4">
@@ -197,6 +212,7 @@ const PropComparator: React.FC = () => {
           );
       }
 
+      // Error state for the comparative analysis
       if (comparativeError) {
           return (
               <div className="flex flex-col items-center justify-center text-center p-4 rounded-lg bg-red-500/10 border border-red-500/30">
@@ -206,6 +222,7 @@ const PropComparator: React.FC = () => {
           );
       }
 
+      // Success state with the AI's verdict
       if (comparativeAnalysis) {
         return (
             <div className="p-4 rounded-lg bg-gray-800/70 border border-gray-700/50 h-full flex flex-col">
@@ -216,11 +233,13 @@ const PropComparator: React.FC = () => {
               <div className="text-sm text-gray-300 overflow-y-auto prose prose-sm prose-invert max-w-none">
                 {comparativeAnalysis.split('\n').map((line, index) => {
                   const trimmedLine = line.trim();
+                  // Highlight the recommendation line
                   if (trimmedLine.startsWith('Recommendation:')) {
                     return (
                       <p key={index} className="font-bold text-cyan-300">{trimmedLine}</p>
                     );
                   }
+                  // Render paragraphs for each line, handling empty lines as breaks
                   return (
                     <p key={index}>{trimmedLine ? trimmedLine : <br/>}</p>
                   )
@@ -230,6 +249,7 @@ const PropComparator: React.FC = () => {
         )
       }
 
+      // State when both props are analyzed but comparison hasn't run/finished
       if (analysisA && analysisB) {
          return (
             <div className="flex flex-col items-center justify-center text-center p-4">
@@ -240,6 +260,7 @@ const PropComparator: React.FC = () => {
           );
       }
       
+      // Default state while waiting for one or both analyses
       return (
          <div className="flex flex-col items-center justify-center text-center p-4">
            <div className="text-5xl font-black text-gray-700/50">VS</div>

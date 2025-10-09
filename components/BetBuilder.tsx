@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { ExtractedBetLeg, Game, Player, PlayerProp, LineOdds, SavedParlay, ParlayCorrelationAnalysis, AnalysisResponse, MarketAnalysis } from '../types';
 import { calculateParlayOdds, formatAmericanOdds, normalCdf, calculateSingleLegEV } from '../utils';
@@ -49,6 +50,32 @@ const propTypeToDefensiveStatKey: Record<string, string | { position: string, ke
     'Receptions': { position: 'WR', key: 'vsWR' }, // Can map to same as yards
     'Sacks': 'Sacks',
     'Tackles + Assists': 'Tackles + Assists',
+};
+
+const getScoreGradient = (score: number) => {
+    const positiveColor = [96, 234, 155]; // text-green-400
+    const neutralColor = [156, 163, 175]; // text-gray-400
+    const negativeColor = [248, 113, 113]; // text-red-400
+
+    let r, g, b;
+    if (score >= 0) {
+        r = Math.round(neutralColor[0] + (positiveColor[0] - neutralColor[0]) * score);
+        g = Math.round(neutralColor[1] + (positiveColor[1] - neutralColor[1]) * score);
+        b = Math.round(neutralColor[2] + (positiveColor[2] - neutralColor[2]) * score);
+    } else {
+        r = Math.round(neutralColor[0] + (negativeColor[0] - neutralColor[0]) * -score);
+        g = Math.round(neutralColor[1] + (negativeColor[1] - neutralColor[1]) * -score);
+        b = Math.round(neutralColor[2] + (negativeColor[2] - neutralColor[2]) * -score);
+    }
+    return `rgb(${r}, ${g}, ${b})`;
+}
+
+const getRelationshipColor = (relationship: 'Positive' | 'Negative' | 'Neutral') => {
+    switch (relationship) {
+        case 'Positive': return 'text-green-400';
+        case 'Negative': return 'text-red-400';
+        default: return 'text-gray-400';
+    }
 };
 
 const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
@@ -347,32 +374,6 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
       setSavedParlays(prev => prev.filter(p => p.id !== id));
     }
   };
-  
-    const getScoreGradient = (score: number) => {
-        const positiveColor = [96, 234, 155]; // text-green-400
-        const neutralColor = [156, 163, 175]; // text-gray-400
-        const negativeColor = [248, 113, 113]; // text-red-400
-
-        let r, g, b;
-        if (score >= 0) {
-            r = Math.round(neutralColor[0] + (positiveColor[0] - neutralColor[0]) * score);
-            g = Math.round(neutralColor[1] + (positiveColor[1] - neutralColor[1]) * score);
-            b = Math.round(neutralColor[2] + (positiveColor[2] - neutralColor[2]) * score);
-        } else {
-            r = Math.round(neutralColor[0] + (negativeColor[0] - neutralColor[0]) * -score);
-            g = Math.round(neutralColor[1] + (negativeColor[1] - neutralColor[1]) * -score);
-            b = Math.round(neutralColor[2] + (negativeColor[2] - neutralColor[2]) * -score);
-        }
-        return `rgb(${r}, ${g}, ${b})`;
-    }
-
-    const getRelationshipColor = (relationship: 'Positive' | 'Negative' | 'Neutral') => {
-        switch (relationship) {
-            case 'Positive': return 'text-green-400';
-            case 'Negative': return 'text-red-400';
-            default: return 'text-gray-400';
-        }
-    };
 
     const formatDateForDisplay = (dateString: string) => {
         const date = new Date(dateString + 'T00:00:00'); // Treat as local time
@@ -510,6 +511,10 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                     const overEv = lineAnalysis?.overEV;
                     const underEv = lineAnalysis?.underEV;
 
+                    const optimalBet = marketAnalysis?.optimalBet;
+                    const isOptimalOver = optimalBet?.line === line.line && optimalBet?.position === 'Over';
+                    const isOptimalUnder = optimalBet?.line === line.line && optimalBet?.position === 'Under';
+
                     const renderEv = (ev: number | undefined) => {
                         if (ev === undefined) return <div className="h-4"></div>; // Placeholder for alignment
                         const color = ev > 0 ? 'text-green-400' : 'text-red-400';
@@ -521,7 +526,8 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                     return (
                         <div key={line.line} className="grid grid-cols-11 gap-2 items-center p-2 bg-gray-800 rounded-md">
                             <div className="col-span-4 text-center">
-                                <button onClick={() => handleAddLeg(line, 'Over')} className="w-full p-2 text-sm rounded-md bg-gray-700/50 hover:bg-gray-700 transition-colors disabled:opacity-50" disabled={isPropAnalysisLoading}>
+                                <button onClick={() => handleAddLeg(line, 'Over')} className={`relative w-full p-2 text-sm rounded-md bg-gray-700/50 hover:bg-gray-700 transition-colors disabled:opacity-50 ${isOptimalOver ? 'ring-2 ring-offset-2 ring-offset-gray-800 ring-yellow-400' : ''}`} disabled={isPropAnalysisLoading}>
+                                    {isOptimalOver && <SparklesIcon className="absolute top-1 right-1 h-3.5 w-3.5 text-yellow-300" />}
                                     <div>Over</div>
                                     <div className="font-semibold">{formatAmericanOdds(line.overOdds)}</div>
                                     {renderEv(overEv)}
@@ -531,7 +537,8 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                                 <div className="text-lg font-bold text-gray-200">{line.line}</div>
                             </div>
                             <div className="col-span-4 text-center">
-                                 <button onClick={() => handleAddLeg(line, 'Under')} className="w-full p-2 text-sm rounded-md bg-gray-700/50 hover:bg-gray-700 transition-colors disabled:opacity-50" disabled={isPropAnalysisLoading}>
+                                 <button onClick={() => handleAddLeg(line, 'Under')} className={`relative w-full p-2 text-sm rounded-md bg-gray-700/50 hover:bg-gray-700 transition-colors disabled:opacity-50 ${isOptimalUnder ? 'ring-2 ring-offset-2 ring-offset-gray-800 ring-yellow-400' : ''}`} disabled={isPropAnalysisLoading}>
+                                    {isOptimalUnder && <SparklesIcon className="absolute top-1 right-1 h-3.5 w-3.5 text-yellow-300" />}
                                     <div>Under</div>
                                     <div className="font-semibold">{formatAmericanOdds(line.underOdds)}</div>
                                     {renderEv(underEv)}
@@ -607,297 +614,50 @@ const BetBuilder: React.FC<BetBuilderProps> = ({ onAnalyze, onBack }) => {
                         <div className="space-y-2 animate-fade-in">
                             {draftKingsOdds.lines.map((line) => (
                                 <div key={line.line} className="grid grid-cols-11 gap-2 items-center p-2 bg-gray-800 rounded-md text-sm">
-                                    <div className="col-span-4 text-center font-semibold text-gray-300">
-                                        {formatAmericanOdds(line.overOdds)}
-                                    </div>
-                                    <div className="col-span-3 text-center">
-                                        <div className="text-lg font-bold text-gray-200">{line.line}</div>
-                                    </div>
-                                    <div className="col-span-4 text-center font-semibold text-gray-300">
-                                        {formatAmericanOdds(line.underOdds)}
-                                    </div>
+                                    <div className="col-span-4 text-center font-semibold">{formatAmericanOdds(line.overOdds)}</div>
+                                    <div className="col-span-3 text-center text-gray-200 font-bold">{line.line}</div>
+                                    <div className="col-span-4 text-center font-semibold">{formatAmericanOdds(line.underOdds)}</div>
                                 </div>
                             ))}
                         </div>
                     )}
                 </div>
+             )}
+
+            {/* Historical Performance Panel */}
+            {selectedProp.historicalContext && selectedProp.historicalContext.gameLog && (
+                 <div className="my-4 p-3 rounded-lg border border-gray-700/50 bg-gray-800/80">
+                    <button onClick={() => togglePanel('historical')} className="w-full flex justify-between items-center text-left mb-2">
+                        <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-300">
+                            <TrendingUpIcon className="h-4 w-4 text-cyan-400" /> Historical Performance
+                        </h4>
+                        <ChevronDownIcon className={`h-5 w-5 text-gray-400 transition-transform ${collapsedPanels.historical ? '' : 'rotate-180'}`} />
+                    </button>
+                    {!collapsedPanels.historical && (
+                        <div className="animate-fade-in">
+                            <HistoricalPerformanceChart 
+                                gameLog={selectedProp.historicalContext.gameLog}
+                                selectedLine={selectedProp.lines[0].line}
+                                seasonAvg={selectedProp.historicalContext.seasonAvg || null}
+                                last5Avg={selectedProp.historicalContext.last5Avg || null}
+                            />
+                        </div>
+                    )}
+                </div>
             )}
 
-
-            {/* Other Contextual Data Panels */}
-            <div className="mt-4 space-y-3 text-sm">
-                {selectedProp.historicalContext?.gameLog && (
-                    <div className="p-3 rounded-lg border border-gray-700/50 bg-gray-800/80">
-                        <button onClick={() => togglePanel('historical')} className="w-full flex justify-between items-center text-left">
-                            <h4 className="text-xs font-semibold text-gray-400 uppercase">Last 7 Games Performance</h4>
-                            <ChevronDownIcon className={`h-4 w-4 text-gray-400 transition-transform ${collapsedPanels.historical ? '' : 'rotate-180'}`} />
-                        </button>
-                        {!collapsedPanels.historical && (
-                            <div className="animate-fade-in pt-2">
-                                <HistoricalPerformanceChart
-                                    gameLog={selectedProp.historicalContext.gameLog}
-                                    selectedLine={selectedProp.lines[Math.floor(selectedProp.lines.length / 2)].line}
-                                    seasonAvg={selectedProp.historicalContext.seasonAvg}
-                                    last5Avg={selectedProp.historicalContext.last5Avg}
-                                />
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {advancedStats && advancedStats.length > 0 && (
-                    <div className="p-3 rounded-lg border border-gray-700/50 bg-gray-800/80">
-                        <button onClick={() => togglePanel('advanced')} className="w-full flex justify-between items-center text-left">
-                            <h4 className="flex items-center gap-2 text-xs font-semibold uppercase text-gray-400">
-                                <TrendingUpIcon className="h-4 w-4 text-cyan-400" /> Advanced Metrics
-                            </h4>
-                            <ChevronDownIcon className={`h-4 w-4 text-gray-400 transition-transform ${collapsedPanels.advanced ? '' : 'rotate-180'}`} />
-                        </button>
-                        {!collapsedPanels.advanced && (
-                            <div className="space-y-2 animate-fade-in mt-2">
-                                {advancedStats.map(stat => (
-                                    <div key={stat.abbreviation} className="group relative">
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-gray-300">{stat.abbreviation}</span>
-                                            <span className="font-mono text-cyan-300">{stat.value}</span>
-                                        </div>
-                                        <div className="relative h-1.5 bg-gray-700 rounded-full mt-1">
-                                            <div className="absolute h-1.5 bg-cyan-500 rounded-full" style={{ width: `${stat.percentile}%` }}></div>
-                                        </div>
-                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-60 p-2 bg-gray-950 text-xs text-gray-300 border border-gray-700 rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                                            <p className="font-bold text-cyan-300">{stat.name}</p>
-                                            <p>{stat.description} Ranks #{stat.rank} ({stat.percentile}th percentile).</p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {selectedPlayer.injuryStatus && (
-                    <div className="p-3 rounded-lg border border-gray-700/50 bg-gray-800/80">
-                        <button onClick={() => togglePanel('injury')} className="w-full flex justify-between items-center text-left">
-                            <h4 className="flex items-center gap-2 text-xs font-semibold uppercase text-gray-400">
-                                <StethoscopeIcon className="h-4 w-4 text-cyan-400" /> Injury Analysis
-                            </h4>
-                            <ChevronDownIcon className={`h-4 w-4 text-gray-400 transition-transform ${collapsedPanels.injury ? '' : 'rotate-180'}`} />
-                        </button>
-                        {!collapsedPanels.injury && (
-                            <div className="animate-fade-in mt-2">
-                                <p className="text-gray-300"><strong className={`font-bold ${selectedPlayer.injuryStatus.status === 'Q' ? 'text-yellow-300' : 'text-red-400'}`}>{selectedPlayer.injuryStatus.status === 'Q' ? 'Questionable' : 'Out'}:</strong> {selectedPlayer.injuryStatus.news}</p>
-                                <p className="text-gray-400 italic mt-1 text-xs"><strong>Impact:</strong> {selectedPlayer.injuryStatus.impact}</p>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {relevantDefensiveStat && (
-                    <div className="p-3 rounded-lg border border-gray-700/50 bg-gray-800/80">
-                         <button onClick={() => togglePanel('matchup')} className="w-full flex justify-between items-center text-left">
-                            <h4 className="flex items-center gap-2 text-xs font-semibold uppercase text-gray-400">
-                                <ShieldIcon className="h-4 w-4 text-cyan-400" /> Defensive Matchup ({TEAM_NAME_TO_ABBREVIATION[opposingTeamName!] || opposingTeamName})
-                            </h4>
-                            <ChevronDownIcon className={`h-4 w-4 text-gray-400 transition-transform ${collapsedPanels.matchup ? '' : 'rotate-180'}`} />
-                        </button>
-                        {!collapsedPanels.matchup && (
-                            <div className="animate-fade-in mt-2">
-                                <div className="flex justify-between items-center">
-                                    <span className="text-gray-300">Allowed {relevantDefensiveStat.unit}</span>
-                                    <span className="font-mono text-cyan-300">{relevantDefensiveStat.value.toFixed(1)}</span>
-                                </div>
-                                <div className="flex justify-between items-center mt-1">
-                                    <span className="text-gray-300">League Rank</span>
-                                    <span className="font-mono text-cyan-300">#{relevantDefensiveStat.rank}</span>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
-                
-                {selectedPlayer.homeAwaySplits && (
-                    <div className="p-3 rounded-lg border border-gray-700/50 bg-gray-800/80">
-                         <button onClick={() => togglePanel('splits')} className="w-full flex justify-between items-center text-left">
-                            <h4 className="flex items-center gap-2 text-xs font-semibold uppercase text-gray-400">Performance Splits</h4>
-                            <ChevronDownIcon className={`h-4 w-4 text-gray-400 transition-transform ${collapsedPanels.splits ? '' : 'rotate-180'}`} />
-                        </button>
-                        {!collapsedPanels.splits && (
-                             <div className="space-y-1 animate-fade-in mt-2">
-                                <div className="flex items-center gap-2 text-gray-300"><HomeIcon className="h-4 w-4" /> <span>Home: <span className="font-mono text-gray-200">{selectedPlayer.homeAwaySplits.home[selectedProp.propType]?.toFixed(1)}</span></span></div>
-                                <div className="flex items-center gap-2 text-gray-300"><PlaneIcon className="h-4 w-4" /> <span>Away: <span className="font-mono text-gray-200">{selectedPlayer.homeAwaySplits.away[selectedProp.propType]?.toFixed(1)}</span></span></div>
-                                {selectedPlayer.divisionalSplits?.[selectedProp.propType] && (
-                                    <div className="flex items-center gap-2 text-gray-300"><SwordsIcon className="h-4 w-4" /> <span>Divisional: <span className="font-mono text-gray-200">{selectedPlayer.divisionalSplits[selectedProp.propType]?.toFixed(1)}</span></span></div>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-  }
-
-  return (
-    <div className="flex h-full w-full">
-      {/* Left Panel: Game/Player/Prop Selection */}
-      <div className="w-full md:w-1/2 lg:w-2/5 p-4 border-r border-gray-700/50 flex flex-col">
-        {renderSelectionPanel()}
-      </div>
-
-      {/* Right Panel: Parlay Slip */}
-      <div className="hidden md:flex flex-col w-1/2 lg:w-3/5 bg-gray-900/30 relative">
-        <div className="p-4 border-b border-gray-700/50">
-            <div className="flex justify-between items-center">
-                <h2 className="text-xl font-semibold text-gray-200">Parlay Slip</h2>
-                <div className="flex items-center gap-2">
-                    <button onClick={handleSaveParlay} disabled={parlayLegs.length === 0} className="p-2 rounded-md text-gray-400 hover:text-cyan-400 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors" aria-label="Save parlay">
-                        <SaveIcon className="h-5 w-5" />
+            {/* Advanced Stats Panel */}
+            {advancedStats && (
+                <div className="my-4 p-3 rounded-lg border border-gray-700/50 bg-gray-800/80">
+                    <button onClick={() => togglePanel('advanced')} className="w-full flex justify-between items-center text-left mb-2">
+                        <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-300">
+                            <SparklesIcon className="h-4 w-4 text-cyan-400" /> Advanced Metrics
+                        </h4>
+                        <ChevronDownIcon className={`h-5 w-5 text-gray-400 transition-transform ${collapsedPanels.advanced ? '' : 'rotate-180'}`} />
                     </button>
-                    <button onClick={() => setIsLoadModalOpen(true)} className="p-2 rounded-md text-gray-400 hover:text-cyan-400 hover:bg-gray-700 transition-colors" aria-label="Load parlay">
-                        <FolderOpenIcon className="h-5 w-5" />
-                    </button>
-                </div>
-            </div>
-          <div className="mt-2 text-sm text-gray-400">Total Odds: <span className="font-mono text-lg font-bold text-cyan-300">{formatAmericanOdds(parlayOdds)}</span></div>
-        </div>
-        
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {parlayLegs.length === 0 ? (
-            <div className="text-center text-gray-500 pt-10">Add selections to build your parlay.</div>
-          ) : (
-            parlayLegs.map((leg, index) => (
-              <div key={index} className="p-3 bg-gray-800/70 rounded-md flex justify-between items-center animate-fade-in">
-                <div>
-                  <p className="font-semibold text-gray-200">{leg.player}</p>
-                  <p className="text-sm text-gray-400">{`${leg.position} ${leg.line} ${leg.propType}`}</p>
-                </div>
-                <div className="flex items-center gap-4">
-                    <span className="font-mono text-gray-300">{formatAmericanOdds(leg.marketOdds)}</span>
-                    <button onClick={() => handleRemoveLeg(index)} className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors">
-                        <Trash2Icon className="h-4 w-4" />
-                    </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-        
-        {/* Correlation Analysis Section */}
-        {parlayLegs.length >= 2 && (
-             <div className="p-4 border-t border-gray-700/50">
-                 <button 
-                    onClick={() => setIsCorrelationVisible(!isCorrelationVisible)} 
-                    className="w-full flex justify-between items-center text-left text-gray-300 hover:text-cyan-300 transition-colors"
-                    aria-expanded={isCorrelationVisible}
-                    aria-controls="correlation-analysis-panel"
-                 >
-                    <div className="flex items-center gap-2">
-                         <LinkIcon className="h-5 w-5" />
-                         <span className="font-semibold" id="correlation-analysis-heading">Correlation Analysis</span>
-                    </div>
-                    <ChevronDownIcon className={`h-5 w-5 transition-transform ${isCorrelationVisible ? 'rotate-180' : ''}`} />
-                 </button>
-                 {isCorrelationVisible && (
-                     <div id="correlation-analysis-panel" className="mt-3 animate-fade-in" role="region" aria-labelledby="correlation-analysis-heading">
-                        {!correlationAnalysis && !isCorrelationLoading && !correlationError && (
-                             <button onClick={handleAnalyzeCorrelation} className="w-full flex items-center justify-center gap-2 rounded-md bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-300 transition-colors hover:bg-cyan-500/20">
-                                 <SparklesIcon className="h-4 w-4" /> Analyze Correlation
-                             </button>
-                        )}
-                        {isCorrelationLoading && <div className="text-center text-sm text-gray-400 p-2" role="status" aria-live="polite">Analyzing...</div>}
-                        {correlationError && <div className="text-center text-sm text-red-400 p-2 bg-red-500/10 rounded-md" role="alert">{correlationError}</div>}
-                        {correlationAnalysis && (
-                            <div className="space-y-3">
-                                <div className="flex justify-between items-center p-3 bg-gray-800 rounded-md">
-                                    <div>
-                                        <div className="text-xs text-gray-400">Overall Score</div>
-                                        <div className="text-lg font-bold" style={{ color: getScoreGradient(correlationAnalysis.overallScore) }}>
-                                            {correlationAnalysis.overallScore.toFixed(2)}
-                                        </div>
-                                    </div>
-                                    <button onClick={handleAnalyzeCorrelation} className="p-1.5 rounded-md text-gray-400 hover:text-cyan-400 hover:bg-gray-700" aria-label="Re-analyze correlation">
-                                        <RotateCwIcon className={`h-4 w-4 ${isCorrelationLoading ? 'animate-spin' : ''}`} />
-                                    </button>
-                                </div>
-                                <p className="text-xs text-gray-400 italic p-2 bg-gray-800 rounded-md">{correlationAnalysis.summary}</p>
-                                <div className="text-xs space-y-1.5 max-h-40 overflow-y-auto pr-2">
-                                    {correlationAnalysis.analysis.map((detail, index) => {
-                                        const leg1 = parlayLegs[detail.leg1Index];
-                                        const leg2 = parlayLegs[detail.leg2Index];
-                                        return (
-                                            <div key={index} className="p-2 bg-gray-950/60 rounded">
-                                                <div className={`font-semibold mb-1 text-sm ${getRelationshipColor(detail.relationship)}`}>
-                                                    {detail.relationship}
-                                                </div>
-                                                <p className="text-gray-400">
-                                                    {leg1.player} ({leg1.propType}) &amp; {leg2.player} ({leg2.propType})
-                                                </p>
-                                                <p className="text-gray-500 italic mt-1">{detail.explanation}</p>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        )}
-                     </div>
-                 )}
-            </div>
-        )}
-        
-        <div className="p-4 border-t border-gray-700/50">
-          <button 
-            onClick={handleAnalyzeClick} 
-            disabled={parlayLegs.length === 0}
-            className="w-full flex items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-cyan-600 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <SendIcon className="h-5 w-5" />
-            Analyze {parlayLegs.length > 0 ? `${parlayLegs.length} Leg Parlay` : 'Parlay'}
-          </button>
-        </div>
-
-        {isLoadModalOpen && (
-          <div className="absolute inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-20" onClick={() => setIsLoadModalOpen(false)}>
-              <div className="w-full max-w-lg bg-gray-800 border border-gray-700 rounded-lg shadow-xl m-4" onClick={e => e.stopPropagation()}>
-                  <div className="p-4 border-b border-gray-700 flex justify-between items-center">
-                      <h3 className="text-lg font-semibold text-gray-200">Load Saved Parlay</h3>
-                      <button onClick={() => setIsLoadModalOpen(false)} className="p-1 rounded-md text-gray-400 hover:text-white hover:bg-gray-600">
-                        <XIcon className="h-5 w-5" />
-                      </button>
-                  </div>
-                  <div className="p-4 max-h-[60vh] overflow-y-auto">
-                      {savedParlays.length === 0 ? (
-                          <p className="text-center text-gray-500 py-10">You have no saved parlays.</p>
-                      ) : (
-                          <div className="space-y-2">
-                              {savedParlays.map(parlay => (
-                                  <div key={parlay.id} className="group p-3 bg-gray-900/70 rounded-md flex justify-between items-center">
-                                      <div>
-                                          <p className="font-semibold text-gray-200">{parlay.name}</p>
-                                          <p className="text-sm text-gray-400">{parlay.legs.length} legs &bull; <span className="font-mono">{formatAmericanOdds(parlay.odds)}</span></p>
-                                          <p className="text-xs text-gray-500">Saved: {new Date(parlay.createdAt).toLocaleDateString()}</p>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                          <button onClick={() => handleLoadParlay(parlay)} className="px-3 py-1.5 text-sm rounded-md bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 transition-colors">Load</button>
-                                          <button onClick={() => handleDeleteSavedParlay(parlay.id)} className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors opacity-0 group-hover:opacity-100">
-                                              <Trash2Icon className="h-4 w-4" />
-                                          </button>
-                                      </div>
-                                  </div>
-                              ))}
-                          </div>
-                      )}
-                  </div>
-              </div>
-          </div>
-        )}
-        <CreatePropModal 
-            isOpen={isCreatePropModalOpen}
-            onClose={() => setIsCreatePropModalOpen(false)}
-            onPropCreated={handlePropCreated}
-        />
-      </div>
-    </div>
-  );
-};
-
-export default BetBuilder;
+                    {!collapsedPanels.advanced && (
+                        <div className="space-y-3 animate-fade-in">
+                            {advancedStats.map(stat => (
+                                <div key={stat.abbreviation} className="group relative">
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="
