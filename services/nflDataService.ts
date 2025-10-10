@@ -25,7 +25,7 @@ const getMockSchedule = (): Game[] => {
             id: game.id,
             name: game.name,
             date: game.date,
-            // Per the spec, the schedule endpoint does NOT return players, only team info.
+            players: [], // Per spec, schedule doesn't have players
             // Mocking the additional fields from the spec.
             gameId: game.id, 
             status: "scheduled",

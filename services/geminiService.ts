@@ -56,7 +56,8 @@ export const getAnalysis = async (query: string): Promise<AnalysisResponse> => {
       }
     });
 
-    const jsonText = response.text.trim();
+    // Fix: Access the text property directly from the response.
+    const jsonText = response.text;
     return JSON.parse(jsonText);
   } catch (error) {
     console.error("Error fetching analysis from Gemini:", error);
@@ -105,7 +106,8 @@ export const proposeModelUpdate = async (): Promise<SystemUpdate> => {
           }
       });
 
-      const jsonText = response.text.trim();
+      // Fix: Access the text property directly from the response.
+      const jsonText = response.text;
       if (!jsonText) {
         throw new Error("AI returned an empty response for model update proposal.");
       }
@@ -188,7 +190,8 @@ export const extractBetsFromImage = async (imageData: { data: string, mimeType: 
             }
         });
 
-        const jsonText = response.text.trim();
+        // Fix: Access the text property directly from the response.
+        const jsonText = response.text;
         return JSON.parse(jsonText);
     } catch (error) {
         console.error("Error extracting bets from image with Gemini:", error);
@@ -257,7 +260,8 @@ export const analyzeParlayCorrelation = async (legs: ExtractedBetLeg[]): Promise
             }
         });
 
-        const jsonText = response.text.trim();
+        // Fix: Access the text property directly from the response.
+        const jsonText = response.text;
         return JSON.parse(jsonText);
     } catch (error) {
         console.error("Error analyzing parlay correlation with Gemini:", error);
@@ -288,7 +292,8 @@ export const getComparativeAnalysis = async (
       }
     });
 
-    return response.text.trim();
+    // Fix: Access the text property directly from the response.
+    return response.text;
   } catch (error) {
     console.error("Error fetching comparative analysis from Gemini:", error);
     throw new Error("Failed to get comparative analysis.");

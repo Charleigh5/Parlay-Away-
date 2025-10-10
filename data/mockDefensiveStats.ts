@@ -1,13 +1,4 @@
-import { DefensiveStat } from '../types';
-
-// FIX: Redefined TeamDefensiveStats to properly type the `overall` property and other string-indexed stats.
-// The index signature now allows for either a `DefensiveStat` or the shape of the `overall` property,
-// resolving the original type conflict. This is consistent with usage in BetBuilder.tsx where
-// a type guard is used to differentiate between stat types.
-interface TeamDefensiveStats {
-  overall: { rank: number };
-  [propType: string]: DefensiveStat | { rank: number };
-}
+import { DefensiveStat, TeamDefensiveStats } from '../types';
 
 export const TEAM_ABBREVIATION_TO_NAME: Record<string, string> = {
     'KC': 'Kansas City Chiefs',

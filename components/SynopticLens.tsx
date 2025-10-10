@@ -1,236 +1,158 @@
-import React, { useState, useEffect } from 'react';
-import { AnalyzedBetLeg, ExtractedBetLeg } from '../types';
-import { getAnalysis } from '../services/geminiService';
-import ImageUpload from './ImageUpload';
-import AnalysisTable from './AnalysisTable';
-import { AlertTriangleIcon } from './icons/AlertTriangleIcon';
-import { XIcon } from './icons/XIcon';
-import BetBuilder from './BetBuilder';
-import { FileUpIcon } from './icons/FileUpIcon';
-import { FilePlusIcon } from './icons/FilePlusIcon';
 
+import React, { useState } from 'react';
+import { PropSelectionDetails, MarketAnalysis, DeepAnalysisResult } from '../types';
+import { getMarketAnalysis, getDeepAnalysis } from '../services/betAnalysisService';
+import PropSelectorModal from './PropSelectorModal';
+import MarketAnalysisChart from './MarketAnalysisChart';
+import HistoricalPerformanceChart from './HistoricalPerformanceChart';
+import DeepAnalysisDrilldown from './DeepAnalysisDrilldown';
+import { TestTubeIcon } from './icons/TestTubeIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { formatAmericanOdds } from '../utils';
 
 const SynopticLens: React.FC = () => {
-  const [analyzedLegs, setAnalyzedLegs] = useState<AnalyzedBetLeg[] | null>(null);
-  const [originalLegs, setOriginalLegs] = useState<ExtractedBetLeg[] | null>(null);
-  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
-  const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [loadingMessage, setLoadingMessage] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [analysisErrors, setAnalysisErrors] = useState<{ leg: ExtractedBetLeg; reason: string }[] | null>(null);
-  const [mode, setMode] = useState<'home' | 'upload' | 'build'>('home');
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [selectedProp, setSelectedProp] = useState<PropSelectionDetails | null>(null);
 
-  useEffect(() => {
-    // Clean up the object URL when the component unmounts or the URL changes
-    return () => {
-      if (uploadedImageUrl) {
-        URL.revokeObjectURL(uploadedImageUrl);
-      }
-    };
-  }, [uploadedImageUrl]);
+    const [marketAnalysis, setMarketAnalysis] = useState<MarketAnalysis | null>(null);
+    const [isMarketLoading, setIsMarketLoading] = useState(false);
+    const [marketError, setMarketError] = useState<string | null>(null);
 
-  const runAnalysisOnLegs = async (legs: ExtractedBetLeg[]) => {
-    if (legs.length === 0) {
-      setError("The bet slip is empty. Please add at least one leg to analyze.");
-      return;
-    }
-    
-    setIsLoading(true);
-    setError(null);
-    setAnalysisErrors(null);
-    setAnalyzedLegs(null);
+    const [deepAnalysis, setDeepAnalysis] = useState<DeepAnalysisResult | null>(null);
+    const [isDeepLoading, setIsDeepLoading] = useState(false);
+    const [deepError, setDeepError] = useState<string | null>(null);
 
-    try {
-      setLoadingMessage(`Analyzing ${legs.length} bet leg(s)...`);
-      const analysisPromises = legs.map(async (leg) => {
-        const query = `Analyze the prop bet: ${leg.player} ${leg.position} ${leg.line} ${leg.propType} at ${leg.marketOdds} odds.`;
-        const analysis = await getAnalysis(query);
-        return { ...leg, analysis };
-      });
+    const handlePropSelected = async (selection: PropSelectionDetails) => {
+        setIsModalOpen(false);
+        setSelectedProp(selection);
 
-      const settledResults = await Promise.allSettled(analysisPromises);
-      
-      const successfulAnalyses: AnalyzedBetLeg[] = [];
-      const failedAnalyses: { leg: ExtractedBetLeg; reason: string }[] = [];
-      settledResults.forEach((result, index) => {
-        if (result.status === 'fulfilled') {
-          successfulAnalyses.push(result.value);
+        // Reset analyses
+        setMarketAnalysis(null);
+        setDeepAnalysis(null);
+        setMarketError(null);
+        setDeepError(null);
+
+        // Fetch market analysis
+        setIsMarketLoading(true);
+        const marketResponse = await getMarketAnalysis(selection);
+        if (marketResponse.data) {
+            setMarketAnalysis(marketResponse.data);
         } else {
-          const leg = legs[index];
-          const reason = result.reason instanceof Error ? result.reason.message : 'Unknown analysis error.';
-          failedAnalyses.push({ leg, reason });
-          console.error(`Failed to analyze leg: ${leg.player} ${leg.propType}`, result.reason);
+            setMarketError(marketResponse.error || 'Failed to fetch market analysis.');
         }
-      });
+        setIsMarketLoading(false);
+    };
 
-      if (successfulAnalyses.length === 0 && failedAnalyses.length > 0) {
-        const reason = failedAnalyses[0].reason || "All legs failed to analyze due to an unknown issue.";
-        throw new Error(`Analysis failed for all legs. The first error was: "${reason}"`);
-      }
+    const handleRunDeepAnalysis = async () => {
+        if (!selectedProp) return;
+        setIsDeepLoading(true);
+        setDeepError(null);
+        const deepResponse = await getDeepAnalysis(selectedProp);
+        if (deepResponse.data) {
+            setDeepAnalysis(deepResponse.data);
+        } else {
+            setDeepError(deepResponse.error || 'Failed to perform deep analysis.');
+        }
+        setIsDeepLoading(false);
+    };
 
-      setAnalyzedLegs(successfulAnalyses);
-      setAnalysisErrors(failedAnalyses.length > 0 ? failedAnalyses : null);
-
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred during analysis.';
-      setError(errorMessage);
-    } finally {
-      setIsLoading(false);
-      setLoadingMessage('');
-    }
-  };
-  
-  const handleImageUpload = async (file: File) => {
-    setIsLoading(true);
-    setError(null);
-    setAnalyzedLegs(null);
-    setAnalysisErrors(null);
-    setOriginalLegs(null);
-    if (uploadedImageUrl) {
-      URL.revokeObjectURL(uploadedImageUrl);
-    }
-    setUploadedImageUrl(URL.createObjectURL(file));
-    setLoadingMessage('Extracting bet data from image...');
-
-    try {
-      const { fileToBase64 } = await import('../utils');
-      const base64Image = await fileToBase64(file);
-      const { extractBetsFromImage } = await import('../services/geminiService');
-      const extractedLegs = await extractBetsFromImage({
-        data: base64Image,
-        mimeType: file.type,
-      });
-
-      setOriginalLegs(extractedLegs);
-
-      if (extractedLegs.length === 0) {
-        throw new Error("No valid bet legs could be extracted from the image. Please check the screenshot quality.");
-      }
-
-      await runAnalysisOnLegs(extractedLegs);
-
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred during analysis.';
-      setError(errorMessage);
-    } finally {
-      setIsLoading(false);
-      setLoadingMessage('');
-    }
-  };
-
-  const handleReset = () => {
-    setAnalyzedLegs(null);
-    setError(null);
-    setAnalysisErrors(null);
-    setIsLoading(false);
-    setOriginalLegs(null);
-    if (uploadedImageUrl) {
-      URL.revokeObjectURL(uploadedImageUrl);
-    }
-    setUploadedImageUrl(null);
-    setIsImageViewerOpen(false);
-    setMode('home');
-  };
-
-  const renderContent = () => {
-    if (isLoading) {
-      return (
-        <div className="flex flex-col items-center justify-center h-full text-center p-4 md:p-8">
-            <div className="flex items-center gap-3 rounded-lg bg-gray-800 p-4 max-w-2xl">
-                <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse [animation-delay:-0.3s]"></div>
-                <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse [animation-delay:-0.15s]"></div>
-                <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></div>
-            </div>
-            <p className="mt-4 text-lg text-gray-300">Analysis in Progress</p>
-            <p className="text-gray-400">{loadingMessage}</p>
+    const renderWelcomeScreen = () => (
+        <div className="flex flex-1 flex-col items-center justify-center p-8 text-center animate-fade-in">
+            <TestTubeIcon className="h-16 w-16 text-gray-600" />
+            <h2 className="mt-4 text-3xl font-bold text-gray-200">Synoptic Lens</h2>
+            <p className="mt-2 max-w-md text-gray-400">
+                Select a player prop to begin a comprehensive, multi-layered analysis. The Lens synthesizes market data, statistical trends, and situational factors into a single, actionable view.
+            </p>
+            <button
+                onClick={() => setIsModalOpen(true)}
+                className="mt-8 flex items-center gap-2 rounded-md bg-cyan-500 px-6 py-3 text-lg font-semibold text-white transition-colors hover:bg-cyan-600"
+            >
+                Select Prop to Analyze
+            </button>
         </div>
-      );
-    }
-    if (error) {
+    );
+    
+    if (!selectedProp) {
         return (
-            <div className="flex flex-col items-center justify-center h-full text-center p-4 md:p-8">
-                <div className="text-red-400 bg-red-500/10 p-4 rounded-lg max-w-md">
-                    <h3 className="font-semibold text-lg">Analysis Failed</h3>
-                    <p className="text-sm mt-1">{error}</p>
-                    <button onClick={handleReset} className="mt-4 px-4 py-2 bg-cyan-500 text-white rounded-md hover:bg-cyan-600">Try Again</button>
-                </div>
-            </div>
-        )
-    }
-    if (analyzedLegs) {
-      return (
-        <AnalysisTable 
-          legs={analyzedLegs}
-          originalLegs={originalLegs || undefined}
-          analysisErrors={analysisErrors}
-          imageUrl={uploadedImageUrl}
-          onViewImage={() => setIsImageViewerOpen(true)}
-          onReset={handleReset} 
-        />
-      );
-    }
-
-    switch(mode) {
-        case 'home':
-            return (
-                <div className="flex h-full w-full flex-col items-center justify-center p-4 md:p-8">
-                    <div className="text-center mb-8">
-                        <h2 className="text-2xl font-bold text-gray-100">Synoptic Lens</h2>
-                        <p className="text-gray-400">Choose your input method to begin analysis.</p>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl">
-                        <button onClick={() => setMode('build')} className="group flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-600 p-12 text-center transition-colors hover:border-cyan-500 hover:bg-gray-800/60">
-                             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-700 transition-colors group-hover:bg-cyan-500/20">
-                                <FilePlusIcon className="h-8 w-8 text-cyan-400" />
-                            </div>
-                            <h3 className="mt-4 text-xl font-semibold text-gray-200">Build a Bet</h3>
-                            <p className="mt-2 text-gray-400">Manually construct a parlay from available markets.</p>
-                        </button>
-                        <button onClick={() => setMode('upload')} className="group flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-600 p-12 text-center transition-colors hover:border-cyan-500 hover:bg-gray-800/60">
-                             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-700 transition-colors group-hover:bg-cyan-500/20">
-                                <FileUpIcon className="h-8 w-8 text-cyan-400" />
-                            </div>
-                            <h3 className="mt-4 text-xl font-semibold text-gray-200">Upload a Slip</h3>
-                            <p className="mt-2 text-gray-400">Analyze a bet slip via screenshot.</p>
-                        </button>
-                    </div>
-                </div>
-            )
-        case 'upload':
-            return <ImageUpload onImageUpload={handleImageUpload} disabled={isLoading} onBack={() => setMode('home')}/>;
-        case 'build':
-            return <BetBuilder onAnalyze={runAnalysisOnLegs} onBack={() => setMode('home')} />;
+            <>
+                {renderWelcomeScreen()}
+                <PropSelectorModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSelect={handlePropSelected} />
+            </>
+        );
     }
     
-  };
+    const { player, prop, selectedLine, selectedPosition } = selectedProp;
+    const marketOdds = selectedPosition === 'Over' ? selectedLine.overOdds : selectedLine.underOdds;
 
-  return (
-    <div className="flex flex-1 flex-col bg-gray-800/30">
-      {renderContent()}
-      {isImageViewerOpen && uploadedImageUrl && (
-        <div 
-            className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/80 backdrop-blur-sm"
-            onClick={() => setIsImageViewerOpen(false)}
-        >
-            <div className="relative p-4" onClick={(e) => e.stopPropagation()}>
-                <button 
-                    onClick={() => setIsImageViewerOpen(false)} 
-                    className="absolute -top-2 -right-2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-gray-700 text-white transition-colors hover:bg-gray-600"
-                    aria-label="Close image viewer"
-                >
-                    <XIcon className="h-5 w-5" />
-                </button>
-                <img 
-                    src={uploadedImageUrl} 
-                    alt="Uploaded bet slip full view"
-                    className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain shadow-2xl" 
-                />
+    return (
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 space-y-6">
+            <header>
+                <div className="flex justify-between items-start">
+                    <div>
+                        <p className="text-sm text-gray-400">{selectedProp.game.name}</p>
+                        <h2 className="text-3xl font-bold text-gray-100">{player.name}</h2>
+                        <p className="text-xl text-cyan-300">{`${selectedPosition} ${selectedLine.line} ${prop.propType}`}</p>
+                    </div>
+                    <div className="text-right">
+                        <p className="text-lg text-gray-400">Market Odds</p>
+                        <p className="text-4xl font-bold font-mono text-gray-100">{formatAmericanOdds(marketOdds)}</p>
+                        <button onClick={() => setIsModalOpen(true)} className="mt-2 text-sm text-cyan-400 hover:underline">
+                            Change Selection
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Left Column: Market & Historical */}
+                <div className="space-y-6">
+                    <div className="rounded-lg bg-gray-900/50 border border-gray-700/50 p-4">
+                        <h3 className="text-lg font-semibold text-gray-200 mb-2">Market Analysis</h3>
+                        {isMarketLoading && <p className="text-gray-400">Loading market data...</p>}
+                        {marketError && <p className="text-red-400">{marketError}</p>}
+                        {marketAnalysis && <MarketAnalysisChart marketAnalysis={marketAnalysis} />}
+                    </div>
+                    <div className="rounded-lg bg-gray-900/50 border border-gray-700/50 p-4">
+                        <h3 className="text-lg font-semibold text-gray-200 mb-2">Historical Performance (Last 7 Games)</h3>
+                        {prop.historicalContext && (
+                            <HistoricalPerformanceChart 
+                                gameLog={prop.historicalContext.gameLog}
+                                selectedLine={selectedLine.line}
+                                seasonAvg={prop.historicalContext.seasonAvg}
+                                last5Avg={prop.historicalContext.last5Avg}
+                            />
+                        )}
+                    </div>
+                </div>
+
+                {/* Right Column: Deep Analysis */}
+                <div className="space-y-6">
+                    <div className="rounded-lg bg-gray-800/60 border-2 border-dashed border-gray-700 p-6 flex flex-col items-center justify-center text-center">
+                        <SparklesIcon className="h-8 w-8 text-cyan-400" />
+                        <h3 className="text-lg font-semibold text-gray-200 mt-2">AI Deep Analysis</h3>
+                        <p className="text-sm text-gray-400 mt-1 max-w-sm">
+                            Synthesize all available data points into a single, weighted score and a detailed rationale.
+                        </p>
+                        <button
+                            onClick={handleRunDeepAnalysis}
+                            disabled={isDeepLoading}
+                            className="mt-4 flex items-center gap-2 rounded-md bg-cyan-500/20 px-4 py-2 text-sm font-semibold text-cyan-300 transition-colors hover:bg-cyan-500/30 disabled:opacity-50"
+                        >
+                            {isDeepLoading ? 'Analyzing...' : 'Run Deep Analysis'}
+                        </button>
+                    </div>
+
+                    <DeepAnalysisDrilldown
+                        analysisResult={deepAnalysis}
+                        isLoading={isDeepLoading}
+                        error={deepError}
+                    />
+                </div>
             </div>
+            
+            <PropSelectorModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSelect={handlePropSelected} />
         </div>
-      )}
-    </div>
-  );
+    );
 };
 
 export default SynopticLens;

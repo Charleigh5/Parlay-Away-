@@ -9,6 +9,7 @@ export const MOCK_GAMES_SOURCE: Game[] = [
     id: 'game1',
     name: 'Kansas City Chiefs @ Baltimore Ravens',
     date: '2024-09-05',
+    stadiumLocation: { lat: 39.278, lon: -76.622 }, // M&T Bank Stadium
     players: [
       {
         name: 'Patrick Mahomes',
@@ -186,6 +187,7 @@ export const MOCK_GAMES_SOURCE: Game[] = [
     id: 'game2',
     name: 'Green Bay Packers @ Philadelphia Eagles',
     date: '2024-09-06',
+    stadiumLocation: { lat: -23.54, lon: -46.63 }, // Corinthians Arena, Brazil
     players: [
       {
         name: 'Jalen Hurts',
