@@ -1,7 +1,6 @@
-import React, { useState, useRef, useEffect, DragEvent } from 'react';
+import React, { useState, useRef, DragEvent } from 'react';
 import { ParlayNode, Viewport } from '../types';
 import { formatAmericanOdds } from '../utils';
-import { MoreVerticalIcon } from './icons/MoreVerticalIcon';
 import CanvasContextMenu from './CanvasContextMenu';
 
 interface BetNodeProps {
@@ -11,6 +10,8 @@ interface BetNodeProps {
   onDuplicate: (node: ParlayNode) => void;
   viewport: Viewport;
   screenToCanvasCoords: (coords: { x: number; y: number }) => { x: number; y: number };
+  isSelected: boolean;
+  onSelect: (nodeId: string) => void;
 }
 
 const getEvColor = (ev: number) => {
@@ -19,7 +20,7 @@ const getEvColor = (ev: number) => {
   return 'border-l-4 border-gray-600';
 };
 
-const BetNode: React.FC<BetNodeProps> = ({ node, updatePosition, onRemove, onDuplicate, viewport, screenToCanvasCoords }) => {
+const BetNode: React.FC<BetNodeProps> = ({ node, updatePosition, onRemove, onDuplicate, viewport, screenToCanvasCoords, isSelected, onSelect }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false);
@@ -28,9 +29,14 @@ const BetNode: React.FC<BetNodeProps> = ({ node, updatePosition, onRemove, onDup
   const nodeRef = useRef<HTMLDivElement>(null);
 
   const handleDragStart = (e: DragEvent) => {
+    // Prevent selection from interfering with drag
+    if (e.target !== e.currentTarget) {
+      e.preventDefault();
+      return;
+    }
+    
     setIsDragging(true);
     e.dataTransfer.effectAllowed = 'move';
-    // Use a transparent image to hide the default browser ghost image
     const img = new Image();
     img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAUEBAAAACwAAAAAAQABAAACAkQBADs=';
     e.dataTransfer.setDragImage(img, 0, 0);
@@ -45,27 +51,27 @@ const BetNode: React.FC<BetNodeProps> = ({ node, updatePosition, onRemove, onDup
   };
 
   const handleDrag = (e: DragEvent) => {
-    // Prevent transparent ghost image from showing while dragging
     if(e.clientX === 0 && e.clientY === 0) return;
   };
 
   const handleDragEnd = (e: DragEvent) => {
     setIsDragging(false);
-    // Get final mouse position in canvas coordinates
     const finalMousePos = screenToCanvasCoords({ x: e.clientX, y: e.clientY });
-
-    // Calculate new node top-left by subtracting the initial drag offset
     const newX = finalMousePos.x - dragStart.x;
     const newY = finalMousePos.y - dragStart.y;
-    
-    // The updatePosition function in the parent will handle snapping
     updatePosition(node.id, { x: newX, y: newY });
   };
   
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
+    onSelect(node.id); // Select the node on right-click as well
     setContextMenuPosition({ x: e.clientX, y: e.clientY });
     setIsContextMenuOpen(true);
+  };
+  
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent canvas click from deselecting
+    onSelect(node.id);
   };
   
   const ev = node.leg.analysis.quantitative.expectedValue;
@@ -75,7 +81,7 @@ const BetNode: React.FC<BetNodeProps> = ({ node, updatePosition, onRemove, onDup
     <>
       <div
         ref={nodeRef}
-        className={`absolute w-56 p-3 rounded-lg shadow-xl bg-gray-800 cursor-grab active:cursor-grabbing select-none transition-shadow ${evColorClass} ${isDragging ? 'opacity-50 shadow-2xl' : ''}`}
+        className={`absolute w-56 p-3 rounded-lg shadow-xl bg-gray-800 cursor-grab active:cursor-grabbing select-none transition-all duration-100 ${evColorClass} ${isDragging ? 'opacity-50 shadow-2xl scale-105' : ''} ${isSelected ? 'ring-2 ring-cyan-400 shadow-cyan-500/20' : ''}`}
         style={{
           transform: `translate(${node.position.x}px, ${node.position.y}px)`,
           willChange: 'transform'
@@ -85,6 +91,7 @@ const BetNode: React.FC<BetNodeProps> = ({ node, updatePosition, onRemove, onDup
         onDrag={handleDrag}
         onDragEnd={handleDragEnd}
         onContextMenu={handleContextMenu}
+        onClick={handleClick}
       >
         <div className="flex justify-between items-start">
             <div>
@@ -108,7 +115,6 @@ const BetNode: React.FC<BetNodeProps> = ({ node, updatePosition, onRemove, onDup
         position={contextMenuPosition}
         onClose={() => setIsContextMenuOpen(false)}
         actions={[
-            { label: 'Analyze Details', action: () => alert(`Analyzing ${node.leg.player}...`) },
             { label: 'Duplicate Node', action: () => onDuplicate(node) },
             { label: 'Remove Node', action: () => onRemove(node.id), isDestructive: true },
         ]}

@@ -1,10 +1,8 @@
-import React, { useState, useRef, useCallback, useEffect, DragEvent } from 'react';
+import React, { useState, useRef, useCallback, useEffect, DragEvent, MouseEvent } from 'react';
 import {
-  ExtractedBetLeg,
   AnalyzedBetLeg,
   ParlayNode,
   ParlayCorrelationAnalysis,
-  Viewport,
 } from '../types';
 import { getAnalysis, analyzeParlayCorrelation } from '../services/geminiService';
 import usePanAndZoom from '../hooks/usePanAndZoom';
@@ -12,6 +10,7 @@ import BetNode from './BetNode';
 import ConnectionLines from './ConnectionLines';
 import PropLibrary from './PropLibrary';
 import CreatePropModal from './CreatePropModal';
+import NodeDetailPanel from './NodeDetailPanel'; // Import the new component
 import { ZoomInIcon } from './icons/ZoomInIcon';
 import { ZoomOutIcon } from './icons/ZoomOutIcon';
 import { EyeIcon } from './icons/EyeIcon';
@@ -32,6 +31,7 @@ const ParlayCanvas: React.FC<ParlayCanvasProps> = ({ onAnalyze, onBack }) => {
   const { viewport, zoom, canvasStyle, screenToCanvasCoords, resetViewport } = usePanAndZoom(canvasContainerRef);
 
   const [nodes, setNodes] = useState<ParlayNode[]>([]);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [correlation, setCorrelation] = useState<ParlayCorrelationAnalysis | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -72,6 +72,9 @@ const ParlayCanvas: React.FC<ParlayCanvasProps> = ({ onAnalyze, onBack }) => {
   
   const removeNode = (nodeId: string) => {
     setNodes((prevNodes) => prevNodes.filter((node) => node.id !== nodeId));
+    if (selectedNodeId === nodeId) {
+        setSelectedNodeId(null);
+    }
   };
   
   const duplicateNode = (nodeToDuplicate: ParlayNode) => {
@@ -79,11 +82,12 @@ const ParlayCanvas: React.FC<ParlayCanvasProps> = ({ onAnalyze, onBack }) => {
         ...nodeToDuplicate,
         id: `node_${Date.now()}_${Math.random()}`,
         position: snapToGrid({
-            x: nodeToDuplicate.position.x + GRID_SNAP,
-            y: nodeToDuplicate.position.y + GRID_SNAP,
+            x: nodeToDuplicate.position.x + GRID_SNAP * 2,
+            y: nodeToDuplicate.position.y + GRID_SNAP * 2,
         }),
     };
     setNodes(prev => [...prev, newNode]);
+    setSelectedNodeId(newNode.id); // Select the new duplicated node
   };
   
   const handleDrop = (e: DragEvent) => {
@@ -95,13 +99,20 @@ const ParlayCanvas: React.FC<ParlayCanvasProps> = ({ onAnalyze, onBack }) => {
       if (legData) {
         const leg: ExtractedBetLeg = JSON.parse(legData);
         const position = screenToCanvasCoords({ x: e.clientX, y: e.clientY });
-        addNode(leg, position); // addNode will handle snapping
+        addNode(leg, position);
       }
     }
   };
   
   const handleDragOver = (e: DragEvent) => {
-    e.preventDefault(); // Necessary to allow drop
+    e.preventDefault();
+  };
+  
+  const handleCanvasClick = (e: MouseEvent) => {
+    // Deselect node if clicking on the canvas background
+    if (e.target === canvasContainerRef.current || e.target === canvasRef.current) {
+        setSelectedNodeId(null);
+    }
   };
 
   const handleFinalizeAndAnalyze = () => {
@@ -116,7 +127,7 @@ const ParlayCanvas: React.FC<ParlayCanvasProps> = ({ onAnalyze, onBack }) => {
         const rect = canvasContainerRef.current.getBoundingClientRect();
         const screenCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
         const canvasCenter = screenToCanvasCoords(screenCenter);
-        addNode(leg, canvasCenter); // addNode will handle snapping
+        addNode(leg, canvasCenter);
     } else {
         addNode(leg, { x: 200, y: 150 });
     }
@@ -140,14 +151,16 @@ const ParlayCanvas: React.FC<ParlayCanvasProps> = ({ onAnalyze, onBack }) => {
         setIsAnalyzing(false);
       }
     };
-    analyzeCorrelation();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes.length]);
+    const timer = setTimeout(analyzeCorrelation, 500); // Debounce correlation analysis
+    return () => clearTimeout(timer);
+  }, [nodes]);
+
+  const selectedNode = useMemo(() => nodes.find(n => n.id === selectedNodeId) ?? null, [nodes, selectedNodeId]);
 
   return (
     <div className="flex-1 flex h-full">
       <PropLibrary onAddCustomProp={() => setIsCreateModalOpen(true)} />
-      <div className="flex-1 flex flex-col relative" ref={canvasContainerRef} onDrop={handleDrop} onDragOver={handleDragOver}>
+      <div className="flex-1 flex flex-col relative" ref={canvasContainerRef} onDrop={handleDrop} onDragOver={handleDragOver} onClick={handleCanvasClick}>
         <div className="absolute top-0 left-0 w-full h-full bg-grid-pattern"></div>
 
         <div ref={canvasRef} style={canvasStyle} className="w-full h-full">
@@ -161,6 +174,8 @@ const ParlayCanvas: React.FC<ParlayCanvasProps> = ({ onAnalyze, onBack }) => {
               onDuplicate={duplicateNode}
               viewport={viewport}
               screenToCanvasCoords={screenToCanvasCoords}
+              isSelected={node.id === selectedNodeId}
+              onSelect={() => setSelectedNodeId(node.id)}
             />
           ))}
         </div>
@@ -190,7 +205,7 @@ const ParlayCanvas: React.FC<ParlayCanvasProps> = ({ onAnalyze, onBack }) => {
         </div>
         
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-4">
-             {isAnalyzing && (
+             {isAnalyzing && !error && (
                 <div className="flex items-center gap-2 text-sm text-cyan-400 bg-gray-800/80 px-4 py-2 rounded-lg shadow-lg">
                     <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse [animation-delay:-0.3s]"></div>
                     <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse [animation-delay:-0.15s]"></div>
@@ -212,6 +227,11 @@ const ParlayCanvas: React.FC<ParlayCanvasProps> = ({ onAnalyze, onBack }) => {
             )}
         </div>
       </div>
+      <NodeDetailPanel 
+        selectedNode={selectedNode} 
+        onDuplicate={duplicateNode}
+        onRemove={removeNode}
+      />
       <CreatePropModal 
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
