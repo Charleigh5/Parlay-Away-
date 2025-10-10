@@ -1,18 +1,17 @@
-
-
-
 import React, { useState, Suspense } from 'react';
 import { ChatHistoryProvider } from '../contexts/ChatHistoryContext';
 import { MessageSquareIcon } from './icons/MessageSquareIcon';
 import { TestTubeIcon } from './icons/TestTubeIcon';
 import { ScaleIcon } from './icons/ScaleIcon';
+import { PackageSearchIcon } from './icons/PackageSearchIcon';
 
-type View = 'chat' | 'lens' | 'comparator';
+type View = 'chat' | 'lens' | 'comparator' | 'ranker';
 
 const SynopticLens = React.lazy(() => import('./SynopticLens'));
 const ChatPanel = React.lazy(() => import('./ChatPanel'));
 const ChatHistorySidebar = React.lazy(() => import('./ChatHistorySidebar'));
 const PropComparator = React.lazy(() => import('./PropComparator'));
+const PropTypeRankingTool = React.lazy(() => import('./PropTypeRankingTool'));
 
 const LoadingFallback = () => (
     <div className="flex flex-1 items-center justify-center">
@@ -53,6 +52,14 @@ const MainPanel: React.FC = () => {
           <ScaleIcon className="h-5 w-5" />
           Prop Comparator
         </button>
+         <button
+          onClick={() => setActiveView('ranker')}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${getTabClass('ranker')}`}
+          aria-current={activeView === 'ranker'}
+        >
+          <PackageSearchIcon className="h-5 w-5" />
+          Prop Ranker
+        </button>
         <button
           onClick={() => setActiveView('chat')}
           className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${getTabClass('chat')}`}
@@ -66,6 +73,7 @@ const MainPanel: React.FC = () => {
         <Suspense fallback={<LoadingFallback />}>
           {activeView === 'lens' && <SynopticLens />}
           {activeView === 'comparator' && <PropComparator />}
+          {activeView === 'ranker' && <PropTypeRankingTool />}
           {activeView === 'chat' && (
             <ChatHistoryProvider>
               <div className="flex flex-1">

@@ -32,16 +32,18 @@ const getMockSeasonStats = (playerName: string): PlayerSeasonStats => {
 // --- SERVICE IMPLEMENTATIONS ---
 
 const STATS_TTL = 10 * 60 * 1000; // 10 minutes
-const INJURY_TTL = 1 * 60 * 1000;  // 1 minute
+const INJURY_TTL = 2 * 60 * 1000;  // 2 minutes
 
 /**
  * Fetches the last 10 game logs for a given player.
+ * NOTE: Historical player game logs are a premium data feature and are not readily available
+ * via free APIs. This function retains its mock implementation until a premium data source
+ * (e.g., Sportradar, StatsPerform) is integrated.
  */
 export const getPlayerGameLog = (playerId: string): Promise<ServiceResponse<GameLogEntry[]>> => {
   return apiClient(`player:${playerId}:gamelog`, async () => {
-    // TODO: Replace with SportRadar API call: GET /players/{playerId}/gamelog
-    console.log(`Simulating fetch for game log for player ${playerId}`);
-    await new Promise(res => setTimeout(res, 250)); // Simulate latency
+    console.warn(`[Mock Data] Using mock game log for player ${playerId}. A premium API is required for live data.`);
+    await new Promise(res => setTimeout(res, 50)); // Simulate latency
     const log = generateMockGameLog(playerId);
     if (log.length === 0) throw new Error(`No game log data found for ${playerId}`);
     return log;
@@ -53,7 +55,7 @@ export const getPlayerGameLog = (playerId: string): Promise<ServiceResponse<Game
  */
 export const getPlayerSeasonStats = (playerId: string): Promise<ServiceResponse<PlayerSeasonStats>> => {
     return apiClient(`player:${playerId}:seasonstats`, async () => {
-        // TODO: Replace with SportRadar API call: GET /players/{playerId}/season_stats
+        // TODO: Replace with live API call. For now, derived from mock game log.
         console.log(`Simulating fetch for season stats for player ${playerId}`);
         await new Promise(res => setTimeout(res, 150));
         const stats = getMockSeasonStats(playerId);
@@ -67,7 +69,7 @@ export const getPlayerSeasonStats = (playerId: string): Promise<ServiceResponse<
  */
 export const getPlayerSplits = (playerId: string): Promise<ServiceResponse<PlayerSplits>> => {
      return apiClient(`player:${playerId}:splits`, async () => {
-        // TODO: Replace with SportRadar API call: GET /players/{playerId}/splits
+        // TODO: Replace with live API call. This is a premium data feature.
         console.log(`Simulating fetch for splits for player ${playerId}`);
         await new Promise(res => setTimeout(res, 200));
         // This is highly simplified for the mock. A real API would provide richer data.
@@ -82,24 +84,43 @@ export const getPlayerSplits = (playerId: string): Promise<ServiceResponse<Playe
 };
 
 /**
- * Fetches the current injury status for a player.
+ * Fetches the current injury status for a player from the live ESPN Scoreboard API.
  */
 export const getInjuryStatus = (playerId: string): Promise<ServiceResponse<InjuryStatus>> => {
     return apiClient(`player:${playerId}:injury`, async () => {
-        // TODO: Replace with SportRadar API call: GET /players/{playerId}/injury
-        console.log(`Simulating fetch for injury status for player ${playerId}`);
-        await new Promise(res => setTimeout(res, 100)); // Fast-moving data
-        const playerMarketData = MOCK_GAMES_SOURCE.flatMap(g => g.players).find(p => p.name === playerId);
+        console.log(`[Live API] Fetching injury status for player ${playerId} from ESPN`);
+        const url = `http://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Failed to fetch scoreboard for injury data');
+        const scoreboard = await res.json();
         
-        // FIX: The returned object must match the InjuryStatus type.
-        if (playerMarketData?.injuryStatus) {
-            // If the player has an injury status in the mock data, return it.
-            return playerMarketData.injuryStatus;
+        let injuryData = null;
+        
+        // Search through all games to find the player
+        for (const event of scoreboard.events) {
+            const competition = event.competitions[0];
+            if (competition.injuries) {
+                for (const injury of competition.injuries) {
+                    if (injury.athlete.displayName.toLowerCase() === playerId.toLowerCase()) {
+                        injuryData = {
+                            status: injury.status.abbreviation,
+                            news: injury.detail,
+                            impact: `Listed as ${injury.status.name}.`
+                        };
+                        break;
+                    }
+                }
+            }
+            if (injuryData) break;
         }
 
-        // Otherwise, return a default "Probable" status.
+        if (injuryData) {
+            return injuryData;
+        }
+
+        // If no injury is found, return a healthy status.
         return {
-            status: 'P',
+            status: 'P', // Probable/Healthy
             news: 'No significant injuries reported.',
             impact: 'Expected to play without significant limitations.'
         };

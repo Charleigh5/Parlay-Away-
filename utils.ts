@@ -1,4 +1,4 @@
-import { LineOdds, PlayerProp } from './types';
+import { LineOdds, PlayerProp, RankedPlayerProp } from './types';
 
 export const fileToBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -183,4 +183,41 @@ export const calculateSingleLegEV = (trueProbability: number, marketOdds: number
     const decimalOdds = americanToDecimal(marketOdds);
     const ev = (trueProbability * (decimalOdds - 1)) - (1 - trueProbability);
     return ev * 100; // Return as percentage
+};
+
+// --- EXPORT FUNCTIONALITY ---
+
+export const exportToCsv = (data: RankedPlayerProp[], propType: string, threshold: number) => {
+    const headers = [
+        'Player', 'Team', 'Opponent', 'Prop', 'Threshold', 'Position', 'Market Line', 'Market Odds',
+        'True Prob %', 'Implied Prob %', 'EV %', 'Confidence %', 'Rank Score'
+    ];
+    const rows = data.map(row => [
+        row.player.name,
+        row.player.team,
+        row.opponent.name,
+        row.propType,
+        row.threshold,
+        row.position,
+        row.marketLine,
+        formatAmericanOdds(row.marketOdds),
+        (row.trueProbability * 100).toFixed(2),
+        (row.impliedProbability * 100).toFixed(2),
+        row.ev.toFixed(2),
+        (row.confidence * 100).toFixed(1),
+        row.rankScore.toFixed(2)
+    ]);
+
+    const csvContent = "data:text/csv;charset=utf-8,"
+        + headers.join(",") + "\n"
+        + rows.map(e => e.join(",")).join("\n");
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    const safePropType = propType.replace(/ /g, '_');
+    link.setAttribute("download", `synoptic_edge_ranker_${safePropType}_${threshold}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 };

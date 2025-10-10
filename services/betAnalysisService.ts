@@ -1,13 +1,19 @@
-
 import {
   PropSelectionDetails,
   ServiceResponse,
   MarketAnalysis,
   DeepAnalysisResult,
   DeepAnalysisCriterion,
+  Player,
+  Game,
+  RankedPlayerProp,
 } from '../types';
 import { apiClient } from './apiClient';
-import { normalCdf, calculateSingleLegEV } from '../utils';
+import { americanToDecimal, normalCdf, calculateSingleLegEV } from '../utils';
+import * as playerDataService from './playerDataService';
+import * as defensiveStatsService from './defensiveStatsService';
+import * as weatherService from './weatherService';
+
 
 // MOCK IMPLEMENTATION: Simulates a backend that performs complex analysis.
 const ANALYSIS_TTL = 5 * 60 * 1000; // 5 minutes
@@ -139,4 +145,133 @@ export const getDeepAnalysis = (
           ]
       };
   }, ANALYSIS_TTL);
+};
+
+
+// --- BATCH ANALYSIS FOR PROP RANKER ---
+
+const analyzeSinglePlayerProp = async (
+    player: Player,
+    games: Game[],
+    propType: string,
+    threshold: number,
+    position: 'Over' | 'Under'
+): Promise<RankedPlayerProp> => {
+    // 1. Find the player's game and opponent
+    const game = games.find(g => g.players.some(p => p.name === player.name));
+    if (!game) throw new Error(`Could not find game for ${player.name}`);
+    
+    const opponent = game.homeTeam?.id === player.team ? game.awayTeam : game.homeTeam;
+    if (!opponent) throw new Error(`Could not determine opponent for ${player.name}`);
+
+    // 2. Find the market prop
+    const marketProp = player.props.find(p => p.propType === propType);
+    if (!marketProp || !marketProp.lines || marketProp.lines.length === 0) {
+        throw new Error(`No market for ${propType} for ${player.name}`);
+    }
+    const primaryLine = marketProp.lines.find(l => Math.abs(l.overOdds) < 200 && Math.abs(l.underOdds) < 200) || marketProp.lines[0];
+    
+    // 3. Fetch all necessary data concurrently
+    const [gameLogRes, splitsRes, injuryRes, defenseRes, weatherRes] = await Promise.all([
+        playerDataService.getPlayerGameLog(player.name),
+        playerDataService.getPlayerSplits(player.name),
+        playerDataService.getInjuryStatus(player.name),
+        defensiveStatsService.getTeamDefensiveRanking(opponent.id, player.position as any),
+        game.stadiumLocation ? weatherService.getGameWeather(game.id, game.stadiumLocation) : Promise.resolve({ data: null, status: 'unavailable' as const })
+    ]);
+
+    // 4. Mock a projection model
+    let projectedMean = marketProp.historicalContext?.seasonAvg ?? primaryLine.line;
+    let projectedStdDev = projectedMean * 0.3; // Default variance
+    const criteria: DeepAnalysisCriterion[] = [];
+    let totalScore = 0, totalWeight = 0;
+
+    const addCriterion = (name: string, category: any, value: string, score: number, rationale: string, weight: number = 1, status: any = 'live') => {
+        criteria.push({ name, category, value, score, rationale, status });
+        totalScore += score * weight;
+        totalWeight += weight;
+    };
+
+    if (marketProp.historicalContext?.last5Avg) {
+        const diff = marketProp.historicalContext.last5Avg - projectedMean;
+        projectedMean = (projectedMean * 0.6) + (marketProp.historicalContext.last5Avg * 0.4);
+        addCriterion('Recent Form (L5)', 'Statistical', `${diff.toFixed(1)} vs SZN`, Math.round(diff / projectedStdDev * 5), `Last 5 avg is ${Math.abs(diff).toFixed(1)} ${diff > 0 ? 'above' : 'below'} season avg.`, 2);
+    }
+
+    if (defenseRes.data) {
+        const rankModifier = (defenseRes.data.rank - 16) / 16;
+        const impact = (1 - (rankModifier * 0.1));
+        projectedMean *= impact;
+        addCriterion('Opponent Rank', 'Situational', `#${defenseRes.data.rank} vs ${player.position}`, Math.round(rankModifier * -10), `Opponent is ranked #${defenseRes.data.rank} vs ${player.position}, modifying projection by ${(impact*100-100).toFixed(1)}%.`, 2.5);
+    }
+    
+    if (weatherRes.data && weatherRes.data.windSpeed > 15 && propType.includes('Passing')) {
+        projectedMean *= 0.95;
+        addCriterion('Weather', 'Situational', `${weatherRes.data.windSpeed}mph wind`, -3, 'High winds negatively impact passing game.', 1.5);
+    }
+
+    // 5. Calculate probabilities and EV
+    const trueProbThreshold = position === 'Over' ? 1 - normalCdf(threshold, projectedMean, projectedStdDev) : normalCdf(threshold, projectedMean, projectedStdDev);
+    const trueProbMarketOver = 1 - normalCdf(primaryLine.line, projectedMean, projectedStdDev);
+    
+    const marketOdds = position === 'Over' ? primaryLine.overOdds : primaryLine.underOdds;
+    const ev = calculateSingleLegEV(position === 'Over' ? trueProbMarketOver : (1 - trueProbMarketOver), marketOdds);
+    
+    const impliedProb = 1 / americanToDecimal(marketOdds);
+
+    // 6. Confidence score
+    const dataFreshnessScore = [gameLogRes, splitsRes, injuryRes, defenseRes, weatherRes].filter(res => res.status === 'live' || res.status === 'cached').length / 5;
+    const confidence = dataFreshnessScore * 0.85;
+
+    // 7. Finalize deep analysis object and rank score
+    const overallScore = Math.max(0, Math.min(100, 50 + (totalScore / (totalWeight || 1)) * 5));
+    const deepAnalysisResult: DeepAnalysisResult = {
+        overallScore,
+        breakdown: [{ category: 'Statistical', criteria: criteria.filter(c=>c.category==='Statistical') }, { category: 'Situational', criteria: criteria.filter(c=>c.category==='Situational') }]
+    };
+    const rankScore = ev * confidence;
+
+    return {
+        player, opponent: { id: opponent.id, name: opponent.fullName }, propType, threshold, position,
+        marketLine: primaryLine.line, marketOdds, trueProbability: trueProbThreshold, impliedProbability: impliedProb, ev,
+        confidence, rankScore, deepAnalysisResult
+    };
+};
+
+/**
+ * Analyzes a batch of players for a specific prop and ranks them.
+ */
+export const batchAnalyzeProps = async (
+  players: Player[],
+  games: Game[],
+  propType: string,
+  threshold: number,
+  position: 'Over' | 'Under',
+  onProgress: (p: number) => void
+): Promise<RankedPlayerProp[]> => {
+    let completed = 0;
+    const total = players.length;
+    
+    const analysisPromises = players.map(player =>
+        analyzeSinglePlayerProp(player, games, propType, threshold, position)
+            .then(result => {
+                completed++;
+                onProgress(completed / total);
+                return { status: 'fulfilled' as const, value: result };
+            })
+            .catch(error => {
+                completed++;
+                onProgress(completed / total);
+                console.error(`Analysis failed for ${player.name}:`, error);
+                return { status: 'rejected' as const, reason: error };
+            })
+    );
+    
+    const results = await Promise.all(analysisPromises);
+    
+    const successfulAnalyses = results
+        .filter(r => r.status === 'fulfilled')
+        .map(r => (r as { status: 'fulfilled', value: RankedPlayerProp }).value);
+
+    return successfulAnalyses.sort((a, b) => b.rankScore - a.rankScore);
 };

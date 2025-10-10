@@ -1,32 +1,25 @@
 import { ServiceResponse, WeatherConditions } from '../types';
 import { apiClient } from './apiClient';
 
-// --- MOCK DATA GENERATION ---
+// This service is updated to use the live OpenWeatherMap API.
+// A free API key can be obtained from https://openweathermap.org/
+const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY || 'YOUR_API_KEY_HERE'; // Fallback for local dev
 
-const generateMockWeather = (stadiumLocation: { lat: number; lon: number }): WeatherConditions => {
-    // Use latitude to simulate different climates for variety
-    if (stadiumLocation.lat > 40) { // Northern/cold city
-        return {
-            temperature: 38,
-            windSpeed: 12,
-            precipitationChance: 15,
-            summary: 'Cloudy'
-        };
+// --- API Data Transformation ---
+
+const kelvinToFahrenheit = (k: number): number => {
+  return Math.round((k - 273.15) * 9/5 + 32);
+}
+
+const transformOpenWeatherResponse = (apiResponse: any): WeatherConditions => {
+    if (!apiResponse || !apiResponse.main || !apiResponse.wind || !apiResponse.weather) {
+        throw new Error('Invalid OpenWeatherMap API response format');
     }
-    if (stadiumLocation.lat < 35) { // Southern/warm city or dome
-        return {
-            temperature: 72, // Dome or warm weather
-            windSpeed: 0,
-            precipitationChance: 0,
-            summary: 'Clear'
-        };
-    }
-    // Mid-range city
     return {
-        temperature: 55,
-        windSpeed: 8,
-        precipitationChance: 5,
-        summary: 'Clear'
+        temperature: kelvinToFahrenheit(apiResponse.main.temp),
+        windSpeed: Math.round(apiResponse.wind.speed),
+        precipitationChance: apiResponse.pop ? apiResponse.pop * 100 : (apiResponse.rain ? 100 : 0),
+        summary: apiResponse.weather[0].main,
     };
 };
 
@@ -35,21 +28,33 @@ const generateMockWeather = (stadiumLocation: { lat: number; lon: number }): Wea
 const WEATHER_TTL = 30 * 60 * 1000; // 30 minutes
 
 /**
- * Fetches the weather forecast for a given game.
+ * Fetches the weather forecast for a given game from the live OpenWeatherMap API.
  */
 export const getGameWeather = (
     gameId: string, 
     stadiumLocation: { lat: number; lon: number }
 ): Promise<ServiceResponse<WeatherConditions>> => {
   return apiClient(`weather:${gameId}`, async () => {
-    // TODO: Replace with OpenWeatherMap API call: GET /data/3.0/onecall?lat={lat}&lon={lon}&...
-    console.log(`Simulating fetch for weather for game ${gameId}`);
-    await new Promise(res => setTimeout(res, 300));
-
-    if (!stadiumLocation) {
+    console.log(`[Live API] Fetching weather for game ${gameId} from OpenWeatherMap`);
+    
+    if (!stadiumLocation || !stadiumLocation.lat || !stadiumLocation.lon) {
         throw new Error(`No location data for game ${gameId} to fetch weather.`);
     }
-    return generateMockWeather(stadiumLocation);
+
+    if (OPENWEATHER_API_KEY === 'YOUR_API_KEY_HERE') {
+        console.warn('OpenWeatherMap API key not found. Using mock data. Please set OPENWEATHER_API_KEY.');
+        // Fallback to a simple mock if key isn't provided
+        return { temperature: 65, windSpeed: 5, precipitationChance: 10, summary: 'Clear' };
+    }
+
+    const url = `https://api.openweathermap.org/data/2.5/weather?lat=${stadiumLocation.lat}&lon=${stadiumLocation.lon}&appid=${OPENWEATHER_API_KEY}`;
+    
+    const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch weather data. Status: ${response.status}`);
+    }
+    const data = await response.json();
+    return transformOpenWeatherResponse(data);
   }, WEATHER_TTL);
 };
 
