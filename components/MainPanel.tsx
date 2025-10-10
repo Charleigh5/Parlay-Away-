@@ -4,14 +4,16 @@ import { MessageSquareIcon } from './icons/MessageSquareIcon';
 import { TestTubeIcon } from './icons/TestTubeIcon';
 import { ScaleIcon } from './icons/ScaleIcon';
 import { PackageSearchIcon } from './icons/PackageSearchIcon';
+import { ShapesIcon } from './icons/ShapesIcon'; // Import new icon
 
-type View = 'chat' | 'lens' | 'comparator' | 'ranker';
+type View = 'chat' | 'lens' | 'comparator' | 'ranker' | 'builder'; // Add 'builder' view
 
 const SynopticLens = React.lazy(() => import('./SynopticLens'));
 const ChatPanel = React.lazy(() => import('./ChatPanel'));
 const ChatHistorySidebar = React.lazy(() => import('./ChatHistorySidebar'));
 const PropComparator = React.lazy(() => import('./PropComparator'));
 const PropTypeRankingTool = React.lazy(() => import('./PropTypeRankingTool'));
+const BetBuilder = React.lazy(() => import('./BetBuilder')); // Import BetBuilder
 
 const LoadingFallback = () => (
     <div className="flex flex-1 items-center justify-center">
@@ -25,7 +27,7 @@ const LoadingFallback = () => (
 
 
 const MainPanel: React.FC = () => {
-  const [activeView, setActiveView] = useState<View>('lens');
+  const [activeView, setActiveView] = useState<View>('builder'); // Set builder as default view
 
   const getTabClass = (view: View) => {
     return activeView === view
@@ -36,6 +38,14 @@ const MainPanel: React.FC = () => {
   return (
     <div className="flex flex-1 flex-col bg-gray-800/30">
       <div className="flex border-b border-gray-700/50">
+        <button
+          onClick={() => setActiveView('builder')}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${getTabClass('builder')}`}
+          aria-current={activeView === 'builder'}
+        >
+          <ShapesIcon className="h-5 w-5" />
+          Parlay Builder
+        </button>
         <button
           onClick={() => setActiveView('lens')}
           className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${getTabClass('lens')}`}
@@ -71,6 +81,7 @@ const MainPanel: React.FC = () => {
       </div>
       <div className="flex flex-1 overflow-y-auto">
         <Suspense fallback={<LoadingFallback />}>
+          {activeView === 'builder' && <BetBuilder />}
           {activeView === 'lens' && <SynopticLens />}
           {activeView === 'comparator' && <PropComparator />}
           {activeView === 'ranker' && <PropTypeRankingTool />}

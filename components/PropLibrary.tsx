@@ -5,6 +5,7 @@ import { getScheduleByWeek, getTeamRoster } from '../services/nflDataService';
 import { SearchIcon } from './icons/SearchIcon';
 import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import { formatAmericanOdds } from '../utils';
+import { FilePlusIcon } from './icons/FilePlusIcon';
 
 const DraggablePropItem: React.FC<{ leg: ExtractedBetLeg }> = ({ leg }) => {
     const handleDragStart = (e: DragEvent) => {
@@ -28,7 +29,11 @@ const DraggablePropItem: React.FC<{ leg: ExtractedBetLeg }> = ({ leg }) => {
     );
 };
 
-const PropLibrary: React.FC = () => {
+interface PropLibraryProps {
+  onAddCustomProp: () => void;
+}
+
+const PropLibrary: React.FC<PropLibraryProps> = ({ onAddCustomProp }) => {
     const [games, setGames] = useState<Game[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -100,7 +105,17 @@ const PropLibrary: React.FC = () => {
     return (
         <aside className="w-80 flex-shrink-0 bg-gray-900/50 border-r border-gray-700/50 flex flex-col">
             <header className="p-4 border-b border-gray-700/50">
-                <h3 className="text-lg font-semibold text-gray-200 mb-2">Prop Library</h3>
+                <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-lg font-semibold text-gray-200">Prop Library</h3>
+                    <button
+                        onClick={onAddCustomProp}
+                        className="flex items-center gap-1.5 px-2 py-1 text-xs rounded-md bg-gray-700 hover:bg-cyan-500/20 text-cyan-300 transition-colors"
+                        title="Create a custom prop"
+                    >
+                        <FilePlusIcon className="h-4 w-4" />
+                        Create
+                    </button>
+                </div>
                  <div className="relative">
                     <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
                     <input

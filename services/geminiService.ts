@@ -73,6 +73,7 @@ const systemUpdateSchema = {
         featureName: { type: Type.STRING, description: "A concise name for the new feature or knowledge module." },
         description: { type: Type.STRING, description: "A detailed description of the proposed update and its potential benefits." },
         integrationStrategy: { type: Type.STRING, description: "A brief, actionable plan for how this feature would be integrated into the existing Synoptic Edge platform, including potential data sources or UI changes." },
+        impactAnalysis: { type: Type.STRING, description: "A detailed, data-driven explanation of why this feature is expected to impact key metrics like ROI, Brier Score, and Sharpe Ratio. Explain the mechanism of the expected improvement." },
         backtestResults: {
             type: Type.OBJECT,
             properties: {
@@ -83,7 +84,7 @@ const systemUpdateSchema = {
             required: ['roiChange', 'brierScore', 'sharpeRatio']
         }
     },
-    required: ['id', 'status', 'featureName', 'description', 'integrationStrategy', 'backtestResults']
+    required: ['id', 'status', 'featureName', 'description', 'integrationStrategy', 'impactAnalysis', 'backtestResults']
 };
 
 export const proposeModelUpdate = async (): Promise<SystemUpdate> => {
@@ -94,7 +95,7 @@ export const proposeModelUpdate = async (): Promise<SystemUpdate> => {
     try {
       const systemInstruction = `You are an expert in quantitative analysis and sports betting, acting as a research and development agent for an AI-powered betting analysis tool called 'Project Synoptic Edge'. Your task is to brainstorm and propose a single, innovative new feature or knowledge module. Your response must be a single JSON object matching the provided schema.`;
       
-      const prompt = `Brainstorm and propose a single, innovative new feature to enhance the Synoptic Edge platform. Think beyond simple data integration; consider novel analytical approaches. Ideas could include: live in-game momentum analysis, a model for player prop correlation in parlays, sentiment analysis from sports journalism, or identifying coaching scheme changes mid-season. Your proposal must be actionable. Provide a unique ID starting with 'UP-', set status to 'Pending Review', include plausible simulated backtest results, and crucially, describe a concise integration strategy detailing necessary data sources and potential UI/UX changes.`;
+      const prompt = `Brainstorm and propose a single, innovative new feature to enhance the Synoptic Edge platform. Think beyond simple data integration; consider novel analytical approaches. Ideas could include: live in-game momentum analysis, a model for player prop correlation in parlays, or identifying coaching scheme changes mid-season. Your proposal must be actionable. Provide a unique ID starting with 'UP-', set status to 'Pending Review', include plausible simulated backtest results, a concise integration strategy, and a detailed impact analysis explaining the reasoning behind the projected metrics.`;
 
       const response = await ai.models.generateContent({
           model: 'gemini-2.5-flash',
@@ -156,6 +157,29 @@ export const sendUpdateFeedback = async (update: SystemUpdate, decision: 'accept
     console.error("Error sending update feedback to Gemini:", error);
     // Don't throw, as this is a background task and shouldn't fail the UI action.
   }
+};
+
+// Fix: Add missing getComparativeAnalysis function to resolve import error.
+export const getComparativeAnalysis = async (propADetails: string, propBDetails: string): Promise<string> => {
+    try {
+        const systemInstruction = `You are 'The Arbiter', the final decision-making AI for Project Synoptic Edge. Your task is to compare two distinct sports betting props and provide a clear, concise, and definitive verdict on which one is the superior bet. Your analysis must be based on the principles of +EV, confidence, and any underlying factors you can infer. Do not just state the numbers; provide a brief but insightful rationale for your choice. The final line of your response must be "Recommendation: [Prop A/Prop B/Neither]".`;
+
+        const prompt = `Compare the following two prop bets and determine which offers superior value:\n\nProp A: ${propADetails}\n\nProp B: ${propBDetails}\n\nProvide your verdict.`;
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                systemInstruction,
+                temperature: 0.8,
+            }
+        });
+
+        return response.text;
+    } catch (error) {
+        console.error("Error fetching comparative analysis from Gemini:", error);
+        throw new Error("Failed to get comparative analysis. The Arbiter may be temporarily unavailable.");
+    }
 };
 
 const extractedBetLegSchema = {
@@ -240,19 +264,16 @@ const correlationAnalysisSchema = {
     required: ['overallScore', 'summary', 'analysis']
 };
 
+// Fix: Complete the truncated analyzeParlayCorrelation function to resolve the 'must return a value' error.
 export const analyzeParlayCorrelation = async (legs: ExtractedBetLeg[]): Promise<ParlayCorrelationAnalysis> => {
     try {
-        const systemInstruction = `You are a world-class sports betting analyst specializing in identifying and quantifying the correlation between player props within a parlay. Your analysis must consider gameplay dynamics (e.g., game script, player roles, team schemes) and statistical relationships. You must return your findings in the specified JSON format. The analysis should cover every unique pair of legs.`;
+        const systemInstruction = `You are a world-class sports betting analyst specializing in identifying and quantifying the correlation between player props within a parlay. Your analysis must consider gameplay dynamics (e.g., game script, player usage), statistical relationships, and situational factors. Return a single JSON object matching the provided schema.`;
 
-        const formattedLegs = legs.map((leg, index) =>
-            `${index}: ${leg.player} ${leg.position} ${leg.line} ${leg.propType}`
-        ).join('\n');
-
-        const query = `Analyze the correlation for the following parlay legs. Provide a detailed explanation for each pair of legs and an overall summary and score.\n\n${formattedLegs}`;
+        const prompt = `Analyze the correlation for the following parlay legs:\n\n${JSON.stringify(legs.map((l, index) => ({ index, player: l.player, prop: `${l.position} ${l.line} ${l.propType}` })), null, 2)}\n\nProvide a detailed breakdown of the relationship between each unique pair of legs. The leg indices in your response should correspond to the 0-based index of the legs in this prompt.`;
 
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
-            contents: query,
+            contents: prompt,
             config: {
                 systemInstruction,
                 responseMimeType: "application/json",
@@ -260,42 +281,14 @@ export const analyzeParlayCorrelation = async (legs: ExtractedBetLeg[]): Promise
             }
         });
 
-        // Fix: Access the text property directly from the response.
         const jsonText = response.text;
+        if (!jsonText) {
+            throw new Error("AI returned an empty response for correlation analysis.");
+        }
+        
         return JSON.parse(jsonText);
     } catch (error) {
         console.error("Error analyzing parlay correlation with Gemini:", error);
-        throw new Error("Failed to analyze parlay correlation. The AI model may be temporarily unavailable.");
+        throw new Error("Failed to analyze parlay correlation. The AI may be temporarily unavailable.");
     }
-};
-
-export const getComparativeAnalysis = async (
-  propADetails: string,
-  propBDetails: string
-): Promise<string> => {
-  try {
-    const systemInstruction = `You are 'The Arbiter', an expert sports betting analyst AI. Your sole function is to compare two distinct player props and provide a concise, reasoned recommendation on which one offers a better betting opportunity. Your analysis should be based on factors like value (EV), risk, confidence, and underlying projections. Do not return JSON. Respond with only the analysis text.`;
-    
-    const query = `
-      Compare the following two player props and determine which is the superior bet. Provide a brief summary of your reasoning, followed by a clear "Recommendation:" line stating which prop you favor.
-
-      Prop A: ${propADetails}
-      Prop B: ${propBDetails}
-    `;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: query,
-      config: {
-        systemInstruction,
-        temperature: 0.6,
-      }
-    });
-
-    // Fix: Access the text property directly from the response.
-    return response.text;
-  } catch (error) {
-    console.error("Error fetching comparative analysis from Gemini:", error);
-    throw new Error("Failed to get comparative analysis.");
-  }
 };

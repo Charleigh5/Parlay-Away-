@@ -14,6 +14,7 @@ import { RotateCwIcon } from './icons/RotateCwIcon';
 import { ZoomInIcon } from './icons/ZoomInIcon';
 import { ZoomOutIcon } from './icons/ZoomOutIcon';
 import { EyeIcon } from './icons/EyeIcon';
+import CreatePropModal from './CreatePropModal';
 
 const GRID_SIZE = 20;
 
@@ -26,6 +27,7 @@ const ParlayCanvas: React.FC<ParlayCanvasProps> = ({ onAnalyze, onBack }) => {
   const [nodes, setNodes] = useState<ParlayNode[]>([]);
   const [correlationAnalysis, setCorrelationAnalysis] = useState<ParlayCorrelationAnalysis | null>(null);
   const [isCorrelationLoading, setIsCorrelationLoading] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const { viewport, pan, zoom, canvasStyle, screenToCanvasCoords, resetViewport } = usePanAndZoom(canvasRef);
@@ -115,9 +117,31 @@ const ParlayCanvas: React.FC<ParlayCanvasProps> = ({ onAnalyze, onBack }) => {
     setNodes(prev => [...prev, newNode]);
   };
   
+  const handlePropCreated = (leg: ExtractedBetLeg) => {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+        // Fallback position if canvas isn't ready
+        addNode(leg, { x: 100, y: 100 });
+        setIsCreateModalOpen(false);
+        return;
+    };
+    const rect = canvas.getBoundingClientRect();
+    // Get center of the visible canvas area
+    const centerScreenCoords = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    const centerCanvasCoords = screenToCanvasCoords(centerScreenCoords);
+
+    const snappedPosition = {
+        x: Math.round(centerCanvasCoords.x / GRID_SIZE) * GRID_SIZE,
+        y: Math.round(centerCanvasCoords.y / GRID_SIZE) * GRID_SIZE,
+    };
+    
+    addNode(leg, snappedPosition);
+    setIsCreateModalOpen(false);
+  };
+
   return (
     <div className="flex flex-1 h-full w-full bg-gray-800/30 overflow-hidden">
-      <PropLibrary />
+      <PropLibrary onAddCustomProp={() => setIsCreateModalOpen(true)} />
       <div className="flex-1 flex flex-col relative">
         <header className="flex-shrink-0 h-16 bg-gray-900/50 border-b border-gray-700/50 flex items-center justify-between p-4 z-10">
            <button onClick={onBack} className="flex items-center gap-2 rounded-md bg-gray-700/50 px-3 py-1.5 text-sm font-medium text-gray-300 transition-colors hover:bg-gray-700">
@@ -178,6 +202,11 @@ const ParlayCanvas: React.FC<ParlayCanvasProps> = ({ onAnalyze, onBack }) => {
            </button>
         </footer>
       </div>
+      <CreatePropModal 
+        isOpen={isCreateModalOpen} 
+        onClose={() => setIsCreateModalOpen(false)} 
+        onPropCreated={handlePropCreated}
+      />
     </div>
   );
 };

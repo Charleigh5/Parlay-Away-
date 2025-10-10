@@ -86,6 +86,7 @@ export interface SystemUpdate {
   featureName: string;
   description: string;
   integrationStrategy: string;
+  impactAnalysis: string;
   backtestResults: {
     roiChange: number;
     brierScore: number;

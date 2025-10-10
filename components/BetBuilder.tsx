@@ -64,7 +64,7 @@ const BetBuilder: React.FC = () => {
                         {isLoading ? (
                             <p className="mt-6 text-cyan-400">Processing image...</p>
                         ) : (
-                             <ImageUpload onImageUpload={handleImageUpload} disabled={isLoading} onBack={() => {}} />
+                             <ImageUpload onImageUpload={handleImageUpload} disabled={isLoading} />
                         )}
                         <p className="text-gray-500 text-sm my-4">OR</p>
                          <button
@@ -82,8 +82,6 @@ const BetBuilder: React.FC = () => {
         }
     };
 
-    // Note: BetBuilder isn't used by any component, so it needs to be integrated into MainPanel or another top-level component to be visible.
-    // For this fix, I am only providing the implementation of the component itself.
     return <div className="flex-1 flex flex-col">{renderContent()}</div>;
 };
 
