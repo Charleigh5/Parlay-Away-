@@ -3,15 +3,13 @@ import { useDropzone } from 'react-dropzone';
 import { UploadCloudIcon } from './icons/UploadCloudIcon';
 import { XIcon } from './icons/XIcon';
 import { SendIcon } from './icons/SendIcon';
-import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
 
 interface ImageUploadProps {
   onImageUpload: (file: File) => void;
   disabled: boolean;
-  onBack?: () => void;
 }
 
-const ImageUpload: React.FC<ImageUploadProps> = ({ onImageUpload, disabled, onBack }) => {
+const ImageUpload: React.FC<ImageUploadProps> = ({ onImageUpload, disabled }) => {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
 
@@ -94,12 +92,6 @@ const ImageUpload: React.FC<ImageUploadProps> = ({ onImageUpload, disabled, onBa
 
   return (
     <div className="relative flex h-full w-full items-center justify-center p-8">
-       {onBack && (
-            <button onClick={onBack} className="absolute top-6 left-6 flex items-center gap-2 rounded-md bg-gray-700/50 px-3 py-1.5 text-sm font-medium text-gray-300 transition-colors hover:bg-gray-700">
-                <ChevronLeftIcon className="h-4 w-4" />
-                Back
-            </button>
-        )}
       <div
         {...getRootProps()}
         className={`flex w-full max-w-2xl cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed  p-12 text-center transition-colors ${

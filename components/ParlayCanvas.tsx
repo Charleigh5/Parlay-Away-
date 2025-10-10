@@ -1,22 +1,24 @@
-import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { AnalyzedBetLeg, ExtractedBetLeg, ParlayNode, ParlayCorrelationAnalysis } from '../types';
-import { analyzeParlayCorrelation, getAnalysis } from '../services/geminiService';
-import { calculateParlayOdds, formatAmericanOdds } from '../utils';
+
+import React, { useState, useRef, useCallback, useEffect, DragEvent } from 'react';
+import {
+  ExtractedBetLeg,
+  AnalyzedBetLeg,
+  ParlayNode,
+  ParlayCorrelationAnalysis,
+  Viewport,
+} from '../types';
+import { getAnalysis, analyzeParlayCorrelation } from '../services/geminiService';
 import usePanAndZoom from '../hooks/usePanAndZoom';
-import PropLibrary from './PropLibrary';
 import BetNode from './BetNode';
 import ConnectionLines from './ConnectionLines';
-import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
-import { SendIcon } from './icons/SendIcon';
-import { LinkIcon } from './icons/LinkIcon';
-import { Trash2Icon } from './icons/Trash2Icon';
-import { RotateCwIcon } from './icons/RotateCwIcon';
+import PropLibrary from './PropLibrary';
+import CreatePropModal from './CreatePropModal';
 import { ZoomInIcon } from './icons/ZoomInIcon';
 import { ZoomOutIcon } from './icons/ZoomOutIcon';
 import { EyeIcon } from './icons/EyeIcon';
-import CreatePropModal from './CreatePropModal';
-
-const GRID_SIZE = 20;
+import { SparklesIcon } from './icons/SparklesIcon';
+import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
+import { formatAmericanOdds } from '../utils';
 
 interface ParlayCanvasProps {
   onAnalyze: (legs: AnalyzedBetLeg[]) => void;
@@ -24,199 +26,180 @@ interface ParlayCanvasProps {
 }
 
 const ParlayCanvas: React.FC<ParlayCanvasProps> = ({ onAnalyze, onBack }) => {
-  const [nodes, setNodes] = useState<ParlayNode[]>([]);
-  const [correlationAnalysis, setCorrelationAnalysis] = useState<ParlayCorrelationAnalysis | null>(null);
-  const [isCorrelationLoading, setIsCorrelationLoading] = useState(false);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
-  const { viewport, pan, zoom, canvasStyle, screenToCanvasCoords, resetViewport } = usePanAndZoom(canvasRef);
+  const { viewport, zoom, canvasStyle, screenToCanvasCoords, resetViewport } = usePanAndZoom(canvasContainerRef);
 
-  const parlayOdds = useMemo(() => calculateParlayOdds(nodes.map(n => n.leg)), [nodes]);
+  const [nodes, setNodes] = useState<ParlayNode[]>([]);
+  const [correlation, setCorrelation] = useState<ParlayCorrelationAnalysis | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const runCorrelationAnalysis = useCallback(async (currentNodes: ParlayNode[]) => {
-    if (currentNodes.length < 2) {
-      setCorrelationAnalysis(null);
-      return;
-    }
-    setIsCorrelationLoading(true);
+  const addNode = async (leg: ExtractedBetLeg, position?: { x: number; y: number }) => {
+    setIsAnalyzing(true);
+    setError(null);
     try {
-      const legs = currentNodes.map(n => n.leg);
-      const result = await analyzeParlayCorrelation(legs);
-      setCorrelationAnalysis(result);
-    } catch (error) {
-      console.error("Correlation analysis failed", error);
-      setCorrelationAnalysis(null);
-    } finally {
-      setIsCorrelationLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    runCorrelationAnalysis(nodes);
-  }, [nodes.length, runCorrelationAnalysis]);
-
-  const addNode = useCallback(async (leg: ExtractedBetLeg, position: { x: number; y: number }) => {
-    const nodeId = `node_${Date.now()}`;
-    const tempNode: ParlayNode = {
-      id: nodeId,
-      leg: { ...leg, analysis: { summary: 'Loading...', reasoning: [], quantitative: { expectedValue: 0, confidenceScore: 0, kellyCriterionStake: 0, vigRemovedOdds: 0, projectedMean: 0, projectedStdDev: 0 } } },
-      position
-    };
-
-    setNodes(prev => [...prev, tempNode]);
-
-    try {
-      const query = `Analyze the prop bet: ${leg.player} ${leg.position} ${leg.line} ${leg.propType} at ${leg.marketOdds} odds.`;
+      const query = `Analyze the prop bet: ${leg.player} ${leg.position} ${leg.line} ${leg.propType} at ${formatAmericanOdds(leg.marketOdds)} odds.`;
       const analysis = await getAnalysis(query);
       const analyzedLeg: AnalyzedBetLeg = { ...leg, analysis };
-      
-      setNodes(prev => prev.map(n => n.id === nodeId ? { ...n, leg: analyzedLeg } : n));
-    } catch (error) {
-      console.error("Failed to analyze prop:", error);
-      setNodes(prev => prev.filter(n => n.id !== nodeId)); // Remove on failure
-    }
-  }, []);
 
-  const updateNodePosition = (nodeId: string, newPosition: { x: number; y: number }) => {
-    setNodes(nodes => nodes.map(node =>
-      node.id === nodeId ? { ...node, position: { x: Math.round(newPosition.x / GRID_SIZE) * GRID_SIZE, y: Math.round(newPosition.y / GRID_SIZE) * GRID_SIZE } } : node
-    ));
+      const newNode: ParlayNode = {
+        id: `node_${Date.now()}_${Math.random()}`,
+        leg: analyzedLeg,
+        position: position || { x: 100 + Math.random() * 50, y: 100 + Math.random() * 50 },
+      };
+      setNodes((prevNodes) => [...prevNodes, newNode]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to analyze prop.');
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
   
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    const type = e.dataTransfer.getData('application/type');
-    
-    if (type === 'prop-library-item') {
-        const leg = JSON.parse(e.dataTransfer.getData('application/json')) as ExtractedBetLeg;
-        if (nodes.some(n => JSON.stringify(n.leg) === JSON.stringify(leg))) return;
-        
-        const dropPosition = screenToCanvasCoords({ x: e.clientX, y: e.clientY });
-        const snappedPosition = {
-            x: Math.round(dropPosition.x / GRID_SIZE) * GRID_SIZE,
-            y: Math.round(dropPosition.y / GRID_SIZE) * GRID_SIZE,
-        };
-        addNode(leg, snappedPosition);
-    }
-  }, [addNode, nodes, screenToCanvasCoords]);
-
+  const updateNodePosition = (nodeId: string, position: { x: number; y: number }) => {
+    setNodes((prevNodes) =>
+      prevNodes.map((node) => (node.id === nodeId ? { ...node, position } : node))
+    );
+  };
+  
   const removeNode = (nodeId: string) => {
-    setNodes(prev => prev.filter(n => n.id !== nodeId));
+    setNodes((prevNodes) => prevNodes.filter((node) => node.id !== nodeId));
   };
   
-  const duplicateNode = (node: ParlayNode) => {
-    const newPosition = { x: node.position.x + GRID_SIZE * 2, y: node.position.y + GRID_SIZE * 2 };
-    const newLeg = { ...node.leg, analysis: node.leg.analysis }; // Keep existing analysis
+  const duplicateNode = (nodeToDuplicate: ParlayNode) => {
     const newNode: ParlayNode = {
-        id: `node_${Date.now()}`,
-        leg: newLeg,
-        position: newPosition,
+        ...nodeToDuplicate,
+        id: `node_${Date.now()}_${Math.random()}`,
+        position: {
+            x: nodeToDuplicate.position.x + 20,
+            y: nodeToDuplicate.position.y + 20,
+        },
     };
     setNodes(prev => [...prev, newNode]);
   };
   
-  const handlePropCreated = (leg: ExtractedBetLeg) => {
-    const canvas = canvasRef.current;
-    if (!canvas) {
-        // Fallback position if canvas isn't ready
-        addNode(leg, { x: 100, y: 100 });
-        setIsCreateModalOpen(false);
-        return;
-    };
-    const rect = canvas.getBoundingClientRect();
-    // Get center of the visible canvas area
-    const centerScreenCoords = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-    const centerCanvasCoords = screenToCanvasCoords(centerScreenCoords);
-
-    const snappedPosition = {
-        x: Math.round(centerCanvasCoords.x / GRID_SIZE) * GRID_SIZE,
-        y: Math.round(centerCanvasCoords.y / GRID_SIZE) * GRID_SIZE,
-    };
+  const handleDrop = (e: DragEvent) => {
+    e.preventDefault();
+    const type = e.dataTransfer.getData('application/type');
     
-    addNode(leg, snappedPosition);
-    setIsCreateModalOpen(false);
+    if (type === 'prop-library-item') {
+      const legData = e.dataTransfer.getData('application/json');
+      if (legData) {
+        const leg: ExtractedBetLeg = JSON.parse(legData);
+        const position = screenToCanvasCoords({ x: e.clientX, y: e.clientY });
+        addNode(leg, position);
+      }
+    }
+  };
+  
+  const handleDragOver = (e: DragEvent) => {
+    e.preventDefault(); // Necessary to allow drop
   };
 
+  const handleFinalizeAndAnalyze = () => {
+    if (nodes.length > 0) {
+      onAnalyze(nodes.map(n => n.leg));
+    }
+  };
+
+  const handlePropCreated = (leg: ExtractedBetLeg) => {
+    setIsCreateModalOpen(false);
+    addNode(leg, { x: 200, y: 150 });
+  };
+  
+  useEffect(() => {
+    const analyzeCorrelation = async () => {
+      if (nodes.length < 2) {
+        setCorrelation(null);
+        return;
+      }
+      setIsAnalyzing(true);
+      setError(null);
+      try {
+        const legsToAnalyze = nodes.map(n => n.leg);
+        const correlationResult = await analyzeParlayCorrelation(legsToAnalyze);
+        setCorrelation(correlationResult);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to analyze correlation.');
+      } finally {
+        setIsAnalyzing(false);
+      }
+    };
+    analyzeCorrelation();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodes.length]);
+
   return (
-    <div className="flex flex-1 h-full w-full bg-gray-800/30 overflow-hidden">
+    <div className="flex-1 flex h-full">
       <PropLibrary onAddCustomProp={() => setIsCreateModalOpen(true)} />
-      <div className="flex-1 flex flex-col relative">
-        <header className="flex-shrink-0 h-16 bg-gray-900/50 border-b border-gray-700/50 flex items-center justify-between p-4 z-10">
-           <button onClick={onBack} className="flex items-center gap-2 rounded-md bg-gray-700/50 px-3 py-1.5 text-sm font-medium text-gray-300 transition-colors hover:bg-gray-700">
+      <div className="flex-1 flex flex-col relative" ref={canvasContainerRef} onDrop={handleDrop} onDragOver={handleDragOver}>
+        <div className="absolute top-0 left-0 w-full h-full bg-grid-pattern"></div>
+
+        <div ref={canvasRef} style={canvasStyle} className="w-full h-full">
+          <ConnectionLines nodes={nodes} correlationAnalysis={correlation} />
+          {nodes.map((node) => (
+            <BetNode
+              key={node.id}
+              node={node}
+              updatePosition={updateNodePosition}
+              onRemove={removeNode}
+              onDuplicate={duplicateNode}
+              viewport={viewport}
+            />
+          ))}
+        </div>
+        
+        {nodes.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="text-center p-8 bg-gray-900/50 rounded-lg backdrop-blur-sm">
+                <h3 className="text-2xl font-bold text-gray-200">Parlay Canvas</h3>
+                <p className="text-gray-400 mt-2">Drag props from the library or create a custom one to begin.</p>
+            </div>
+          </div>
+        )}
+
+        <div className="absolute top-4 left-4 flex flex-col gap-2">
+            <button onClick={onBack} className="flex items-center gap-2 px-3 py-2 text-sm rounded-md bg-gray-800/80 hover:bg-gray-700/80 text-gray-300 transition-colors shadow-lg">
                 <ChevronLeftIcon className="h-4 w-4" />
                 Back
             </button>
-            <div>
-                <h2 className="text-xl font-semibold text-gray-200">Parlay Canvas</h2>
-            </div>
-            <div className="w-24"></div>
-        </header>
-
-        <main
-            ref={canvasRef}
-            className="flex-1 relative bg-gray-900 overflow-hidden cursor-grab active:cursor-grabbing"
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={handleDrop}
-        >
-          <div className="absolute inset-0 bg-[radial-gradient(#374151_1px,transparent_1px)] [background-size:20px_20px]" style={{ backgroundPosition: `${viewport.x % 20}px ${viewport.y % 20}px` }} />
-          <div style={canvasStyle}>
-              <ConnectionLines nodes={nodes} correlationAnalysis={correlationAnalysis} />
-              {nodes.map(node => (
-                <BetNode
-                  key={node.id}
-                  node={node}
-                  updatePosition={updateNodePosition}
-                  onRemove={removeNode}
-                  onDuplicate={duplicateNode}
-                  viewport={viewport}
-                />
-              ))}
-          </div>
-        </main>
+        </div>
         
-        <div className="absolute bottom-28 right-4 z-10 flex flex-col items-center gap-2">
-            <div className="flex flex-col items-center gap-1 rounded-lg bg-gray-800/80 p-1.5 shadow-lg backdrop-blur-sm border border-gray-700/50">
-                <button onClick={() => zoom(1.2)} aria-label="Zoom In" className="p-2 rounded-md hover:bg-gray-700/80 text-gray-300">
-                    <ZoomInIcon className="h-5 w-5"/>
-                </button>
-                <span className="font-mono text-xs text-gray-400 select-none w-10 text-center">
-                    {Math.round(viewport.zoom * 100)}%
-                </span>
-                <button onClick={() => zoom(0.8)} aria-label="Zoom Out" className="p-2 rounded-md hover:bg-gray-700/80 text-gray-300">
-                    <ZoomOutIcon className="h-5 w-5"/>
-                </button>
-            </div>
-            <div className="rounded-lg bg-gray-800/80 p-1.5 shadow-lg backdrop-blur-sm border border-gray-700/50">
-                <button onClick={resetViewport} aria-label="Reset View" className="p-2 rounded-md hover:bg-gray-700/80 text-gray-300">
-                    <EyeIcon className="h-5 w-5"/>
-                </button>
+        <div className="absolute top-4 right-4 flex flex-col gap-2">
+           <div className="bg-gray-800/80 rounded-lg shadow-lg flex flex-col">
+                <button onClick={() => zoom(1.2)} className="p-2 text-gray-400 hover:text-cyan-400"><ZoomInIcon className="h-5 w-5"/></button>
+                <button onClick={() => zoom(0.8)} className="p-2 text-gray-400 hover:text-cyan-400"><ZoomOutIcon className="h-5 w-5"/></button>
+                <button onClick={resetViewport} className="p-2 text-gray-400 hover:text-cyan-400"><EyeIcon className="h-5 w-5"/></button>
             </div>
         </div>
+        
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-4">
+             {isAnalyzing && (
+                <div className="flex items-center gap-2 text-sm text-cyan-400 bg-gray-800/80 px-4 py-2 rounded-lg shadow-lg">
+                    <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse [animation-delay:-0.3s]"></div>
+                    <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse [animation-delay:-0.15s]"></div>
+                    <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></div>
+                    <span>Analyzing...</span>
+                </div>
+            )}
+            {error && <div className="text-sm text-red-400 bg-red-900/50 px-4 py-2 rounded-lg shadow-lg">{error}</div>}
 
-        <footer className="flex-shrink-0 h-24 bg-gray-900/50 border-t border-gray-700/50 p-4 z-10 flex items-center justify-between">
-           <div className="flex gap-4">
-             <button onClick={() => setNodes([])} disabled={nodes.length === 0} className="flex items-center gap-2 px-4 py-2 text-sm rounded-md bg-gray-700 hover:bg-red-500/20 text-gray-300 hover:text-red-300 transition-colors disabled:opacity-50" title="Clear Canvas">
-                <Trash2Icon className="h-4 w-4" /> Clear
-             </button>
-             <button onClick={() => runCorrelationAnalysis(nodes)} disabled={nodes.length < 2 || isCorrelationLoading} className="flex items-center gap-2 px-4 py-2 text-sm rounded-md bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors disabled:opacity-50" title="Re-run Correlation Analysis">
-                {isCorrelationLoading ? <RotateCwIcon className="h-4 w-4 animate-spin"/> : <LinkIcon className="h-4 w-4" />}
-                Correlation
-             </button>
-           </div>
-           <div className="text-right">
-                <p className="text-sm text-gray-400">{nodes.length} Legs</p>
-                <p className="text-2xl font-bold font-mono text-cyan-300">{formatAmericanOdds(parlayOdds)}</p>
-           </div>
-           <button onClick={() => onAnalyze(nodes.map(n => n.leg))} disabled={nodes.length === 0} className="flex items-center justify-center gap-2 rounded-md bg-cyan-500 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-cyan-600 disabled:cursor-not-allowed disabled:bg-gray-600">
-             <SendIcon className="h-5 w-5" />
-             Finalize & Analyze
-           </button>
-        </footer>
+            {nodes.length > 0 && (
+                <button 
+                    onClick={handleFinalizeAndAnalyze}
+                    disabled={isAnalyzing}
+                    className="flex items-center gap-2 px-6 py-3 text-lg font-semibold rounded-lg bg-cyan-500 text-white transition-colors hover:bg-cyan-600 disabled:bg-gray-600 shadow-xl"
+                >
+                    <SparklesIcon className="h-6 w-6" />
+                    Finalize & Analyze Parlay
+                </button>
+            )}
+        </div>
       </div>
       <CreatePropModal 
-        isOpen={isCreateModalOpen} 
-        onClose={() => setIsCreateModalOpen(false)} 
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
         onPropCreated={handlePropCreated}
       />
     </div>
