@@ -12,10 +12,13 @@ const PROP_TYPES = Array.from(new Set(
   MOCK_GAMES_SOURCE.flatMap(g => g.players.flatMap(p => p.props.map(prop => prop.propType)))
 ));
 
+const WEEKS = Array.from({ length: 18 }, (_, i) => i + 1);
+
 const PropTypeRankingTool: React.FC = () => {
     const [propType, setPropType] = useState<string>(PROP_TYPES[0] || 'Passing Yards');
     const [threshold, setThreshold] = useState<number>(270.5);
     const [position, setPosition] = useState<'Over' | 'Under'>('Over');
+    const [week, setWeek] = useState<number>(1);
     
     const [results, setResults] = useState<RankedPlayerProp[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -30,12 +33,10 @@ const PropTypeRankingTool: React.FC = () => {
         setProgress(0);
         
         try {
-            const eligiblePlayers = await getAllEligiblePlayers(propType, 1);
+            const { eligiblePlayers, games } = await getAllEligiblePlayers(propType, week);
             if (eligiblePlayers.length === 0) {
-                throw new Error(`No players found with an active market for ${propType}.`);
+                throw new Error(`No players with an active market for ${propType} found for Week ${week}.`);
             }
-            
-            const games = MOCK_GAMES_SOURCE; // In a real app, this might come from the same service.
             
             const rankedResults = await batchAnalyzeProps(
                 eligiblePlayers,
@@ -76,25 +77,31 @@ const PropTypeRankingTool: React.FC = () => {
                 </p>
             </header>
             
-            <div className="p-4 rounded-lg bg-gray-900/50 border border-gray-700/50 flex flex-col md:flex-row gap-4 items-center justify-center">
-                <div className="w-full md:w-auto">
+            <div className="p-4 rounded-lg bg-gray-900/50 border border-gray-700/50 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+                <div className="w-full">
+                    <label htmlFor="week" className="block text-sm font-medium text-gray-400 mb-1">Week</label>
+                    <select id="week" value={week} onChange={e => setWeek(parseInt(e.target.value, 10))} className="w-full bg-gray-800 border border-gray-600 rounded-md p-2 text-gray-200 focus:ring-1 focus:ring-cyan-500">
+                        {WEEKS.map(w => <option key={w} value={w}>Week {w}</option>)}
+                    </select>
+                </div>
+                <div className="w-full">
                     <label htmlFor="propType" className="block text-sm font-medium text-gray-400 mb-1">Prop Type</label>
                     <select id="propType" value={propType} onChange={e => setPropType(e.target.value)} className="w-full bg-gray-800 border border-gray-600 rounded-md p-2 text-gray-200 focus:ring-1 focus:ring-cyan-500">
                         {PROP_TYPES.map(pt => <option key={pt} value={pt}>{pt}</option>)}
                     </select>
                 </div>
-                <div className="w-full md:w-auto">
+                <div className="w-full">
                     <label htmlFor="threshold" className="block text-sm font-medium text-gray-400 mb-1">Threshold</label>
                     <input type="number" step="0.5" id="threshold" value={threshold} onChange={e => setThreshold(parseFloat(e.target.value))} className="w-full bg-gray-800 border border-gray-600 rounded-md p-2 text-gray-200 focus:ring-1 focus:ring-cyan-500" />
                 </div>
-                 <div className="w-full md:w-auto">
+                 <div className="w-full">
                     <label className="block text-sm font-medium text-gray-400 mb-1">Position</label>
                     <div className="flex gap-2 bg-gray-800 border border-gray-600 rounded-md p-1">
-                        <button onClick={() => setPosition('Over')} className={`px-4 py-1 rounded-md text-sm font-semibold transition-colors ${position === 'Over' ? 'bg-cyan-500 text-white' : 'text-gray-300 hover:bg-gray-700'}`}>Over</button>
-                        <button onClick={() => setPosition('Under')} className={`px-4 py-1 rounded-md text-sm font-semibold transition-colors ${position === 'Under' ? 'bg-cyan-500 text-white' : 'text-gray-300 hover:bg-gray-700'}`}>Under</button>
+                        <button onClick={() => setPosition('Over')} className={`w-full px-4 py-1 rounded-md text-sm font-semibold transition-colors ${position === 'Over' ? 'bg-cyan-500 text-white' : 'text-gray-300 hover:bg-gray-700'}`}>Over</button>
+                        <button onClick={() => setPosition('Under')} className={`w-full px-4 py-1 rounded-md text-sm font-semibold transition-colors ${position === 'Under' ? 'bg-cyan-500 text-white' : 'text-gray-300 hover:bg-gray-700'}`}>Under</button>
                     </div>
                 </div>
-                <button onClick={handleRank} disabled={isLoading} className="w-full md:w-auto mt-0 md:mt-6 self-stretch md:self-auto flex items-center justify-center gap-2 rounded-md bg-cyan-500 px-6 py-2 text-sm font-semibold text-white transition-colors hover:bg-cyan-600 disabled:bg-gray-600 disabled:cursor-not-allowed">
+                <button onClick={handleRank} disabled={isLoading} className="w-full h-10 flex items-center justify-center gap-2 rounded-md bg-cyan-500 px-6 py-2 text-sm font-semibold text-white transition-colors hover:bg-cyan-600 disabled:bg-gray-600 disabled:cursor-not-allowed">
                     {isLoading ? 'Analyzing...' : 'Rank Opportunities'}
                 </button>
             </div>
