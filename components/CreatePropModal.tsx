@@ -88,8 +88,8 @@ const CreatePropModal: React.FC<CreatePropModalProps> = ({ isOpen, onClose, onPr
           
           <div className="pt-2">
             <button type="submit" className="w-full flex items-center justify-center gap-2 rounded-md bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cyan-600">
-              <PlusIcon className="h-5 w-5" />
-              Add Prop to Slip
+                <PlusIcon className="h-5 w-5" />
+                Create Prop
             </button>
           </div>
         </form>

@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, DragEvent } from 'react';
-import { Game, ExtractedBetLeg } from '../types';
-// FIX: Added getTeamRoster to the import to resolve 'Cannot find name' errors.
+import { Game, ExtractedBetLeg, Player } from '../types';
 import { getScheduleByWeek, getTeamRoster } from '../services/nflDataService';
+import { getOddsForGame } from '../services/draftkingsOddsService';
 import { SearchIcon } from './icons/SearchIcon';
 import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import { formatAmericanOdds } from '../utils';
@@ -43,17 +43,43 @@ const PropLibrary: React.FC<PropLibraryProps> = ({ onAddCustomProp }) => {
     useEffect(() => {
         const loadData = async () => {
             try {
-                // For the library, we need player data, so we'll fetch from the detailed service
-                const schedule = await getScheduleByWeek(2024, 1);
-                // In a real app, a dedicated endpoint would provide all props.
-                // Here, we simulate by fetching rosters for each game.
-                 const detailedGames = await Promise.all(schedule.games.map(async game => {
-                    const homeRoster = game.homeTeam ? await getTeamRoster(game.homeTeam.id) : { players: [] };
-                    const awayRoster = game.awayTeam ? await getTeamRoster(game.awayTeam.id) : { players: [] };
-                    return { ...game, players: [...homeRoster.players, ...awayRoster.players] };
-                }));
+                setIsLoading(true);
+                setError(null);
+                const scheduleResponse = await getScheduleByWeek(2024, 1);
+                
+                const detailedGamePromises = scheduleResponse.games.map(async (game) => {
+                    const homeRosterPromise = game.homeTeam ? getTeamRoster(game.homeTeam.id) : Promise.resolve(null);
+                    const awayRosterPromise = game.awayTeam ? getTeamRoster(game.awayTeam.id) : Promise.resolve(null);
+                    const oddsPromise = getOddsForGame(game.id);
 
-                setGames(detailedGames);
+                    const [homeRoster, awayRoster, gameWithOdds] = await Promise.all([homeRosterPromise, awayRosterPromise, oddsPromise]);
+
+                    const livePlayers = [...(homeRoster?.players ?? []), ...(awayRoster?.players ?? [])];
+                    const livePlayerMap = new Map(livePlayers.map(p => [p.name, p]));
+
+                    if (!gameWithOdds) {
+                        return { ...game, players: livePlayers };
+                    }
+                    
+                    const oddsPlayerMap = new Map(gameWithOdds.players.map(p => [p.name, p]));
+
+                    const mergedPlayers: Player[] = Array.from(livePlayerMap.values()).map(livePlayer => {
+                        const playerWithOdds = oddsPlayerMap.get(livePlayer.name);
+                        if (playerWithOdds) {
+                            return {
+                                ...livePlayer,
+                                props: playerWithOdds.props,
+                            };
+                        }
+                        return livePlayer;
+                    });
+                    
+                    return { ...game, players: mergedPlayers };
+                });
+
+                const gamesWithFullData = await Promise.all(detailedGamePromises);
+                setGames(gamesWithFullData);
+
             } catch (err) {
                 setError(err instanceof Error ? err.message : "Failed to load prop library.");
             } finally {

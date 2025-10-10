@@ -60,7 +60,6 @@ const ParlayCanvas: React.FC<ParlayCanvasProps> = ({ onAnalyze, onBack }) => {
     const nodeId = `node_${Date.now()}`;
     const tempNode: ParlayNode = {
       id: nodeId,
-      // FIX: Add missing projectedMean and projectedStdDev to conform to QuantitativeAnalysis type.
       leg: { ...leg, analysis: { summary: 'Loading...', reasoning: [], quantitative: { expectedValue: 0, confidenceScore: 0, kellyCriterionStake: 0, vigRemovedOdds: 0, projectedMean: 0, projectedStdDev: 0 } } },
       position
     };
@@ -176,10 +175,23 @@ const ParlayCanvas: React.FC<ParlayCanvasProps> = ({ onAnalyze, onBack }) => {
           </div>
         </main>
         
-        <div className="absolute top-20 right-4 z-10 flex flex-col gap-2">
-            <button onClick={() => zoom(1.2)} title="Zoom In" className="p-2 rounded-md bg-gray-800/80 hover:bg-gray-700/80 text-gray-300 backdrop-blur-sm"><ZoomInIcon className="h-5 w-5"/></button>
-            <button onClick={() => zoom(0.8)} title="Zoom Out" className="p-2 rounded-md bg-gray-800/80 hover:bg-gray-700/80 text-gray-300 backdrop-blur-sm"><ZoomOutIcon className="h-5 w-5"/></button>
-            <button onClick={resetViewport} title="Reset View" className="p-2 rounded-md bg-gray-800/80 hover:bg-gray-700/80 text-gray-300 backdrop-blur-sm"><EyeIcon className="h-5 w-5"/></button>
+        <div className="absolute bottom-28 right-4 z-10 flex flex-col items-center gap-2">
+            <div className="flex flex-col items-center gap-1 rounded-lg bg-gray-800/80 p-1.5 shadow-lg backdrop-blur-sm border border-gray-700/50">
+                <button onClick={() => zoom(1.2)} aria-label="Zoom In" className="p-2 rounded-md hover:bg-gray-700/80 text-gray-300">
+                    <ZoomInIcon className="h-5 w-5"/>
+                </button>
+                <span className="font-mono text-xs text-gray-400 select-none w-10 text-center">
+                    {Math.round(viewport.zoom * 100)}%
+                </span>
+                <button onClick={() => zoom(0.8)} aria-label="Zoom Out" className="p-2 rounded-md hover:bg-gray-700/80 text-gray-300">
+                    <ZoomOutIcon className="h-5 w-5"/>
+                </button>
+            </div>
+            <div className="rounded-lg bg-gray-800/80 p-1.5 shadow-lg backdrop-blur-sm border border-gray-700/50">
+                <button onClick={resetViewport} aria-label="Reset View" className="p-2 rounded-md hover:bg-gray-700/80 text-gray-300">
+                    <EyeIcon className="h-5 w-5"/>
+                </button>
+            </div>
         </div>
 
         <footer className="flex-shrink-0 h-24 bg-gray-900/50 border-t border-gray-700/50 p-4 z-10 flex items-center justify-between">
