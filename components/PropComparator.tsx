@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { PropSelectionDetails, QuantitativeAnalysis } from '../types';
 import { getAnalysis, getComparativeAnalysis } from '../services/geminiService';
@@ -276,6 +275,7 @@ const PropComparator: React.FC = () => {
       )
   };
 
+  const existingSelections = [propA, propB].filter(Boolean) as PropSelectionDetails[];
 
   return (
     <div className="flex h-full w-full flex-col p-4 md:p-8">
@@ -309,6 +309,7 @@ const PropComparator: React.FC = () => {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSelect={handlePropSelected}
+        existingSelections={existingSelections}
       />
     </div>
   );

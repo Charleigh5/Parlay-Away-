@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { PropSelectionDetails, MarketAnalysis, DeepAnalysisResult } from '../types';
 import { getMarketAnalysis, getDeepAnalysis } from '../services/betAnalysisService';
@@ -83,6 +82,7 @@ const SynopticLens: React.FC = () => {
     
     const { player, prop, selectedLine, selectedPosition } = selectedProp;
     const marketOdds = selectedPosition === 'Over' ? selectedLine.overOdds : selectedLine.underOdds;
+    const existingSelections = selectedProp ? [selectedProp] : [];
 
     return (
         <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 space-y-6">
@@ -150,7 +150,12 @@ const SynopticLens: React.FC = () => {
                 </div>
             </div>
             
-            <PropSelectorModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSelect={handlePropSelected} />
+            <PropSelectorModal 
+                isOpen={isModalOpen} 
+                onClose={() => setIsModalOpen(false)} 
+                onSelect={handlePropSelected}
+                existingSelections={existingSelections} 
+            />
         </div>
     );
 };

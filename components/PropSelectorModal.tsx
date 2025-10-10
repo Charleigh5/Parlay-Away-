@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Game, Player, PlayerProp, LineOdds, PropSelectionDetails } from '../types';
 import { getMarketData } from '../services/marketDataService';
@@ -10,9 +9,10 @@ interface PropSelectorModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (selection: PropSelectionDetails) => void;
+  existingSelections?: PropSelectionDetails[];
 }
 
-const PropSelectorModal: React.FC<PropSelectorModalProps> = ({ isOpen, onClose, onSelect }) => {
+const PropSelectorModal: React.FC<PropSelectorModalProps> = ({ isOpen, onClose, onSelect, existingSelections = [] }) => {
   const [games, setGames] = useState<Game[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
@@ -63,24 +63,58 @@ const PropSelectorModal: React.FC<PropSelectorModalProps> = ({ isOpen, onClose, 
           <h3 className="text-lg font-semibold text-gray-200">{selectedPlayer.name} - {selectedProp.propType}</h3>
           <p className="text-sm text-gray-400 mb-4">{selectedGame.name}</p>
           <div className="space-y-2">
-            {selectedProp.lines.map((line, index) => (
+            {selectedProp.lines.map((line, index) => {
+               const isOverSelected = existingSelections.some(s => 
+                s.player.name === selectedPlayer.name &&
+                s.prop.propType === selectedProp.propType &&
+                s.selectedLine.line === line.line &&
+                s.selectedPosition === 'Over'
+              );
+              const isUnderSelected = existingSelections.some(s => 
+                s.player.name === selectedPlayer.name &&
+                s.prop.propType === selectedProp.propType &&
+                s.selectedLine.line === line.line &&
+                s.selectedPosition === 'Under'
+              );
+
+              return (
               <div key={index} className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => { setSelectedLine(line); handleSelect('Over'); }}
-                  className="w-full text-center p-3 rounded-lg bg-gray-700 hover:bg-cyan-500/20 transition-colors"
+                  disabled={isOverSelected}
+                  className={`w-full text-left p-3 rounded-lg transition-colors flex justify-between items-center ${
+                    isOverSelected
+                      ? 'bg-gray-800 border border-cyan-800 cursor-not-allowed'
+                      : 'bg-gray-700 hover:bg-cyan-500/20'
+                  }`}
                 >
-                  <span className="text-gray-300">Over {line.line}</span>
-                  <span className="block font-mono text-cyan-400 font-semibold">{formatAmericanOdds(line.overOdds)}</span>
+                  <div>
+                    <span className={isOverSelected ? 'text-gray-500' : 'text-gray-300'}>Over {line.line}</span>
+                    <span className={`block font-mono font-semibold ${isOverSelected ? 'text-gray-600' : 'text-cyan-400'}`}>
+                      {formatAmericanOdds(line.overOdds)}
+                    </span>
+                  </div>
+                  {isOverSelected && <span className="text-xs font-semibold text-cyan-400">SELECTED</span>}
                 </button>
                 <button
                   onClick={() => { setSelectedLine(line); handleSelect('Under'); }}
-                  className="w-full text-center p-3 rounded-lg bg-gray-700 hover:bg-cyan-500/20 transition-colors"
+                  disabled={isUnderSelected}
+                  className={`w-full text-left p-3 rounded-lg transition-colors flex justify-between items-center ${
+                    isUnderSelected
+                      ? 'bg-gray-800 border border-cyan-800 cursor-not-allowed'
+                      : 'bg-gray-700 hover:bg-cyan-500/20'
+                  }`}
                 >
-                  <span className="text-gray-300">Under {line.line}</span>
-                  <span className="block font-mono text-cyan-400 font-semibold">{formatAmericanOdds(line.underOdds)}</span>
+                  <div>
+                    <span className={isUnderSelected ? 'text-gray-500' : 'text-gray-300'}>Under {line.line}</span>
+                    <span className={`block font-mono font-semibold ${isUnderSelected ? 'text-gray-600' : 'text-cyan-400'}`}>
+                      {formatAmericanOdds(line.underOdds)}
+                    </span>
+                  </div>
+                  {isUnderSelected && <span className="text-xs font-semibold text-cyan-400">SELECTED</span>}
                 </button>
               </div>
-            ))}
+            )})}
           </div>
         </div>
       );
