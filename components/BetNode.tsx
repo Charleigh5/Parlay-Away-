@@ -10,6 +10,7 @@ interface BetNodeProps {
   onRemove: (nodeId: string) => void;
   onDuplicate: (node: ParlayNode) => void;
   viewport: Viewport;
+  screenToCanvasCoords: (coords: { x: number; y: number }) => { x: number; y: number };
 }
 
 const getEvColor = (ev: number) => {
@@ -18,7 +19,7 @@ const getEvColor = (ev: number) => {
   return 'border-l-4 border-gray-600';
 };
 
-const BetNode: React.FC<BetNodeProps> = ({ node, updatePosition, onRemove, onDuplicate, viewport }) => {
+const BetNode: React.FC<BetNodeProps> = ({ node, updatePosition, onRemove, onDuplicate, viewport, screenToCanvasCoords }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false);
@@ -29,7 +30,11 @@ const BetNode: React.FC<BetNodeProps> = ({ node, updatePosition, onRemove, onDup
   const handleDragStart = (e: DragEvent) => {
     setIsDragging(true);
     e.dataTransfer.effectAllowed = 'move';
-    // Store the offset from the cursor to the top-left corner of the node
+    // Use a transparent image to hide the default browser ghost image
+    const img = new Image();
+    img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAUEBAAAACwAAAAAAQABAAACAkQBADs=';
+    e.dataTransfer.setDragImage(img, 0, 0);
+
     const rect = nodeRef.current?.getBoundingClientRect();
     if (rect) {
       setDragStart({
@@ -39,19 +44,21 @@ const BetNode: React.FC<BetNodeProps> = ({ node, updatePosition, onRemove, onDup
     }
   };
 
-  // We handle the actual position update on the parent's drop event
-  // to get the final coordinates correctly.
   const handleDrag = (e: DragEvent) => {
     // Prevent transparent ghost image from showing while dragging
     if(e.clientX === 0 && e.clientY === 0) return;
-    // We can show a visual feedback here if needed, but the final position update
-    // is better handled in the onDrop of the canvas.
   };
 
   const handleDragEnd = (e: DragEvent) => {
     setIsDragging(false);
-    const newX = e.clientX / viewport.zoom - viewport.x / viewport.zoom - dragStart.x;
-    const newY = e.clientY / viewport.zoom - viewport.y / viewport.zoom - dragStart.y;
+    // Get final mouse position in canvas coordinates
+    const finalMousePos = screenToCanvasCoords({ x: e.clientX, y: e.clientY });
+
+    // Calculate new node top-left by subtracting the initial drag offset
+    const newX = finalMousePos.x - dragStart.x;
+    const newY = finalMousePos.y - dragStart.y;
+    
+    // The updatePosition function in the parent will handle snapping
     updatePosition(node.id, { x: newX, y: newY });
   };
   

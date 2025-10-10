@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useCallback, useEffect, DragEvent } from 'react';
 import {
   ExtractedBetLeg,
@@ -25,6 +24,8 @@ interface ParlayCanvasProps {
   onBack: () => void;
 }
 
+const GRID_SNAP = 20;
+
 const ParlayCanvas: React.FC<ParlayCanvasProps> = ({ onAnalyze, onBack }) => {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -35,6 +36,11 @@ const ParlayCanvas: React.FC<ParlayCanvasProps> = ({ onAnalyze, onBack }) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  const snapToGrid = (coord: { x: number; y: number }) => ({
+    x: Math.round(coord.x / GRID_SNAP) * GRID_SNAP,
+    y: Math.round(coord.y / GRID_SNAP) * GRID_SNAP,
+  });
 
   const addNode = async (leg: ExtractedBetLeg, position?: { x: number; y: number }) => {
     setIsAnalyzing(true);
@@ -47,7 +53,7 @@ const ParlayCanvas: React.FC<ParlayCanvasProps> = ({ onAnalyze, onBack }) => {
       const newNode: ParlayNode = {
         id: `node_${Date.now()}_${Math.random()}`,
         leg: analyzedLeg,
-        position: position || { x: 100 + Math.random() * 50, y: 100 + Math.random() * 50 },
+        position: position ? snapToGrid(position) : snapToGrid({ x: 100 + Math.random() * 50, y: 100 + Math.random() * 50 }),
       };
       setNodes((prevNodes) => [...prevNodes, newNode]);
     } catch (err) {
@@ -58,8 +64,9 @@ const ParlayCanvas: React.FC<ParlayCanvasProps> = ({ onAnalyze, onBack }) => {
   };
   
   const updateNodePosition = (nodeId: string, position: { x: number; y: number }) => {
+    const snappedPosition = snapToGrid(position);
     setNodes((prevNodes) =>
-      prevNodes.map((node) => (node.id === nodeId ? { ...node, position } : node))
+      prevNodes.map((node) => (node.id === nodeId ? { ...node, position: snappedPosition } : node))
     );
   };
   
@@ -71,10 +78,10 @@ const ParlayCanvas: React.FC<ParlayCanvasProps> = ({ onAnalyze, onBack }) => {
     const newNode: ParlayNode = {
         ...nodeToDuplicate,
         id: `node_${Date.now()}_${Math.random()}`,
-        position: {
-            x: nodeToDuplicate.position.x + 20,
-            y: nodeToDuplicate.position.y + 20,
-        },
+        position: snapToGrid({
+            x: nodeToDuplicate.position.x + GRID_SNAP,
+            y: nodeToDuplicate.position.y + GRID_SNAP,
+        }),
     };
     setNodes(prev => [...prev, newNode]);
   };
@@ -88,7 +95,7 @@ const ParlayCanvas: React.FC<ParlayCanvasProps> = ({ onAnalyze, onBack }) => {
       if (legData) {
         const leg: ExtractedBetLeg = JSON.parse(legData);
         const position = screenToCanvasCoords({ x: e.clientX, y: e.clientY });
-        addNode(leg, position);
+        addNode(leg, position); // addNode will handle snapping
       }
     }
   };
@@ -105,7 +112,14 @@ const ParlayCanvas: React.FC<ParlayCanvasProps> = ({ onAnalyze, onBack }) => {
 
   const handlePropCreated = (leg: ExtractedBetLeg) => {
     setIsCreateModalOpen(false);
-    addNode(leg, { x: 200, y: 150 });
+    if (canvasContainerRef.current) {
+        const rect = canvasContainerRef.current.getBoundingClientRect();
+        const screenCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+        const canvasCenter = screenToCanvasCoords(screenCenter);
+        addNode(leg, canvasCenter); // addNode will handle snapping
+    } else {
+        addNode(leg, { x: 200, y: 150 });
+    }
   };
   
   useEffect(() => {
@@ -146,6 +160,7 @@ const ParlayCanvas: React.FC<ParlayCanvasProps> = ({ onAnalyze, onBack }) => {
               onRemove={removeNode}
               onDuplicate={duplicateNode}
               viewport={viewport}
+              screenToCanvasCoords={screenToCanvasCoords}
             />
           ))}
         </div>
