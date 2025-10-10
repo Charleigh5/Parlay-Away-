@@ -107,10 +107,14 @@ const PropComparator: React.FC = () => {
     setIsModalOpen(true);
   };
 
+  // This handler is called from the modal when a prop is selected.
+  // It is responsible for setting the prop details for the correct slot (A or B),
+  // resetting any previous analysis for that slot, and triggering a new analysis.
   const handlePropSelected = async (selection: PropSelectionDetails) => {
     setIsModalOpen(false);
     
-    // Clear comparative analysis whenever a prop changes
+    // Crucially, reset the *comparative* analysis state whenever a prop changes
+    // to prevent displaying a stale or irrelevant verdict.
     setComparativeAnalysis(null);
     setComparativeError(null);
     setIsComparativeLoading(false);
@@ -151,9 +155,13 @@ const PropComparator: React.FC = () => {
     }
   };
 
-  // Effect to run comparative analysis when both props have their analysis ready
+  // This effect orchestrates the comparative analysis between the two props.
+  // It runs automatically whenever either prop or its corresponding analysis results change.
   useEffect(() => {
     const runComparativeAnalysis = async () => {
+      // The guard clause is critical: it ensures the comparative analysis only proceeds
+      // when both props have been selected AND their individual analyses have successfully completed.
+      // This prevents unnecessary API calls and handles the asynchronous nature of the analyses.
       if (!propA || !analysisA || !propB || !analysisB) {
         return;
       }

@@ -58,7 +58,8 @@ const ParlayCanvas: React.FC<ParlayCanvasProps> = ({ onAnalyze, onBack }) => {
     const nodeId = `node_${Date.now()}`;
     const tempNode: ParlayNode = {
       id: nodeId,
-      leg: { ...leg, analysis: { summary: 'Loading...', reasoning: [], quantitative: { expectedValue: 0, confidenceScore: 0, kellyCriterionStake: 0, vigRemovedOdds: 0 } } },
+      // FIX: Add missing projectedMean and projectedStdDev to conform to QuantitativeAnalysis type.
+      leg: { ...leg, analysis: { summary: 'Loading...', reasoning: [], quantitative: { expectedValue: 0, confidenceScore: 0, kellyCriterionStake: 0, vigRemovedOdds: 0, projectedMean: 0, projectedStdDev: 0 } } },
       position
     };
 

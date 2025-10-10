@@ -90,15 +90,18 @@ export const getInjuryStatus = (playerId: string): Promise<ServiceResponse<Injur
         console.log(`Simulating fetch for injury status for player ${playerId}`);
         await new Promise(res => setTimeout(res, 100)); // Fast-moving data
         const playerMarketData = MOCK_GAMES_SOURCE.flatMap(g => g.players).find(p => p.name === playerId);
-        if (playerMarketData?.injuryStatus?.status === 'Q') {
-            return {
-                designation: 'Questionable',
-                details: playerMarketData.injuryStatus.news,
-            };
+        
+        // FIX: The returned object must match the InjuryStatus type.
+        if (playerMarketData?.injuryStatus) {
+            // If the player has an injury status in the mock data, return it.
+            return playerMarketData.injuryStatus;
         }
+
+        // Otherwise, return a default "Probable" status.
         return {
-            designation: 'Probable',
-            details: 'No significant injuries reported.'
+            status: 'P',
+            news: 'No significant injuries reported.',
+            impact: 'Expected to play without significant limitations.'
         };
     }, INJURY_TTL);
 };
