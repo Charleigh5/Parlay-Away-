@@ -108,15 +108,18 @@ export interface AnalyzedBetLeg extends ExtractedBetLeg {
   analysis: AnalysisResponse;
 }
 
+export interface CorrelationEdge {
+  leg1Index: number;
+  leg2Index: number;
+  relationship: 'Positive' | 'Negative' | 'Neutral';
+  explanation: string;
+  rho: number; // Correlation coefficient [-1, 1]
+}
+
 export interface ParlayCorrelationAnalysis {
   overallScore: number;
   summary: string;
-  analysis: Array<{
-    leg1Index: number;
-    leg2Index: number;
-    relationship: 'Positive' | 'Negative' | 'Neutral';
-    explanation: string;
-  }>;
+  analysis: CorrelationEdge[];
 }
 
 // Chat & UI Types

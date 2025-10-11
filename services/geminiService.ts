@@ -248,6 +248,10 @@ const correlationAnalysisSchema = {
                         type: Type.INTEGER,
                         description: "The 0-based index of the second leg in the pair from the original input."
                     },
+                    rho: {
+                        type: Type.NUMBER,
+                        description: "The numerical correlation coefficient (rho) between -1.0 and 1.0."
+                    },
                     relationship: {
                         type: Type.STRING,
                         description: "The type of correlation: 'Positive', 'Negative', or 'Neutral'."
@@ -257,7 +261,7 @@ const correlationAnalysisSchema = {
                         description: "A clear, concise explanation of the gameplay and statistical reasoning behind the correlation between this specific pair of legs."
                     }
                 },
-                required: ['leg1Index', 'leg2Index', 'relationship', 'explanation']
+                required: ['leg1Index', 'leg2Index', 'rho', 'relationship', 'explanation']
             }
         }
     },
@@ -269,7 +273,7 @@ export const analyzeParlayCorrelation = async (legs: ExtractedBetLeg[]): Promise
     try {
         const systemInstruction = `You are a world-class sports betting analyst specializing in identifying and quantifying the correlation between player props within a parlay. Your analysis must consider gameplay dynamics (e.g., game script, player usage), statistical relationships, and situational factors. Return a single JSON object matching the provided schema.`;
 
-        const prompt = `Analyze the correlation for the following parlay legs:\n\n${JSON.stringify(legs.map((l, index) => ({ index, player: l.player, prop: `${l.position} ${l.line} ${l.propType}` })), null, 2)}\n\nProvide a detailed breakdown of the relationship between each unique pair of legs. The leg indices in your response should correspond to the 0-based index of the legs in this prompt.`;
+        const prompt = `Analyze the correlation for the following parlay legs:\n\n${JSON.stringify(legs.map((l, index) => ({ index, player: l.player, prop: `${l.position} ${l.line} ${l.propType}` })), null, 2)}\n\nProvide a detailed breakdown of the relationship between each unique pair of legs. For each pair, you MUST provide: a numerical correlation coefficient (rho) between -1.0 and 1.0, a 'relationship' classification ('Positive', 'Negative', or 'Neutral'), and a concise 'explanation'. The leg indices in your response should correspond to the 0-based index of the legs in this prompt.`;
 
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',

@@ -33,10 +33,10 @@ const BetBuilder: React.FC = () => {
         }
     };
     
-    const handleFinalizeAnalysis = (legs: AnalyzedBetLeg[]) => {
+    const handleFinalizeAnalysis = (legs: AnalyzedBetLeg[], correlationData: ParlayCorrelationAnalysis | null) => {
         setAnalyzedLegs(legs);
+        setCorrelation(correlationData);
         setStep('analysis');
-        // Correlation analysis would be passed from canvas or re-run here
     };
 
     const handleBackToCanvas = () => {

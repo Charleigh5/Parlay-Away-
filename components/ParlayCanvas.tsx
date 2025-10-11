@@ -1,6 +1,7 @@
-import React, { useState, useRef, useCallback, useEffect, DragEvent, MouseEvent } from 'react';
+import React, { useState, useRef, useCallback, useEffect, DragEvent, MouseEvent, useMemo } from 'react';
 import {
   AnalyzedBetLeg,
+  ExtractedBetLeg,
   ParlayNode,
   ParlayCorrelationAnalysis,
 } from '../types';
@@ -19,11 +20,27 @@ import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
 import { formatAmericanOdds } from '../utils';
 
 interface ParlayCanvasProps {
-  onAnalyze: (legs: AnalyzedBetLeg[]) => void;
+  onAnalyze: (legs: AnalyzedBetLeg[], correlation: ParlayCorrelationAnalysis | null) => void;
   onBack: () => void;
 }
 
 const GRID_SNAP = 20;
+
+const getCorrelationScoreColor = (score: number) => {
+    if (score > 0.3) return 'text-green-400';
+    if (score > 0) return 'text-green-500';
+    if (score < -0.3) return 'text-red-400';
+    if (score < 0) return 'text-red-500';
+    return 'text-gray-300';
+};
+
+const getCorrelationStrengthText = (score: number) => {
+    const absScore = Math.abs(score);
+    if (absScore >= 0.7) return 'Strong';
+    if (absScore >= 0.3) return 'Moderate';
+    return 'Weak';
+};
+
 
 const ParlayCanvas: React.FC<ParlayCanvasProps> = ({ onAnalyze, onBack }) => {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -117,7 +134,7 @@ const ParlayCanvas: React.FC<ParlayCanvasProps> = ({ onAnalyze, onBack }) => {
 
   const handleFinalizeAndAnalyze = () => {
     if (nodes.length > 0) {
-      onAnalyze(nodes.map(n => n.leg));
+      onAnalyze(nodes.map(n => n.leg), correlation);
     }
   };
 
@@ -204,6 +221,19 @@ const ParlayCanvas: React.FC<ParlayCanvasProps> = ({ onAnalyze, onBack }) => {
             </div>
         </div>
         
+        {correlation && (
+            <div className="absolute bottom-4 left-4 bg-gray-800/80 backdrop-blur-sm p-3 rounded-lg shadow-lg text-center w-40 border border-gray-700/50 animate-fade-in">
+                <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">Overall Correlation</p>
+                <p className={`text-3xl font-bold font-mono ${getCorrelationScoreColor(correlation.overallScore)}`}>
+                    {correlation.overallScore.toFixed(2)}
+                </p>
+                <p className="text-xs text-gray-300 font-semibold">{getCorrelationStrengthText(correlation.overallScore)} {correlation.overallScore >= 0 ? 'Positive' : 'Negative'}</p>
+                <div className="w-full bg-gray-700 h-1.5 rounded-full mt-2">
+                    <div className="h-1.5 rounded-full" style={{ width: `${(correlation.overallScore + 1) / 2 * 100}%`, background: `linear-gradient(to right, #f87171, #fbbf24, #4ade80)`}}></div>
+                </div>
+            </div>
+        )}
+
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-4">
              {isAnalyzing && !error && (
                 <div className="flex items-center gap-2 text-sm text-cyan-400 bg-gray-800/80 px-4 py-2 rounded-lg shadow-lg">
