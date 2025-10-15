@@ -6,6 +6,125 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Project Synoptic Edge</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      :root {
+        /* Base Theme Variables */
+        --background: 240 10% 3.9%;
+        --foreground: 0 0% 98%;
+        --card: 240 10% 3.9%;
+        --card-foreground: 0 0% 98%;
+        --popover: 240 10% 3.9%;
+        --popover-foreground: 0 0% 98%;
+        --secondary: 240 3.7% 15.9%;
+        --secondary-foreground: 0 0% 98%;
+        --muted: 240 3.7% 15.9%;
+        --muted-foreground: 240 5% 64.9%;
+        --accent: 240 3.7% 15.9%;
+        --accent-foreground: 0 0% 98%;
+        --destructive: 0 62.8% 30.6%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 240 3.7% 15.9%;
+        --input: 240 3.7% 15.9%;
+        
+        /* Team Theme Variables (will be dynamically updated) */
+        --team-primary: 191 97% 50%; /* Default: cyan-400 */
+        --team-primary-foreground: 240 5.9% 10%;
+        --team-secondary: 240 3.7% 15.9%;
+        --team-accent: 191 97% 55%;
+
+        /* Aliases for components */
+        --primary: var(--team-primary);
+        --primary-foreground: var(--team-primary-foreground);
+        --ring: var(--team-primary);
+        
+        /* Hero images are now set dynamically via JS */
+        --hero-image: var(--hero-image-dark);
+      }
+      .dark {
+        --background: 240 10% 3.9%;
+        --foreground: 0 0% 98%;
+        --card: 240 10% 3.9%;
+        --card-foreground: 0 0% 98%;
+        --popover: 240 10% 3.9%;
+        --popover-foreground: 0 0% 98%;
+        --secondary: 240 3.7% 15.9%;
+        --secondary-foreground: 0 0% 98%;
+        --muted: 240 3.7% 15.9%;
+        --muted-foreground: 240 5% 64.9%;
+        --accent: 240 3.7% 15.9%;
+        --accent-foreground: 0 0% 98%;
+        --destructive: 0 62.8% 30.6%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 240 3.7% 15.9%;
+        --input: 240 3.7% 15.9%;
+
+        /* Team Colors for Dark Mode */
+        --team-primary: var(--team-primary-dark);
+        --team-primary-foreground: var(--team-primary-foreground-dark);
+        --team-secondary: var(--team-secondary-dark);
+        --team-accent: var(--team-accent-dark);
+        
+        --hero-image: var(--hero-image-dark);
+      }
+      .light {
+        --background: 0 0% 100%;
+        --foreground: 240 10% 3.9%;
+        --card: 0 0% 100%;
+        --card-foreground: 240 10% 3.9%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 240 10% 3.9%;
+        --secondary: 240 4.8% 95.9%;
+        --secondary-foreground: 240 5.9% 10%;
+        --muted: 240 4.8% 95.9%;
+        --muted-foreground: 240 3.8% 46.1%;
+        --accent: 240 4.8% 95.9%;
+        --accent-foreground: 240 5.9% 10%;
+        --destructive: 0 84.2% 60.2%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 240 5.9% 90%;
+        --input: 240 5.9% 90%;
+        
+        /* Team Colors for Light Mode */
+        --team-primary: var(--team-primary-light);
+        --team-primary-foreground: var(--team-primary-foreground-light);
+        --team-secondary: var(--team-secondary-light);
+        --team-accent: var(--team-accent-light);
+
+        --hero-image: var(--hero-image-light);
+      }
+      body {
+        background-color: hsl(var(--background));
+        color: hsl(var(--foreground));
+        transition: background-color 0.3s, color 0.3s;
+      }
+      @keyframes fade-slide-in {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .animate-fade-slide-in {
+        animation: fade-slide-in 0.5s ease-out forwards;
+      }
+      @keyframes live-data-pulse {
+        0% {
+          background-color: transparent;
+        }
+        50% {
+          background-color: hsla(var(--team-accent), 0.15);
+        }
+        100% {
+          background-color: transparent;
+        }
+      }
+      .animate-live-data-pulse {
+        animation: live-data-pulse 1s ease-in-out;
+      }
+    </style>
   <script type="importmap">
 {
   "imports": {
@@ -13,12 +132,13 @@
     "@google/genai": "https://aistudiocdn.com/@google/genai@^1.21.0",
     "react/": "https://aistudiocdn.com/react@^19.1.1/",
     "react": "https://aistudiocdn.com/react@^19.1.1",
-    "react-dropzone": "https://aistudiocdn.com/react-dropzone@^14.3.8"
+    "react-dropzone": "https://aistudiocdn.com/react-dropzone@^14.3.8",
+    "framer-motion": "https://aistudiocdn.com/framer-motion@^11.3.11/"
   }
 }
 </script>
 </head>
-  <body class="bg-gray-900">
+  <body>
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>
