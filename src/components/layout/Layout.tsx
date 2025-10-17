@@ -9,6 +9,7 @@ import FieldGoalCelebration from '../animations/FieldGoalCelebration';
 import LionsRoar from '../animations/LionsRoar';
 import HelmetCollision from '../animations/HelmetCollision';
 import EndZoneCelebration from '../animations/EndZoneCelebration';
+import InteractiveBackground from '../common/InteractiveBackground';
 
 interface LayoutProps {
   children: ReactNode;
@@ -21,7 +22,8 @@ const Layout: React.FC<LayoutProps> = ({ children, activePage, setActivePage }) 
 
   return (
     <div className="flex h-screen w-full flex-col font-sans overflow-hidden">
-       <header className="flex h-16 shrink-0 items-center justify-between border-b px-6" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background))' }}>
+       <InteractiveBackground />
+       <header className="flex h-16 shrink-0 items-center justify-between border-b px-6 z-10" style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--background))' }}>
           <div className="flex items-center gap-2">
             <BrainCircuitIcon className="h-6 w-6 text-cyan-400" />
             <h1 className="text-xl font-semibold tracking-wider uppercase" style={{ color: 'hsl(var(--foreground))' }}>
@@ -35,7 +37,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activePage, setActivePage }) 
           <ThemeToggle />
         </header>
 
-      <main className="flex-1 overflow-y-auto relative">
+      <main className="flex-1 overflow-y-auto relative z-0">
         {children}
       </main>
 
