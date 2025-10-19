@@ -1,6 +1,7 @@
 
 // FIX: Corrected import path for types
 import { ServiceResponse, DataFreshnessStatus } from '../types/index';
+import { apiClient } from './apiClient';
 
 interface CacheEntry<T> {
   data: T;
@@ -20,7 +21,7 @@ const cache = new Map<string, CacheEntry<any>>();
  * @param ttl The Time-to-Live for the cache entry in milliseconds.
  * @returns A `ServiceResponse` object containing the data and its freshness status.
  */
-export const apiClient = async <T>(
+export const apiClient_old = async <T>(
   key: string,
   fetcher: () => Promise<T>,
   ttl: number

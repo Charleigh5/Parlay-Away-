@@ -1,5 +1,4 @@
-// FIX: Corrected types import to be more explicit.
-import { LineOdds, PlayerProp, RankedPlayerProp, ParlayAnalysis } from './types/index';
+import { LineOdds, PlayerProp, RankedPlayerProp, ParlayAnalysis } from './types';
 
 export const fileToBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -254,7 +253,6 @@ export const analyzeParlayValue = (
   
   const combinedProb = probabilities.reduce((acc, prob) => acc * prob, 1);
   const parlayOdds = calculateParlayOdds(odds.map(o => ({marketOdds: o})));
-  // FIX: Map legs to the correct structure for calculateParlayEVFromTrueProbs
   const ev = calculateParlayEVFromTrueProbs(legs.map(l => ({ trueProbability: l.estimatedWinProb, marketOdds: l.odds })));
   
   let riskLevel: 'low' | 'medium' | 'high' | 'extreme';
@@ -278,7 +276,6 @@ export const analyzeParlayValue = (
     shouldBet: ev > 0 && combinedProb > 0.15 // Only bet if +EV and >15% win chance
   };
 };
-
 
 // --- EXPORT FUNCTIONALITY ---
 

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, DragEvent } from 'react';
-import { Game, ExtractedBetLeg, Player } from '../types/index';
+import { Game, ExtractedBetLeg, Player } from '../types';
 import { getScheduleByWeek, getTeamRoster } from '../services/nflDataService';
 import { getOddsForGame } from '../services/draftkingsOddsService';
 import { SearchIcon } from '../assets/icons/SearchIcon';

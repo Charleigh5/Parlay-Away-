@@ -2,9 +2,9 @@ import React, { useState, FormEvent } from 'react';
 // FIX: Corrected import path for types
 import { ExtractedBetLeg } from '../types/index';
 // FIX: Corrected import path for XIcon.
-import { XIcon } from './icons/XIcon';
+import { XIcon } from '../assets/icons/XIcon';
 // FIX: Corrected import path for PlusIcon.
-import { PlusIcon } from './icons/PlusIcon';
+import { PlusIcon } from '../assets/icons/PlusIcon';
 
 interface CreatePropModalProps {
   isOpen: boolean;

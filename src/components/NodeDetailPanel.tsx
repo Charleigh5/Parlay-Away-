@@ -1,5 +1,5 @@
 import React from 'react';
-import { ParlayNode } from '../types/index';
+import { ParlayNode } from '../types';
 import { formatAmericanOdds } from '../utils';
 import { ClipboardListIcon } from '../assets/icons/ClipboardListIcon';
 import { CopyIcon } from '../assets/icons/CopyIcon';

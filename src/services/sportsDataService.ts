@@ -1,4 +1,6 @@
+// FIX: Corrected import path for types
 import { ServiceResponse, DataFreshnessStatus } from '../types';
+import { apiClient } from './apiClient';
 
 interface CacheEntry<T> {
   data: T;
@@ -18,7 +20,7 @@ const cache = new Map<string, CacheEntry<any>>();
  * @param ttl The Time-to-Live for the cache entry in milliseconds.
  * @returns A `ServiceResponse` object containing the data and its freshness status.
  */
-export const apiClient = async <T>(
+export const apiClient_old = async <T>(
   key: string,
   fetcher: () => Promise<T>,
   ttl: number
@@ -29,7 +31,7 @@ export const apiClient = async <T>(
   if (cached && now < cached.expires) {
     console.log(`[Cache] HIT for key: ${key}`);
     return {
-      data: structuredClone(cached.data), // Deep copy
+      data: JSON.parse(JSON.stringify(cached.data)), // Deep copy
       status: 'cached',
       lastUpdated: new Date(cached.timestamp).toISOString(),
     };
@@ -50,7 +52,7 @@ export const apiClient = async <T>(
       cache.set(key, newEntry);
       
       return {
-        data: structuredClone(data), // Deep copy
+        data: JSON.parse(JSON.stringify(data)), // Deep copy
         status: 'live',
         lastUpdated: new Date(now).toISOString(),
       };
@@ -65,7 +67,7 @@ export const apiClient = async <T>(
   if (cached) {
     console.warn(`[API Fallback] All retries failed for key: ${key}. Returning stale data.`);
     return {
-      data: structuredClone(cached.data), // Deep copy
+      data: JSON.parse(JSON.stringify(cached.data)), // Deep copy
       status: 'stale',
       lastUpdated: new Date(cached.timestamp).toISOString(),
       error: 'Live data unavailable; showing last known good data.'

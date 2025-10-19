@@ -1,9 +1,7 @@
-
-
 // FIX: Corrected import path for types
-import { ServiceResponse, WeatherConditions } from '../types/index';
+import { ServiceResponse, WeatherConditions } from '../types';
 // FIX: Corrected import path for apiClient
-import { apiClient } from './apiClient';
+import { apiClient } from '../services/apiClient';
 
 // This service is updated to use the live OpenWeatherMap API.
 // A free API key can be obtained from https://openweathermap.org/

@@ -15,13 +15,13 @@ import ConnectionLines from './ConnectionLines';
 import PropLibrary from './PropLibrary';
 import CreatePropModal from './CreatePropModal';
 import NodeDetailPanel from './NodeDetailPanel'; // Import the new component
-import { ZoomInIcon } from './icons/ZoomInIcon';
-import { ZoomOutIcon } from './icons/ZoomOutIcon';
-import { EyeIcon } from './icons/EyeIcon';
+import { ZoomInIcon } from '../assets/icons/ZoomInIcon';
+import { ZoomOutIcon } from '../assets/icons/ZoomOutIcon';
+import { EyeIcon } from '../assets/icons/EyeIcon';
 // FIX: Corrected import path for SparklesIcon
-import { SparklesIcon } from './icons/SparklesIcon';
+import { SparklesIcon } from '../assets/icons/SparklesIcon';
 // FIX: Corrected import path for ChevronLeftIcon
-import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
+import { ChevronLeftIcon } from '../assets/icons/ChevronLeftIcon';
 // FIX: Corrected import path for utils
 import { formatAmericanOdds } from '../utils';
 import { useQuickAddModal } from '../contexts/QuickAddModalContext';

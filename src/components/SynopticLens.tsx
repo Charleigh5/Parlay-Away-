@@ -5,8 +5,8 @@ import PropSelectorModal from './PropSelectorModal';
 import MarketAnalysisChart from './MarketAnalysisChart';
 import HistoricalPerformanceChart from './HistoricalPerformanceChart';
 import DeepAnalysisDrilldown from './DeepAnalysisDrilldown';
-import { TestTubeIcon } from './icons/TestTubeIcon';
-import { SparklesIcon } from './icons/SparklesIcon';
+import { TestTubeIcon } from '../assets/icons/TestTubeIcon';
+import { SparklesIcon } from '../assets/icons/SparklesIcon';
 import { formatAmericanOdds } from '../utils';
 
 const SynopticLens: React.FC = () => {

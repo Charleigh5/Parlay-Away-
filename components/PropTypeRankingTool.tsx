@@ -5,8 +5,8 @@ import { batchAnalyzeProps } from '../services/betAnalysisService';
 import { MOCK_GAMES_SOURCE } from '../data/mockSportsData';
 import { exportToCsv, formatAmericanOdds } from '../utils';
 import DeepAnalysisDrilldown from './DeepAnalysisDrilldown';
-import { ChevronDownIcon } from './icons/ChevronDownIcon';
-import { ArrowDownIcon } from './icons/ArrowDownIcon';
+import { ChevronDownIcon } from '../assets/icons/ChevronDownIcon';
+import { ArrowDownIcon } from '../assets/icons/ArrowDownIcon';
 
 const PROP_TYPES = Array.from(new Set(
   // Fix: Added optional chaining to safely handle players who might not have props.

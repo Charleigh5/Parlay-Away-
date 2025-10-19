@@ -6,7 +6,6 @@ import {
     kellyForParlay
 } from '../../utils';
 import { DollarSignIcon } from '../icons/DollarSignIcon';
-import { PercentIcon } from '../icons/PercentIcon';
 import { AlertTriangleIcon } from '../icons/AlertTriangleIcon';
 import { CalculatorIcon } from '../icons/CalculatorIcon';
 import InfoTooltip from './InfoTooltip';

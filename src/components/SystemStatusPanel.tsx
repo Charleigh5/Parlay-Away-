@@ -4,7 +4,8 @@ import { proposeModelUpdate, sendUpdateFeedback } from '../services/geminiServic
 import { ZapIcon } from '../assets/icons/ZapIcon';
 import { CheckCircleIcon } from '../assets/icons/CheckCircleIcon';
 import { ClockIcon } from '../assets/icons/ClockIcon';
-import { RotateCwIcon } from '../assets/icons/RotateCwIcon';
+// FIX: Corrected import to use RefreshCwIcon as exported from the file.
+import { RefreshCwIcon } from '../assets/icons/RefreshCwIcon';
 import { Settings2Icon } from '../assets/icons/Settings2Icon';
 import { XCircleIcon } from '../assets/icons/XCircleIcon';
 import { CheckIcon } from '../assets/icons/CheckIcon';
@@ -92,7 +93,8 @@ const SystemStatusPanel: React.FC = () => {
           className="p-1.5 rounded-md text-gray-400 hover:text-cyan-400 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           aria-label="Refresh updates"
         >
-          <RotateCwIcon className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+          {/* FIX: Changed usage from RotateCwIcon to RefreshCwIcon. */}
+          <RefreshCwIcon className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
         </button>
       </div>
       <div className="flex-1 space-y-3 overflow-y-auto">

@@ -1,7 +1,6 @@
-import { Game } from '../types';
+import { Game, ServiceResponse } from '../types';
 import { generateAlternateLines } from '../utils';
 import { apiClient } from './apiClient';
-import { ServiceResponse } from '../types';
 
 const DRAFTKINGS_ODDS_SOURCE: Game[] = [
   {

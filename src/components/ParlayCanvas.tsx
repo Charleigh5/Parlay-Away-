@@ -12,11 +12,11 @@ import ConnectionLines from './ConnectionLines';
 import PropLibrary from './PropLibrary';
 import CreatePropModal from './CreatePropModal';
 import NodeDetailPanel from './NodeDetailPanel';
-import { ZoomInIcon } from './icons/ZoomInIcon';
-import { ZoomOutIcon } from './icons/ZoomOutIcon';
-import { EyeIcon } from './icons/EyeIcon';
-import { SparklesIcon } from './icons/SparklesIcon';
-import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
+import { ZoomInIcon } from '../assets/icons/ZoomInIcon';
+import { ZoomOutIcon } from '../assets/icons/ZoomOutIcon';
+import { EyeIcon } from '../assets/icons/EyeIcon';
+import { SparklesIcon } from '../assets/icons/SparklesIcon';
+import { ChevronLeftIcon } from '../assets/icons/ChevronLeftIcon';
 import { formatAmericanOdds } from '../utils';
 import { useQuickAddModal } from '../contexts/QuickAddModalContext';
 
@@ -128,6 +128,7 @@ export const ParlayCanvas = ({ onAnalyze, onBack }: ParlayCanvasProps) => {
   };
   
   const handleCanvasClick = (e: MouseEvent) => {
+    // Deselect node if clicking on the canvas background
     if (e.target === canvasContainerRef.current || e.target === canvasRef.current) {
         setSelectedNodeId(null);
     }
@@ -150,7 +151,7 @@ export const ParlayCanvas = ({ onAnalyze, onBack }: ParlayCanvasProps) => {
         addNode(leg, { x: 200, y: 150 });
     }
   }, [addNode, screenToCanvasCoords]);
-  
+
   // Set the callback for the global quick add modal
   useEffect(() => {
     setPropCreatedCallback(handlePropCreated);
@@ -174,7 +175,7 @@ export const ParlayCanvas = ({ onAnalyze, onBack }: ParlayCanvasProps) => {
         setIsAnalyzing(false);
       }
     };
-    const timer = setTimeout(analyzeCorrelation, 500);
+    const timer = setTimeout(analyzeCorrelation, 500); // Debounce correlation analysis
     return () => clearTimeout(timer);
   }, [nodes]);
 

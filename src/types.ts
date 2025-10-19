@@ -263,3 +263,12 @@ export interface WeatherConditions {
     precipitationChance: number;
     summary: string;
 }
+
+export interface ParlayAnalysis {
+  combinedProbability: number;
+  parlayOdds: number;
+  expectedValue: number;
+  recommendedMaxLegs: number;
+  riskLevel: 'low' | 'medium' | 'high' | 'extreme';
+  shouldBet: boolean;
+}

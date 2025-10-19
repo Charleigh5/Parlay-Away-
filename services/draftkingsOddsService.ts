@@ -1,9 +1,10 @@
+
+
 // FIX: Corrected import path for types
-import { Game, PlayerProp } from '../types/index';
+import { Game, PlayerProp, ServiceResponse } from '../types/index';
 // FIX: Corrected import path for utils
 import { generateAlternateLines } from '../utils';
 import { apiClient } from './apiClient';
-import { ServiceResponse } from '../types/index';
 
 const DRAFTKINGS_ODDS_SOURCE: Game[] = [
   {

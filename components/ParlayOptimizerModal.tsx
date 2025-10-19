@@ -1,6 +1,6 @@
 import React from 'react';
 import { AnalyzedBetLeg } from '../types/index';
-import { XIcon } from './icons/XIcon';
+import { XIcon } from '../assets/icons/XIcon';
 
 interface ParlayOptimizerModalProps {
   isOpen: boolean;
