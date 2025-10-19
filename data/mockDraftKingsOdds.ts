@@ -1,3 +1,4 @@
+
 // FIX: Corrected import path for types
 import { ServiceResponse, WeatherConditions } from '../types/index';
 // FIX: Corrected import path for apiClient

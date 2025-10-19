@@ -1,4 +1,5 @@
-import { LineOdds, PlayerProp, RankedPlayerProp } from './types';
+// FIX: Corrected types import to be more explicit.
+import { LineOdds, PlayerProp, RankedPlayerProp, ParlayAnalysis } from './types/index';
 
 export const fileToBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -200,6 +201,84 @@ export const calculateSingleLegEV = (trueProbability: number, marketOdds: number
     const ev = (trueProbability * (decimalOdds - 1)) - (1 - trueProbability);
     return ev * 100; // Return as percentage
 };
+
+export const kellyCalculator = (
+  winProbability: number,
+  odds: number,
+  bankroll: number,
+  fractionalKelly: number = 0.25 // Use 1/4 Kelly for safety
+): number => {
+  if (winProbability <= 0 || winProbability >= 1) return 0;
+  const decimalOdds = americanToDecimal(odds);
+  const b = decimalOdds - 1;
+  if (b <= 0) return 0;
+  const p = winProbability;
+  const q = 1 - p;
+  
+  const kellyFraction = (b * p - q) / b;
+  
+  const adjustedFraction = kellyFraction * fractionalKelly;
+  
+  // Never bet more than 5% of bankroll regardless of Kelly
+  const maxBet = Math.min(adjustedFraction, 0.05);
+  
+  if (maxBet <= 0) return 0;
+  
+  return bankroll * maxBet;
+};
+
+export const kellyForParlay = (
+  combinedProbability: number,
+  parlayOdds: number,
+  bankroll: number,
+  numberOfLegs: number
+): number => {
+  if (numberOfLegs <= 0) return 0;
+  // Reduce Kelly fraction based on number of legs
+  const riskAdjustment = 1 / Math.sqrt(numberOfLegs);
+  const conservativeKelly = 0.1 * riskAdjustment;
+  
+  return kellyCalculator(
+    combinedProbability,
+    parlayOdds,
+    bankroll,
+    conservativeKelly
+  );
+};
+
+export const analyzeParlayValue = (
+  legs: Array<{ odds: number; estimatedWinProb: number }>
+): ParlayAnalysis => {
+  const probabilities = legs.map(leg => leg.estimatedWinProb);
+  const odds = legs.map(leg => leg.odds);
+  
+  const combinedProb = probabilities.reduce((acc, prob) => acc * prob, 1);
+  const parlayOdds = calculateParlayOdds(odds.map(o => ({marketOdds: o})));
+  // FIX: Map legs to the correct structure for calculateParlayEVFromTrueProbs
+  const ev = calculateParlayEVFromTrueProbs(legs.map(l => ({ trueProbability: l.estimatedWinProb, marketOdds: l.odds })));
+  
+  let riskLevel: 'low' | 'medium' | 'high' | 'extreme';
+  if (combinedProb > 0.5) riskLevel = 'low';
+  else if (combinedProb > 0.3) riskLevel = 'medium';
+  else if (combinedProb > 0.15) riskLevel = 'high';
+  else riskLevel = 'extreme';
+  
+  const avgProb = probabilities.length > 0 ? probabilities.reduce((a, b) => a + b, 0) / probabilities.length : 0;
+  const recommendedMaxLegs = avgProb > 0 && avgProb < 1 ? Math.max(
+    3,
+    Math.floor(Math.log(0.2) / Math.log(avgProb)) // Target 20% combined probability
+  ) : 3;
+  
+  return {
+    combinedProbability: combinedProb,
+    parlayOdds,
+    expectedValue: ev,
+    recommendedMaxLegs,
+    riskLevel,
+    shouldBet: ev > 0 && combinedProb > 0.15 // Only bet if +EV and >15% win chance
+  };
+};
+
 
 // --- EXPORT FUNCTIONALITY ---
 

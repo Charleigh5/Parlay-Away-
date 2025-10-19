@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-// Fix: Alias motion import to avoid potential name collisions causing type errors.
+// FIX: Add alias to motion import to avoid potential name collisions causing type errors.
 import { motion as motionComponent, useAnimation } from 'framer-motion';
 import { useTeamTheme } from '../../hooks/useTeamTheme';
 import Uprights from '../../assets/svg/Uprights';
