@@ -1,11 +1,15 @@
+
 import React, { useState, useRef, useCallback, useEffect, DragEvent, MouseEvent, useMemo } from 'react';
+// FIX: Corrected import path for types
 import {
   AnalyzedBetLeg,
   ExtractedBetLeg,
   ParlayNode,
   ParlayCorrelationAnalysis,
 } from '../types';
+// FIX: Corrected import path for geminiService
 import { getAnalysis, analyzeParlayCorrelation } from '../services/geminiService';
+// FIX: Corrected import path for usePanAndZoom hook
 import usePanAndZoom from '../hooks/usePanAndZoom';
 import BetNode from './BetNode';
 import ConnectionLines from './ConnectionLines';
@@ -17,6 +21,7 @@ import { ZoomOutIcon } from './icons/ZoomOutIcon';
 import { EyeIcon } from './icons/EyeIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
+// FIX: Corrected import path for utils
 import { formatAmericanOdds } from '../utils';
 
 interface ParlayCanvasProps {
@@ -42,7 +47,9 @@ const getCorrelationStrengthText = (score: number) => {
 };
 
 
-const ParlayCanvas: React.FC<ParlayCanvasProps> = ({ onAnalyze, onBack }) => {
+// FIX: Removed React.FC type to avoid incorrect type inference issues.
+// FIX: Changed to a named export to be used in BetBuilder.tsx
+export const ParlayCanvas = ({ onAnalyze, onBack }: ParlayCanvasProps) => {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const { viewport, zoom, canvasStyle, screenToCanvasCoords, resetViewport } = usePanAndZoom(canvasContainerRef);

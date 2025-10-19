@@ -1,5 +1,5 @@
 import React from 'react';
-import { Page } from '../../../App';
+import { Page } from '../../App';
 import { DashboardIcon } from '../../assets/icons/DashboardIcon';
 import { InsightsIcon } from '../../assets/icons/InsightsIcon';
 import { HistoryIcon } from '../../assets/icons/HistoryIcon';

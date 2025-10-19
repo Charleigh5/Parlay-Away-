@@ -56,7 +56,6 @@ export const getAnalysis = async (query: string): Promise<AnalysisResponse> => {
       }
     });
 
-    // Fix: Access the text property directly from the response.
     const jsonText = response.text;
     return JSON.parse(jsonText);
   } catch (error) {
@@ -107,26 +106,22 @@ export const proposeModelUpdate = async (): Promise<SystemUpdate> => {
           }
       });
 
-      // Fix: Access the text property directly from the response.
       const jsonText = response.text;
       if (!jsonText) {
         throw new Error("AI returned an empty response for model update proposal.");
       }
       
-      // If parsing succeeds, we have our result.
       return JSON.parse(jsonText);
 
     } catch (error) {
       lastError = error as Error;
       console.error(`Attempt ${attempt}/${maxRetries} failed for proposeModelUpdate:`, lastError.message);
       if (attempt < maxRetries) {
-        // Exponential backoff: wait 2s, then 4s
         await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
       }
     }
   }
 
-  // If all retries failed
   console.error("Error proposing model update from Gemini after all retries:", lastError);
   throw new Error("Failed to propose a model update. The AI core may be temporarily unavailable.");
 };
@@ -141,7 +136,6 @@ export const sendUpdateFeedback = async (update: SystemUpdate, decision: 'accept
 
     const query = `Feedback received on your proposal:\n\n${decisionText}\n\nAcknowledge this feedback and state that you will incorporate it into your future research and development cycles.`;
 
-    // Fire-and-forget. We don't need the response for anything in the UI.
     await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: query,
@@ -155,11 +149,9 @@ export const sendUpdateFeedback = async (update: SystemUpdate, decision: 'accept
 
   } catch (error) {
     console.error("Error sending update feedback to Gemini:", error);
-    // Don't throw, as this is a background task and shouldn't fail the UI action.
   }
 };
 
-// Fix: Add missing getComparativeAnalysis function to resolve import error.
 export const getComparativeAnalysis = async (propADetails: string, propBDetails: string): Promise<string> => {
     try {
         const systemInstruction = `You are 'The Arbiter', the final decision-making AI for Project Synoptic Edge. Your task is to compare two distinct sports betting props and provide a clear, concise, and definitive verdict on which one is the superior bet. Your analysis must be based on the principles of +EV, confidence, and any underlying factors you can infer. Do not just state the numbers; provide a brief but insightful rationale for your choice. The final line of your response must be "Recommendation: [Prop A/Prop B/Neither]".`;
@@ -214,7 +206,6 @@ export const extractBetsFromImage = async (imageData: { data: string, mimeType: 
             }
         });
 
-        // Fix: Access the text property directly from the response.
         const jsonText = response.text;
         return JSON.parse(jsonText);
     } catch (error) {
@@ -268,7 +259,6 @@ const correlationAnalysisSchema = {
     required: ['overallScore', 'summary', 'analysis']
 };
 
-// Fix: Complete the truncated analyzeParlayCorrelation function to resolve the 'must return a value' error.
 export const analyzeParlayCorrelation = async (legs: ExtractedBetLeg[]): Promise<ParlayCorrelationAnalysis> => {
     try {
         const systemInstruction = `You are a world-class sports betting analyst specializing in identifying and quantifying the correlation between player props within a parlay. Your analysis must consider gameplay dynamics (e.g., game script, player usage), statistical relationships, and situational factors. Return a single JSON object matching the provided schema.`;

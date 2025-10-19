@@ -1,5 +1,5 @@
 import React, { ReactNode } from 'react';
-import { Page } from '../../../App';
+import { Page } from '../../App';
 import BottomNav from './BottomNav';
 import ThemeToggle from '../common/ThemeToggle';
 import { BrainCircuitIcon } from '../../assets/icons/BrainCircuitIcon';

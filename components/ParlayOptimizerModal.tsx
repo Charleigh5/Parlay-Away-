@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { AnalyzedBetLeg } from '../types';
 import { XIcon } from './icons/XIcon';

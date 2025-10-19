@@ -1,5 +1,6 @@
+
 import React, { useState, useMemo } from 'react';
-import { RankedPlayerProp } from '../types';
+import { Player, RankedPlayerProp } from '../types';
 import { getAllEligiblePlayers } from '../services/propDiscoveryService';
 import { batchAnalyzeProps } from '../services/betAnalysisService';
 import { MOCK_GAMES_SOURCE } from '../data/mockSportsData';
@@ -9,7 +10,8 @@ import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import { ArrowDownIcon } from './icons/ArrowDownIcon';
 
 const PROP_TYPES = Array.from(new Set(
-  MOCK_GAMES_SOURCE.flatMap(g => g.players.flatMap(p => p.props.map(prop => prop.propType)))
+  // Fix: Added optional chaining to safely handle players who might not have props.
+  MOCK_GAMES_SOURCE.flatMap(g => g.players.flatMap(p => p.props?.map(prop => prop.propType) || []))
 ));
 
 const WEEKS = Array.from({ length: 18 }, (_, i) => i + 1);
@@ -66,7 +68,7 @@ const PropTypeRankingTool: React.FC = () => {
         }
     };
 
-    const filterOptions = useMemo(() => {
+    const filterOptions = useMemo<{ positions: string[], teams: string[], opponents: string[] }>(() => {
         if (results.length === 0) {
             return { positions: [], teams: [], opponents: [] };
         }

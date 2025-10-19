@@ -1,6 +1,7 @@
+
 import React, { useEffect } from 'react';
 import { useTeamTheme } from '../../hooks/useTeamTheme';
-// Fix: The LionHead component is a named export, not a default export.
+// FIX: The LionHead component is a named export, not a default export.
 import { LionHead } from '../../assets/svg/LionHead';
 
 interface LionsRoarProps {

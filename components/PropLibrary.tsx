@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, DragEvent } from 'react';
 import { Game, ExtractedBetLeg, Player } from '../types';
 import { getScheduleByWeek, getTeamRoster } from '../services/nflDataService';
@@ -61,7 +62,8 @@ const PropLibrary: React.FC<PropLibraryProps> = ({ onAddCustomProp }) => {
                         return { ...game, players: livePlayers };
                     }
                     
-                    const oddsPlayerMap = new Map(gameWithOdds.players.map(p => [p.name, p]));
+                    // Fix: Explicitly type the Map to ensure correct type inference for playerWithOdds.
+                    const oddsPlayerMap = new Map<string, Player>(gameWithOdds.players.map(p => [p.name, p]));
 
                     const mergedPlayers: Player[] = Array.from(livePlayerMap.values()).map(livePlayer => {
                         const playerWithOdds = oddsPlayerMap.get(livePlayer.name);

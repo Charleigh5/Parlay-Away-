@@ -1,3 +1,4 @@
+
 import React, { useEffect } from 'react';
 // Fix: Alias motion import to avoid potential name collisions causing type errors.
 import { motion as motionComponent, useAnimation } from 'framer-motion';
