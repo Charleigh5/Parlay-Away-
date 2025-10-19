@@ -1,5 +1,4 @@
-
-import { ServiceResponse, DefensiveRanking, TeamDefensiveStats } from '../types';
+import { ServiceResponse, DefensiveRanking, TeamDefensiveStats } from '../types/index';
 import { apiClient } from './apiClient';
 import { DEFENSIVE_STATS, TEAM_NAME_TO_ABBREVIATION } from '../data/mockDefensiveStats';
 

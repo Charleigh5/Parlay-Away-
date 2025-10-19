@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { AnalyzedBetLeg } from '../types';
+import { AnalyzedBetLeg } from '../types/index';
 import { XIcon } from './icons/XIcon';
 
 interface ParlayOptimizerModalProps {

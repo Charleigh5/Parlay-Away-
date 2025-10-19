@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { ParlayNode, ParlayCorrelationAnalysis, CorrelationEdge } from '../types';
+import { ParlayNode, ParlayCorrelationAnalysis, CorrelationEdge } from '../types/index';
 
 interface ConnectionLinesProps {
   nodes: ParlayNode[];

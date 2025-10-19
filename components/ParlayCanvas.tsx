@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useCallback, useEffect, DragEvent, MouseEvent, useMemo } from 'react';
 // FIX: Corrected import path for types
 import {
@@ -6,7 +5,7 @@ import {
   ExtractedBetLeg,
   ParlayNode,
   ParlayCorrelationAnalysis,
-} from '../types';
+} from '../types/index';
 // FIX: Corrected import path for geminiService
 import { getAnalysis, analyzeParlayCorrelation } from '../services/geminiService';
 // FIX: Corrected import path for usePanAndZoom hook
@@ -19,10 +18,13 @@ import NodeDetailPanel from './NodeDetailPanel'; // Import the new component
 import { ZoomInIcon } from './icons/ZoomInIcon';
 import { ZoomOutIcon } from './icons/ZoomOutIcon';
 import { EyeIcon } from './icons/EyeIcon';
+// FIX: Corrected import path for SparklesIcon
 import { SparklesIcon } from './icons/SparklesIcon';
+// FIX: Corrected import path for ChevronLeftIcon
 import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
 // FIX: Corrected import path for utils
 import { formatAmericanOdds } from '../utils';
+import { useQuickAddModal } from '../contexts/QuickAddModalContext';
 
 interface ParlayCanvasProps {
   onAnalyze: (legs: AnalyzedBetLeg[], correlation: ParlayCorrelationAnalysis | null) => void;
@@ -53,6 +55,7 @@ export const ParlayCanvas = ({ onAnalyze, onBack }: ParlayCanvasProps) => {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const { viewport, zoom, canvasStyle, screenToCanvasCoords, resetViewport } = usePanAndZoom(canvasContainerRef);
+  const { setPropCreatedCallback } = useQuickAddModal();
 
   const [nodes, setNodes] = useState<ParlayNode[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -66,7 +69,7 @@ export const ParlayCanvas = ({ onAnalyze, onBack }: ParlayCanvasProps) => {
     y: Math.round(coord.y / GRID_SNAP) * GRID_SNAP,
   });
 
-  const addNode = async (leg: ExtractedBetLeg, position?: { x: number; y: number }) => {
+  const addNode = useCallback(async (leg: ExtractedBetLeg, position?: { x: number; y: number }) => {
     setIsAnalyzing(true);
     setError(null);
     try {
@@ -85,7 +88,7 @@ export const ParlayCanvas = ({ onAnalyze, onBack }: ParlayCanvasProps) => {
     } finally {
       setIsAnalyzing(false);
     }
-  };
+  }, []);
   
   const updateNodePosition = (nodeId: string, position: { x: number; y: number }) => {
     const snappedPosition = snapToGrid(position);
@@ -145,7 +148,7 @@ export const ParlayCanvas = ({ onAnalyze, onBack }: ParlayCanvasProps) => {
     }
   };
 
-  const handlePropCreated = (leg: ExtractedBetLeg) => {
+  const handlePropCreated = useCallback((leg: ExtractedBetLeg) => {
     setIsCreateModalOpen(false);
     if (canvasContainerRef.current) {
         const rect = canvasContainerRef.current.getBoundingClientRect();
@@ -155,7 +158,12 @@ export const ParlayCanvas = ({ onAnalyze, onBack }: ParlayCanvasProps) => {
     } else {
         addNode(leg, { x: 200, y: 150 });
     }
-  };
+  }, [addNode, screenToCanvasCoords]);
+
+  // Set the callback for the global quick add modal
+  useEffect(() => {
+    setPropCreatedCallback(handlePropCreated);
+  }, [setPropCreatedCallback, handlePropCreated]);
   
   useEffect(() => {
     const analyzeCorrelation = async () => {

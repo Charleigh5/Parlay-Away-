@@ -22,7 +22,8 @@ const PropSelectorModal: React.FC<PropSelectorModalProps> = ({ isOpen, onClose, 
 
   useEffect(() => {
     if (isOpen) {
-      setGames(getMarketData());
+      // FIX: Correctly handle promise for async state update
+      getMarketData().then(setGames);
     } else {
       // Reset state on close
       setTimeout(() => {

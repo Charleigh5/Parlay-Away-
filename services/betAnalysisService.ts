@@ -1,4 +1,3 @@
-
 import {
   PropSelectionDetails,
   ServiceResponse,
@@ -8,7 +7,7 @@ import {
   Player,
   Game,
   RankedPlayerProp,
-} from '../types';
+} from '../types/index';
 import { apiClient } from './apiClient';
 import { americanToDecimal, normalCdf, calculateSingleLegEV } from '../utils';
 import * as playerDataService from './playerDataService';

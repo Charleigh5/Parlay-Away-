@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { AnalyzedBetLeg, ParlayCorrelationAnalysis } from '../types';
+import { AnalyzedBetLeg, ParlayCorrelationAnalysis } from '../types/index';
 
 interface CorrelationHeatmapProps {
   legs: AnalyzedBetLeg[];

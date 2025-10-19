@@ -1,6 +1,5 @@
-
 import React, { useState, useRef, DragEvent } from 'react';
-import { ParlayNode, Viewport } from '../types';
+import { ParlayNode, Viewport } from '../types/index';
 import { formatAmericanOdds } from '../utils';
 import CanvasContextMenu from './CanvasContextMenu';
 

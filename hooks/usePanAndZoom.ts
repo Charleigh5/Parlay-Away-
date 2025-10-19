@@ -1,6 +1,5 @@
-
 import { useState, useRef, useEffect, useCallback, RefObject } from 'react';
-import { Viewport } from '../types';
+import { Viewport } from '../types/index';
 
 const usePanAndZoom = (canvasRef: RefObject<HTMLElement>) => {
   const [viewport, setViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });

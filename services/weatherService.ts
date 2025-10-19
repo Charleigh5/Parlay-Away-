@@ -1,5 +1,4 @@
-
-import { ServiceResponse, WeatherConditions } from '../types';
+import { ServiceResponse, WeatherConditions } from '../types/index';
 import { apiClient } from './apiClient';
 
 // This service is updated to use the live OpenWeatherMap API.

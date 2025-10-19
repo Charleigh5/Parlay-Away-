@@ -1,5 +1,4 @@
-
-import { ServiceResponse, GameLogEntry, PlayerSeasonStats, PlayerSplits, InjuryStatus } from '../types';
+import { ServiceResponse, GameLogEntry, PlayerSeasonStats, PlayerSplits, InjuryStatus } from '../types/index';
 import { apiClient } from './apiClient';
 import { MOCK_GAMES_SOURCE } from '../data/mockSportsData';
 

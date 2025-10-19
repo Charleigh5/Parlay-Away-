@@ -1,8 +1,8 @@
-import { Game, PlayerProp } from '../types';
+import { Game } from '../types';
 import { MOCK_GAMES_SOURCE } from '../data/mockSportsData';
 import { generateAlternateLines } from '../utils';
-
-let marketDataCache: Game[] | null = null;
+import { apiClient } from './apiClient';
+import { ServiceResponse } from '../types';
 
 const processGameData = (sourceData: Game[]): Game[] => {
     return sourceData.map(game => ({
@@ -17,17 +17,30 @@ const processGameData = (sourceData: Game[]): Game[] => {
     }));
 };
 
+const MARKET_DATA_TTL = 15 * 60 * 1000; // 15 minutes
 
 /**
- * Processes the raw source game data to generate a full set of alternate lines for each prop.
- * This function is memoized to avoid redundant calculations.
- * @returns A deep copy of the game data with all alternate lines populated.
+ * Fetches and processes the raw source game data to generate a full set of alternate lines.
+ * This function now uses the standard apiClient for caching and data retrieval.
+ * @returns A promise that resolves to an array of Game data with all alternate lines populated.
  */
-export const getMarketData = (): Game[] => {
-    if (marketDataCache) {
-        return JSON.parse(JSON.stringify(marketDataCache));
+export const getMarketData = async (): Promise<Game[]> => {
+    const response: ServiceResponse<Game[]> = await apiClient(
+        'market-data:all',
+        async () => {
+            console.log('[API] Simulating fetch for all market data.');
+            await new Promise(res => setTimeout(res, 200));
+            // In a real app, this would fetch the raw data from a live API.
+            // We return the raw source here to be processed later.
+            return MOCK_GAMES_SOURCE;
+        },
+        MARKET_DATA_TTL
+    );
+    
+    if (response.data) {
+        // Process the data (generate alternate lines) after it's fetched.
+        return processGameData(response.data);
     }
-    const processedGames = processGameData(MOCK_GAMES_SOURCE);
-    marketDataCache = processedGames;
-    return JSON.parse(JSON.stringify(processedGames)); // Return a deep copy
+    
+    return []; // Return empty array if data is unavailable.
 };

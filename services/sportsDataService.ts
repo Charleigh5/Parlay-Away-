@@ -1,6 +1,5 @@
-
 // FIX: Corrected import path for types
-import { ServiceResponse, DataFreshnessStatus } from '../types';
+import { ServiceResponse, DataFreshnessStatus } from '../types/index';
 
 interface CacheEntry<T> {
   data: T;

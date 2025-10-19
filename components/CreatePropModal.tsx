@@ -1,7 +1,6 @@
-
 import React, { useState, FormEvent } from 'react';
 // FIX: Corrected import path for types
-import { ExtractedBetLeg } from '../types';
+import { ExtractedBetLeg } from '../types/index';
 import { XIcon } from './icons/XIcon';
 import { PlusIcon } from './icons/PlusIcon';
 

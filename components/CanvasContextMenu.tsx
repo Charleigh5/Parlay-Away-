@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef } from 'react';
 import { TestTubeIcon } from './icons/TestTubeIcon';
 import { CopyIcon } from './icons/CopyIcon';

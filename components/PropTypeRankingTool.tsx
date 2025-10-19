@@ -1,6 +1,5 @@
-
 import React, { useState, useMemo } from 'react';
-import { Player, RankedPlayerProp } from '../types';
+import { Player, RankedPlayerProp } from '../types/index';
 import { getAllEligiblePlayers } from '../services/propDiscoveryService';
 import { batchAnalyzeProps } from '../services/betAnalysisService';
 import { MOCK_GAMES_SOURCE } from '../data/mockSportsData';

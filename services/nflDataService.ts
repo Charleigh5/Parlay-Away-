@@ -1,6 +1,5 @@
-
 // FIX: Corrected import path for types
-import { Game, Player } from '../types';
+import { Game, Player } from '../types/index';
 import { apiClient } from './apiClient';
 
 // This file is updated to use the live ESPN API, replacing the previous mock data implementation.

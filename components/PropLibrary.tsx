@@ -1,6 +1,5 @@
-
 import React, { useState, useMemo, useEffect, DragEvent } from 'react';
-import { Game, ExtractedBetLeg, Player } from '../types';
+import { Game, ExtractedBetLeg, Player } from '../types/index';
 import { getScheduleByWeek, getTeamRoster } from '../services/nflDataService';
 import { getOddsForGame } from '../services/draftkingsOddsService';
 import { SearchIcon } from './icons/SearchIcon';

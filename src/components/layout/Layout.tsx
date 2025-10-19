@@ -10,6 +10,8 @@ import LionsRoar from '../animations/LionsRoar';
 import HelmetCollision from '../animations/HelmetCollision';
 import EndZoneCelebration from '../animations/EndZoneCelebration';
 import InteractiveBackground from '../common/InteractiveBackground';
+import CreatePropModal from '../CreatePropModal';
+import { useQuickAddModal } from '../../contexts/QuickAddModalContext';
 
 interface LayoutProps {
   children: ReactNode;
@@ -19,6 +21,7 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children, activePage, setActivePage }) => {
   const { isFieldGoal, isLionsRoar, isHelmetCollision, isEndZone, clearAllCelebrations } = useCelebration();
+  const { isModalOpen, closeModal, onPropCreated } = useQuickAddModal();
 
   return (
     <div className="flex h-screen w-full flex-col font-sans overflow-hidden">
@@ -49,6 +52,12 @@ const Layout: React.FC<LayoutProps> = ({ children, activePage, setActivePage }) 
 
       <FAB />
       <BottomNav activePage={activePage} setActivePage={setActivePage} />
+      
+      <CreatePropModal
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        onPropCreated={onPropCreated}
+      />
     </div>
   );
 };

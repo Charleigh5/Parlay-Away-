@@ -3,6 +3,7 @@ import { useTeamTheme } from '../hooks/useTeamTheme';
 import TeamSelector from '../components/settings/TeamSelector';
 import YardLineProgress from '../components/common/YardLineProgress';
 import DownAndDistance from '../components/common/DownAndDistance';
+import AmbientAudioToggle from '../components/common/AmbientAudioToggle';
 
 const AccountPage: React.FC = () => {
   const [isSelectorOpen, setIsSelectorOpen] = useState(false);
@@ -48,11 +49,14 @@ const AccountPage: React.FC = () => {
         <div className="rounded-xl p-6" style={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
           <h2 className="text-lg font-semibold" style={{ color: 'hsl(var(--card-foreground))' }}>UI Component Demo</h2>
           <p className="text-sm mt-1 mb-6" style={{ color: 'hsl(var(--muted-foreground))' }}>
-            Demonstration of new NFL-themed progress indicators.
+            Demonstration of new NFL-themed progress indicators and audio controls.
           </p>
           <div className="space-y-6">
             <YardLineProgress currentStep={demoStep} totalSteps={totalDemoSteps} />
             <DownAndDistance currentStep={demoStep} totalSteps={totalDemoSteps} />
+            <div className="pt-4 border-t" style={{ borderColor: 'hsl(var(--border))' }}>
+              <AmbientAudioToggle />
+            </div>
           </div>
            <div className="mt-6 flex gap-4">
               <button 

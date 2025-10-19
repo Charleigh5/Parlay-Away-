@@ -3,6 +3,7 @@ import { motion as motionComponent, AnimatePresence } from 'framer-motion';
 import { ThemeProvider } from './contexts/ThemeProvider';
 import { TeamThemeProvider } from './contexts/TeamThemeProvider';
 import { CelebrationProvider } from './contexts/CelebrationProvider';
+import { QuickAddModalProvider } from './contexts/QuickAddModalContext';
 import Layout from './components/layout/Layout';
 import DashboardPage from './pages/DashboardPage';
 import MainPanel from './components/MainPanel'; // Changed from BuildParlayPage
@@ -54,21 +55,23 @@ const App: React.FC = () => {
     <ThemeProvider>
       <TeamThemeProvider>
         <CelebrationProvider>
-          <Layout activePage={activePage} setActivePage={setActivePage}>
-            <AnimatePresence mode="wait">
-              <motionComponent.div
-                key={activePage}
-                initial="initial"
-                animate="in"
-                exit="out"
-                variants={pageVariants}
-                transition={pageTransition}
-                className="h-full"
-              >
-                {renderPage()}
-              </motionComponent.div>
-            </AnimatePresence>
-          </Layout>
+          <QuickAddModalProvider>
+            <Layout activePage={activePage} setActivePage={setActivePage}>
+              <AnimatePresence mode="wait">
+                <motionComponent.div
+                  key={activePage}
+                  initial="initial"
+                  animate="in"
+                  exit="out"
+                  variants={pageVariants}
+                  transition={pageTransition}
+                  className="h-full"
+                >
+                  {renderPage()}
+                </motionComponent.div>
+              </AnimatePresence>
+            </Layout>
+          </QuickAddModalProvider>
         </CelebrationProvider>
       </TeamThemeProvider>
     </ThemeProvider>

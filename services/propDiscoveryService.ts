@@ -1,6 +1,4 @@
-
-
-import { Player, Game } from '../types';
+import { Player, Game } from '../types/index';
 import { getScheduleByWeek, getTeamRoster } from './nflDataService';
 import { getOddsForGame } from './draftkingsOddsService';
 

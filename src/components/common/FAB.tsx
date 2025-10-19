@@ -1,11 +1,13 @@
 import React from 'react';
 import { PlusIcon } from '../../assets/icons/PlusIcon';
+import { useQuickAddModal } from '../../contexts/QuickAddModalContext';
 
 const FAB: React.FC = () => {
+    const { openModal } = useQuickAddModal();
+
     const handleClick = () => {
-        // In a future phase, this will open a modal for quick parlay entry.
         console.log('FAB clicked: Open Quick Add Parlay modal.');
-        alert('Quick Add Parlay functionality will be implemented in a future phase.');
+        openModal();
     };
 
     return (

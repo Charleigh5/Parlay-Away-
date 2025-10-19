@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { DeepAnalysisResult, DeepAnalysisCriterion, CriterionCategory, DataFreshnessStatus } from '../types';
+import { DeepAnalysisResult, DeepAnalysisCriterion, CriterionCategory, DataFreshnessStatus } from '../types/index';
 import { TargetIcon } from './icons/TargetIcon';
 import { BarChartIcon } from './icons/BarChartIcon';
 import { LandmarkIcon } from './icons/LandmarkIcon';
