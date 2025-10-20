@@ -80,7 +80,7 @@ export const ParlayCanvas = ({ onAnalyze, onBack }: ParlayCanvasProps) => {
     } finally {
       setIsAnalyzing(false);
     }
-  }, []);
+  }, [screenToCanvasCoords]);
   
   const updateNodePosition = (nodeId: string, position: { x: number; y: number }) => {
     const snappedPosition = snapToGrid(position);

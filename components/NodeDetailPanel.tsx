@@ -1,9 +1,12 @@
 import React from 'react';
 import { ParlayNode } from '../types/index';
 import { formatAmericanOdds } from '../utils';
-import { ClipboardListIcon } from '../assets/icons/ClipboardListIcon';
-import { CopyIcon } from '../assets/icons/CopyIcon';
-import { Trash2Icon } from '../assets/icons/Trash2Icon';
+// FIX: Corrected import path for ClipboardListIcon
+import { ClipboardListIcon } from './icons/ClipboardListIcon';
+// FIX: Corrected import path for CopyIcon
+import { CopyIcon } from './icons/CopyIcon';
+// FIX: Corrected import path for Trash2Icon
+import { Trash2Icon } from './icons/Trash2Icon';
 
 interface NodeDetailPanelProps {
   selectedNode: ParlayNode | null;

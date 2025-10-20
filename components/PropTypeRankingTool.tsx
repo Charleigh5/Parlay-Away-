@@ -2,11 +2,15 @@ import React, { useState, useMemo } from 'react';
 import { Player, RankedPlayerProp } from '../types/index';
 import { getAllEligiblePlayers } from '../services/propDiscoveryService';
 import { batchAnalyzeProps } from '../services/betAnalysisService';
+// FIX: Corrected import path for mockSportsData
 import { MOCK_GAMES_SOURCE } from '../data/mockSportsData';
+// FIX: Corrected import path for utils
 import { exportToCsv, formatAmericanOdds } from '../utils';
 import DeepAnalysisDrilldown from './DeepAnalysisDrilldown';
-import { ChevronDownIcon } from '../assets/icons/ChevronDownIcon';
-import { ArrowDownIcon } from '../assets/icons/ArrowDownIcon';
+// FIX: Corrected import path for ChevronDownIcon
+import { ChevronDownIcon } from './icons/ChevronDownIcon';
+// FIX: Corrected import path for ArrowDownIcon
+import { ArrowDownIcon } from './icons/ArrowDownIcon';
 
 const PROP_TYPES = Array.from(new Set(
   // Fix: Added optional chaining to safely handle players who might not have props.

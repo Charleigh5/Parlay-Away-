@@ -1,7 +1,8 @@
 
 
+
 // FIX: Corrected import path for types
-import { Game, PlayerProp, ServiceResponse } from '../types/index';
+import { Game, PlayerProp, ServiceResponse } from '../types';
 // FIX: Corrected import path for utils
 import { generateAlternateLines } from '../utils';
 import { apiClient } from './apiClient';

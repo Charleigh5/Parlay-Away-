@@ -1,6 +1,4 @@
-// FIX: Corrected import path for types
 import { ServiceResponse, WeatherConditions } from '../types';
-// FIX: Corrected import path for apiClient
 import { apiClient } from '../services/apiClient';
 
 // This service is updated to use the live OpenWeatherMap API.

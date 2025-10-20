@@ -1,4 +1,3 @@
-// FIX: Corrected import path for types
 import { ServiceResponse, DataFreshnessStatus } from '../types';
 import { apiClient } from './apiClient';
 

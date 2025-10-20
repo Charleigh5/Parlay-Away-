@@ -2,10 +2,13 @@ import React, { useState, useMemo, useEffect, DragEvent } from 'react';
 import { Game, ExtractedBetLeg, Player } from '../types/index';
 import { getScheduleByWeek, getTeamRoster } from '../services/nflDataService';
 import { getOddsForGame } from '../services/draftkingsOddsService';
-import { SearchIcon } from '../assets/icons/SearchIcon';
-import { ChevronDownIcon } from '../assets/icons/ChevronDownIcon';
+// FIX: Corrected import path for SearchIcon
+import { SearchIcon } from './icons/SearchIcon';
+// FIX: Corrected import path for ChevronDownIcon
+import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import { formatAmericanOdds } from '../utils';
-import { FilePlusIcon } from '../assets/icons/FilePlusIcon';
+// FIX: Corrected import path for FilePlusIcon
+import { FilePlusIcon } from './icons/FilePlusIcon';
 
 const DraggablePropItem: React.FC<{ leg: ExtractedBetLeg }> = ({ leg }) => {
     const handleDragStart = (e: DragEvent) => {

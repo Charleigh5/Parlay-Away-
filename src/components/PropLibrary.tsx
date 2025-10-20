@@ -61,7 +61,6 @@ const PropLibrary: React.FC<PropLibraryProps> = ({ onAddCustomProp }) => {
                         return { ...game, players: livePlayers };
                     }
                     
-                    // Fix: Explicitly type the Map to ensure correct type inference for playerWithOdds.
                     const oddsPlayerMap = new Map<string, Player>(gameWithOdds.players.map(p => [p.name, p]));
 
                     const mergedPlayers: Player[] = Array.from(livePlayerMap.values()).map(livePlayer => {
