@@ -1,7 +1,7 @@
 import React from 'react';
 import { KNOWLEDGE_MODULES } from '../constants';
-import { LayersIcon } from '../assets/icons/LayersIcon';
-import { BookOpenIcon } from '../assets/icons/BookOpenIcon';
+import { LayersIcon } from './icons/LayersIcon';
+import { BookOpenIcon } from './icons/BookOpenIcon';
 
 const Sidebar: React.FC = () => {
   return (
