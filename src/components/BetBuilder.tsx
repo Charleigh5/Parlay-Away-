@@ -3,9 +3,9 @@ import { RankedPlayerProp } from '../types';
 import { getAllEligiblePlayers } from '../services/propDiscoveryService';
 import { batchAnalyzeProps } from '../services/betAnalysisService';
 import { exportToCsv, formatAmericanOdds } from '../utils';
-import { SparklesIcon } from '../assets/icons/SparklesIcon';
-import { PlusIcon } from '../assets/icons/PlusIcon';
-import { Trash2Icon } from '../assets/icons/Trash2Icon';
+import { SparklesIcon } from '@/components/icons/SparklesIcon';
+import { PlusIcon } from '@/components/icons/PlusIcon';
+import { Trash2Icon } from '@/components/icons/Trash2Icon';
 import AnalysisPanel from './bet_builder/AnalysisPanel';
 
 const WEEKS = Array.from({ length: 18 }, (_, i) => i + 1);

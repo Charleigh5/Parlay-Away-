@@ -1,13 +1,9 @@
 import React, { useMemo } from 'react';
 import { RankedPlayerProp } from '../../types';
-import { 
-    analyzeParlayValue,
-    formatAmericanOdds, 
-    kellyForParlay
-} from '../../utils';
-import { DollarSignIcon } from '../icons/DollarSignIcon';
-import { AlertTriangleIcon } from '../icons/AlertTriangleIcon';
-import { CalculatorIcon } from '../icons/CalculatorIcon';
+import { analyzeParlayValue, formatAmericanOdds, kellyForParlay } from '../../utils';
+import { DollarSignIcon } from '@/components/icons/DollarSignIcon';
+import { AlertTriangleIcon } from '@/components/icons/AlertTriangleIcon';
+import { CalculatorIcon } from '@/components/icons/CalculatorIcon';
 import InfoTooltip from './InfoTooltip';
 
 interface AnalysisPanelProps {

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { TestTubeIcon } from '../assets/icons/TestTubeIcon';
-import { CopyIcon } from '../assets/icons/CopyIcon';
-import { Trash2Icon } from '../assets/icons/Trash2Icon';
+import { TestTubeIcon } from '@/components/icons/TestTubeIcon';
+import { CopyIcon } from '@/components/icons/CopyIcon';
+import { Trash2Icon } from '@/components/icons/Trash2Icon';
 
 interface ContextMenuAction {
   label: string;

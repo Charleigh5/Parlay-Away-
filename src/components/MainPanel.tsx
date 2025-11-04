@@ -1,10 +1,10 @@
 import React, { useState, Suspense } from 'react';
-import { ChatHistoryProvider } from '../contexts/ChatHistoryContext';
-import { MessageSquareIcon } from './icons/MessageSquareIcon';
-import { TestTubeIcon } from './icons/TestTubeIcon';
-import { ScaleIcon } from './icons/ScaleIcon';
-import { PackageSearchIcon } from './icons/PackageSearchIcon';
-import { ShapesIcon } from './icons/ShapesIcon'; // Import new icon
+import { ChatHistoryProvider } from '@/contexts/ChatHistoryContext';
+import { MessageSquareIcon } from '@/components/icons/MessageSquareIcon';
+import { TestTubeIcon } from '@/components/icons/TestTubeIcon';
+import { ScaleIcon } from '@/components/icons/ScaleIcon';
+import { PackageSearchIcon } from '@/components/icons/PackageSearchIcon';
+import { ShapesIcon } from '@/components/icons/ShapesIcon'; // Import new icon
 
 type View = 'chat' | 'lens' | 'comparator' | 'ranker' | 'builder'; // Add 'builder' view
 

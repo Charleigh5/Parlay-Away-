@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { Message as MessageType, AnalysisResponse } from '../types';
 import { getAnalysis } from '../services/geminiService';
-import { useChatHistory } from '../contexts/ChatHistoryContext';
+import { useChatHistory } from '@/contexts/ChatHistoryContext';
 import Message from './Message';
 import ChatInput from './ChatInput';
 

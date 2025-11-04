@@ -1,10 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, DragEvent, MouseEvent, useMemo } from 'react';
-import {
-  AnalyzedBetLeg,
-  ExtractedBetLeg,
-  ParlayNode,
-  ParlayCorrelationAnalysis,
-} from '../types';
+import { AnalyzedBetLeg, ExtractedBetLeg, ParlayNode, ParlayCorrelationAnalysis,  } from '../types';
 import { getAnalysis, analyzeParlayCorrelation } from '../services/geminiService';
 import usePanAndZoom from '../hooks/usePanAndZoom';
 import BetNode from './BetNode';
@@ -12,11 +7,11 @@ import ConnectionLines from './ConnectionLines';
 import PropLibrary from './PropLibrary';
 import CreatePropModal from './CreatePropModal';
 import NodeDetailPanel from './NodeDetailPanel';
-import { ZoomInIcon } from '../assets/icons/ZoomInIcon';
-import { ZoomOutIcon } from '../assets/icons/ZoomOutIcon';
-import { EyeIcon } from '../assets/icons/EyeIcon';
-import { SparklesIcon } from '../assets/icons/SparklesIcon';
-import { ChevronLeftIcon } from '../assets/icons/ChevronLeftIcon';
+import { ZoomInIcon } from '@/components/icons/ZoomInIcon';
+import { ZoomOutIcon } from '@/components/icons/ZoomOutIcon';
+import { EyeIcon } from '@/components/icons/EyeIcon';
+import { SparklesIcon } from '@/components/icons/SparklesIcon';
+import { ChevronLeftIcon } from '@/components/icons/ChevronLeftIcon';
 import { formatAmericanOdds } from '../utils';
 import { useQuickAddModal } from '../contexts/QuickAddModalContext';
 

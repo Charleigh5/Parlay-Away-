@@ -1,7 +1,7 @@
 import React, { useState, FormEvent } from 'react';
 import { ExtractedBetLeg } from '../types';
-import { XIcon } from '../assets/icons/XIcon';
-import { PlusIcon } from '../assets/icons/PlusIcon';
+import { XIcon } from '@/components/icons/XIcon';
+import { PlusIcon } from '@/components/icons/PlusIcon';
 
 interface CreatePropModalProps {
   isOpen: boolean;

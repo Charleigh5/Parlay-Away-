@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { PropSelectionDetails, QuantitativeAnalysis } from '../types';
 import { getAnalysis, getComparativeAnalysis } from '../services/geminiService';
 import PropSelectorModal from './PropSelectorModal';
-import { PlusIcon } from './icons/PlusIcon';
-import { SparklesIcon } from './icons/SparklesIcon';
+import { PlusIcon } from '@/components/icons/PlusIcon';
+import { SparklesIcon } from '@/components/icons/SparklesIcon';
 import { formatAmericanOdds } from '../utils';
-import { BrainCircuitIcon } from './icons/BrainCircuitIcon';
+import { BrainCircuitIcon } from '@/components/icons/BrainCircuitIcon';
 
 type Slot = 'A' | 'B';
 
