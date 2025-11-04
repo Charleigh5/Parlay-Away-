@@ -1,8 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { UploadCloudIcon } from '../assets/icons/UploadCloudIcon';
-import { XIcon } from '../assets/icons/XIcon';
-import { SendIcon } from '../assets/icons/SendIcon';
+import { SendIcon, UploadCloudIcon, XIcon } from './icons';
 
 interface ImageUploadProps {
   onImageUpload: (file: File) => void;

@@ -5,9 +5,7 @@ import {
     formatAmericanOdds, 
     kellyForParlay
 } from '../../utils';
-import { DollarSignIcon } from '../icons/DollarSignIcon';
-import { AlertTriangleIcon } from '../icons/AlertTriangleIcon';
-import { CalculatorIcon } from '../icons/CalculatorIcon';
+import { AlertTriangleIcon, CalculatorIcon, DollarSignIcon } from '../icons';
 import InfoTooltip from './InfoTooltip';
 
 interface AnalysisPanelProps {
