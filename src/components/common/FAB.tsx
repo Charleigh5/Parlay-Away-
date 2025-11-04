@@ -1,5 +1,5 @@
 import React from 'react';
-import { PlusIcon } from '../../assets/icons/PlusIcon';
+import { PlusIcon } from '../icons';
 import { useQuickAddModal } from '../../contexts/QuickAddModalContext';
 
 const FAB: React.FC = () => {

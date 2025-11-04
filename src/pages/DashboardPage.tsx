@@ -4,7 +4,7 @@ import EdgeTicker from '../components/dashboard/EdgeTicker';
 import EdgeMeter from '../components/dashboard/EdgeMeter';
 import LeaderboardWidget from '../components/dashboard/LeaderboardWidget';
 import { useCelebration } from '../contexts/CelebrationProvider';
-import { RefreshCwIcon } from '../assets/icons/RefreshCwIcon';
+import { RefreshCwIcon } from '../components/icons';
 
 const DashboardPage: React.FC = () => {
     const { triggerHelmetCollision } = useCelebration();

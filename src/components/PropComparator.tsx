@@ -2,10 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { PropSelectionDetails, QuantitativeAnalysis } from '../types';
 import { getAnalysis, getComparativeAnalysis } from '../services/geminiService';
 import PropSelectorModal from './PropSelectorModal';
-import { PlusIcon } from './icons/PlusIcon';
-import { SparklesIcon } from './icons/SparklesIcon';
+import { BrainCircuitIcon, PlusIcon, SparklesIcon } from './icons';
 import { formatAmericanOdds } from '../utils';
-import { BrainCircuitIcon } from './icons/BrainCircuitIcon';
 
 type Slot = 'A' | 'B';
 

@@ -1,7 +1,6 @@
 import React from 'react';
 import { useChatHistory } from '../contexts/ChatHistoryContext';
-import { MessageSquarePlusIcon } from './icons/MessageSquarePlusIcon';
-import { Trash2Icon } from './icons/Trash2Icon';
+import { MessageSquarePlusIcon, Trash2Icon } from './icons';
 
 const ChatHistorySidebar: React.FC = () => {
   const { chatHistory, createNewChat, setActiveChatId, deleteChat, activeChatId } = useChatHistory();
