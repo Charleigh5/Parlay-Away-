@@ -1,7 +1,13 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { AnalysisResponse, SystemUpdate, ExtractedBetLeg, ParlayCorrelationAnalysis } from '../types';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+
+if (!GEMINI_API_KEY) {
+  throw new Error('GEMINI_API_KEY environment variable is not set. Please provide a valid Gemini API key.');
+}
+
+const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
 const analysisResponseSchema = {
   type: Type.OBJECT,
