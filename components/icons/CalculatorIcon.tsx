@@ -1,3 +1,5 @@
+// CalculatorIcon.tsx
+// Legacy calculator glyph retained for bet builder analysis panels within Synoptic Edge.
 import React from 'react';
 
 export const CalculatorIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (

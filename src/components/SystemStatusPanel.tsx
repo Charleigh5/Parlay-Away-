@@ -1,14 +1,14 @@
 import React, { useState, useCallback } from 'react';
 import { SystemUpdate } from '../types';
 import { proposeModelUpdate, sendUpdateFeedback } from '../services/geminiService';
-import { ZapIcon } from './icons/ZapIcon';
-import { CheckCircleIcon } from './icons/CheckCircleIcon';
-import { ClockIcon } from './icons/ClockIcon';
+import { ZapIcon } from '@/components/icons/ZapIcon';
+import { CheckCircleIcon } from '@/components/icons/CheckCircleIcon';
+import { ClockIcon } from '@/components/icons/ClockIcon';
 import { RefreshCwIcon } from '../assets/icons/RefreshCwIcon';
-import { Settings2Icon } from './icons/Settings2Icon';
-import { XCircleIcon } from './icons/XCircleIcon';
-import { CheckIcon } from './icons/CheckIcon';
-import { XIcon } from './icons/XIcon';
+import { Settings2Icon } from '@/components/icons/Settings2Icon';
+import { XCircleIcon } from '@/components/icons/XCircleIcon';
+import { CheckIcon } from '@/components/icons/CheckIcon';
+import { XIcon } from '@/components/icons/XIcon';
 
 
 const SystemStatusPanel: React.FC = () => {

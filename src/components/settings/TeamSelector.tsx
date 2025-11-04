@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useTeamTheme } from '../../hooks/useTeamTheme';
-import { SearchIcon } from '../../components/icons/SearchIcon';
-import { XIcon } from '../../components/icons/XIcon';
+import { SearchIcon } from '@/components/icons/SearchIcon';
+import { XIcon } from '@/components/icons/XIcon';
 import { Team } from '../../data/nflTeams';
 
 interface TeamSelectorProps {

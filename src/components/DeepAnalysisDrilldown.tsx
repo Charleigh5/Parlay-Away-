@@ -1,10 +1,10 @@
 import React from 'react';
 import { DeepAnalysisResult, DeepAnalysisCriterion, CriterionCategory, DataFreshnessStatus } from '../types';
-import { TargetIcon } from '../assets/icons/TargetIcon';
-import { BarChartIcon } from '../assets/icons/BarChartIcon';
-import { LandmarkIcon } from '../assets/icons/LandmarkIcon';
-import { UsersIcon } from '../assets/icons/UsersIcon';
-import { LinkIcon } from '../assets/icons/LinkIcon';
+import { TargetIcon } from '@/components/icons/TargetIcon';
+import { BarChartIcon } from '@/components/icons/BarChartIcon';
+import { LandmarkIcon } from '@/components/icons/LandmarkIcon';
+import { UsersIcon } from '@/components/icons/UsersIcon';
+import { LinkIcon } from '@/components/icons/LinkIcon';
 
 const getCategoryIcon = (category: CriterionCategory): React.ReactNode => {
     const props = { className: 'h-5 w-5' };

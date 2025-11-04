@@ -1,3 +1,5 @@
+// PercentIcon.tsx
+// Provides a percentage glyph for EV displays inside Synoptic Edge analytical modules.
 import React from 'react';
 
 export const PercentIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
