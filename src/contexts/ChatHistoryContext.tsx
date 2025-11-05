@@ -1,135 +1,181 @@
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
-import { Message } from '../types';
+/**
+ * Chat history context responsible for persisting analyzer conversations and
+ * exposing helpers used by the chat workspace within the main panel.
+ * Restores the behavior lost during the monorepo refactor by wiring the
+ * sidebar, chat panel, and provider together.
+ */
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
+import useLocalStorage from '../hooks/useLocalStorage';
+import type { ChatSession, Message } from '../types';
 
-type ChatSession = {
-  id: string;
-  title: string;
-  createdAt: string;
-  messages: Message[];
-};
-
-type ChatHistoryContextValue = {
+export interface ChatHistoryContextValue {
   chatHistory: ChatSession[];
   activeChatId: string | null;
   activeChat: ChatSession | null;
-  isLoading: boolean;
   createNewChat: () => void;
-  deleteChat: (id: string) => void;
-  setActiveChatId: (id: string) => void;
+  setActiveChatId: (chatId: string | null) => void;
+  deleteChat: (chatId: string) => void;
+  renameChat: (chatId: string, newTitle: string) => void;
   addMessageToActiveChat: (message: Message) => void;
+  isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
-};
+}
 
 const ChatHistoryContext = createContext<ChatHistoryContextValue | undefined>(undefined);
 
-const createInitialSession = (): ChatSession => ({
-  id:
-    typeof globalThis.crypto?.randomUUID === 'function'
-      ? globalThis.crypto.randomUUID()
-      : Date.now().toString(),
-  title: 'New Session',
+interface ChatHistoryProviderProps {
+  children: ReactNode;
+}
+
+const STORAGE_KEY = 'synopticEdge_chatHistory';
+const DEFAULT_TITLE = 'New Analysis';
+
+const createEmptyChat = (): ChatSession => ({
+  id: `chat_${Date.now()}`,
+  title: DEFAULT_TITLE,
   createdAt: new Date().toISOString(),
   messages: [],
 });
 
-const deriveTitle = (session: ChatSession, message: Message): string => {
-  if (session.title !== 'New Session' || message.role !== 'user') {
-    return session.title;
-  }
-  const content = typeof message.content === 'string' ? message.content : '';
-  return content ? `${content.slice(0, 40)}${content.length > 40 ? '…' : ''}` : session.title;
-};
+export const ChatHistoryProvider: React.FC<ChatHistoryProviderProps> = ({ children }) => {
+  const [chatHistory, setChatHistory] = useLocalStorage<ChatSession[]>(STORAGE_KEY, []);
+  const [activeChatId, setActiveChatIdState] = useState<string | null>(() => chatHistory[0]?.id ?? null);
+  const [isLoadingState, setIsLoadingState] = useState(false);
 
-export const ChatHistoryProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [chatHistory, setChatHistory] = useState<ChatSession[]>(() => {
-    const initialSession = createInitialSession();
-    return [initialSession];
-  });
-  const [activeChatId, setActiveChatId] = useState<string | null>(() => chatHistory[0]?.id ?? null);
-  const [isLoading, setIsLoading] = useState(false);
+  useEffect(() => {
+    setActiveChatIdState((prevId) => {
+      if (prevId && chatHistory.some((chat) => chat.id === prevId)) {
+        return prevId;
+      }
+      return chatHistory[0]?.id ?? null;
+    });
+  }, [chatHistory]);
 
   const activeChat = useMemo(
-    () => (activeChatId ? chatHistory.find((session) => session.id === activeChatId) ?? null : chatHistory[0] ?? null),
-    [activeChatId, chatHistory],
+    () => chatHistory.find((chat) => chat.id === activeChatId) ?? null,
+    [chatHistory, activeChatId],
   );
 
-  const createNewChat = useCallback(() => {
-    const newSession = createInitialSession();
-    setChatHistory((prev) => [newSession, ...prev]);
-    setActiveChatId(newSession.id);
+  const setActiveChatId = useCallback((chatId: string | null) => {
+    setActiveChatIdState(chatId);
   }, []);
 
-  const deleteChat = useCallback((id: string) => {
-    setChatHistory((prev) => {
-      const updated = prev.filter((session) => session.id !== id);
-      setActiveChatId((current) => {
-        if (current === id) {
-          return updated[0]?.id ?? null;
-        }
-        return current;
-      });
-      return updated;
-    });
-  }, []);
+  const createNewChat = useCallback(() => {
+    const newChat = createEmptyChat();
+    setChatHistory((prev) => [newChat, ...prev]);
+    setActiveChatIdState(newChat.id);
+  }, [setChatHistory]);
+
+  const deleteChat = useCallback(
+    (chatId: string) => {
+      setChatHistory((prev) => prev.filter((chat) => chat.id !== chatId));
+      setActiveChatIdState((prevId) => (prevId === chatId ? null : prevId));
+    },
+    [setChatHistory],
+  );
+
+  const renameChat = useCallback(
+    (chatId: string, newTitle: string) => {
+      const trimmedTitle = newTitle.trim();
+      if (!trimmedTitle) {
+        return;
+      }
+
+      setChatHistory((prev) =>
+        prev.map((chat) => (chat.id === chatId ? { ...chat, title: trimmedTitle } : chat)),
+      );
+    },
+    [setChatHistory],
+  );
 
   const addMessageToActiveChat = useCallback(
     (message: Message) => {
-      setChatHistory((prev) => {
-        const targetId = activeChatId ?? prev[0]?.id;
-        if (!targetId) {
-          return prev;
+      let newChatId: string | null = null;
+
+      setChatHistory((prevHistory) => {
+        let workingHistory = prevHistory;
+        let targetChatId = activeChatId;
+
+        if (!targetChatId && message.role === 'user') {
+          const generatedChat = createEmptyChat();
+          workingHistory = [generatedChat, ...prevHistory];
+          targetChatId = generatedChat.id;
+          newChatId = generatedChat.id;
         }
-        return prev.map((session) => {
-          if (session.id !== targetId) {
-            return session;
+
+        if (!targetChatId) {
+          return workingHistory;
+        }
+
+        return workingHistory.map((chat) => {
+          if (chat.id !== targetChatId) {
+            return chat;
           }
-          return {
-            ...session,
-            title: deriveTitle(session, message),
-            messages: [...session.messages, message],
-          };
+
+          const updatedMessages = [...chat.messages, message];
+          let updatedTitle = chat.title;
+
+          if (
+            message.role === 'user' &&
+            chat.title === DEFAULT_TITLE &&
+            typeof message.content === 'string' &&
+            message.content.trim()
+          ) {
+            const truncated = message.content.trim().slice(0, 40);
+            updatedTitle = truncated.length === message.content.trim().length ? truncated : `${truncated}...`;
+          }
+
+          return { ...chat, messages: updatedMessages, title: updatedTitle };
         });
       });
-      setActiveChatId((current) => current ?? activeChatId ?? null);
+
+      if (newChatId) {
+        setActiveChatIdState(newChatId);
+      }
     },
-    [activeChatId],
+    [activeChatId, setChatHistory],
   );
 
-  const activeChat = useMemo(() => {
-    if (!activeChatId) {
-      return chatHistory[0];
-    }
-    return chatHistory.find((chat) => chat.id === activeChatId);
-  }, [activeChatId, chatHistory]);
+  const setIsLoading = useCallback((loading: boolean) => {
+    setIsLoadingState(loading);
+  }, []);
 
   const contextValue = useMemo<ChatHistoryContextValue>(
     () => ({
       chatHistory,
+      activeChatId,
       activeChat,
-      activeChatId: activeChat?.id ?? null,
       createNewChat,
       setActiveChatId,
       deleteChat,
+      renameChat,
       addMessageToActiveChat,
-      isLoading,
+      isLoading: isLoadingState,
       setIsLoading,
     }),
     [
-      addMessageToActiveChat,
-      activeChat,
       chatHistory,
+      activeChatId,
+      activeChat,
       createNewChat,
-      deleteChat,
-      isLoading,
       setActiveChatId,
+      deleteChat,
+      renameChat,
+      addMessageToActiveChat,
+      isLoadingState,
+      setIsLoading,
     ],
   );
 
-  return (
-    <ChatHistoryContext.Provider value={contextValue}>
-      {children}
-    </ChatHistoryContext.Provider>
-  );
+  return <ChatHistoryContext.Provider value={contextValue}>{children}</ChatHistoryContext.Provider>;
 };
 
 export const useChatHistory = (): ChatHistoryContextValue => {
@@ -137,6 +183,5 @@ export const useChatHistory = (): ChatHistoryContextValue => {
   if (!context) {
     throw new Error('useChatHistory must be used within a ChatHistoryProvider');
   }
-
   return context;
 };
