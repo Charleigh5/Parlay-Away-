@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useLeaderboard } from '../../hooks/useLeaderboard';
-import { TrophyIcon } from '../../assets/icons/TrophyIcon';
+import { TrophyIcon } from '../icons';
 import FootballLoader from '../common/FootballLoader';
 import { useCelebration } from '../../contexts/CelebrationProvider';
 

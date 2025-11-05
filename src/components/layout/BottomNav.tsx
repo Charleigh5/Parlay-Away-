@@ -1,10 +1,6 @@
 import React from 'react';
 import { Page } from '../../App';
-import { DashboardIcon } from '../../assets/icons/DashboardIcon';
-import { InsightsIcon } from '../../assets/icons/InsightsIcon';
-import { HistoryIcon } from '../../assets/icons/HistoryIcon';
-import { AccountIcon } from '../../assets/icons/AccountIcon';
-import { PlusCircleIcon } from '../../assets/icons/PlusCircleIcon';
+import { AccountIcon, DashboardIcon, HistoryIcon, InsightsIcon, PlusCircleIcon } from '../icons';
 
 interface BottomNavProps {
   activePage: Page;

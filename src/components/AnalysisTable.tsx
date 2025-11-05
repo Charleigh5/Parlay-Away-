@@ -1,11 +1,7 @@
 import React from 'react';
 import { AnalyzedBetLeg, ParlayCorrelationAnalysis } from '../types';
 import { formatAmericanOdds, calculateParlayOdds, calculateParlayEV, calculateParlayConfidence } from '../utils';
-import { TrendingUpIcon } from '../assets/icons/TrendingUpIcon';
-import { TrendingDownIcon } from '../assets/icons/TrendingDownIcon';
-import { DollarSignIcon } from '../assets/icons/DollarSignIcon';
-import { ShieldCheckIcon } from '../assets/icons/ShieldCheckIcon';
-import { LinkIcon } from '../assets/icons/LinkIcon';
+import { DollarSignIcon, LinkIcon, ShieldCheckIcon, TrendingDownIcon, TrendingUpIcon } from './icons';
 
 interface AnalysisTableProps {
   legs: AnalyzedBetLeg[];

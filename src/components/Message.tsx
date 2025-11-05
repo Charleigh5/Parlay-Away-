@@ -1,10 +1,12 @@
 import React from 'react';
 import { Message as MessageType, AnalysisResponse } from '../types';
-import { UserIcon } from './icons/UserIcon';
-import { BrainCircuitIcon } from './icons/BrainCircuitIcon';
-import { AlertTriangleIcon } from './icons/AlertTriangleIcon';
-import { BarChartIcon } from './icons/BarChartIcon';
-import { ListChecksIcon } from './icons/ListChecksIcon';
+import {
+  AlertTriangleIcon,
+  BarChartIcon,
+  BrainCircuitIcon,
+  ListChecksIcon,
+  UserIcon,
+} from './icons';
 
 const Message: React.FC<{ message: MessageType }> = ({ message }) => {
   if (message.role === 'user') {
@@ -32,6 +34,7 @@ const Message: React.FC<{ message: MessageType }> = ({ message }) => {
   }
 
   const analysis = message.content as AnalysisResponse;
+  const { quantitative, reasoning } = analysis;
 
   return (
     <div className="flex justify-start">
@@ -49,42 +52,59 @@ const Message: React.FC<{ message: MessageType }> = ({ message }) => {
             </h3>
             <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
               <div className="text-gray-400">Expected Value (+EV)</div>
-              <div className="font-mono text-green-400 text-right">{analysis.quantitative.expectedValue.toFixed(2)}%</div>
-              <div className="text-gray-400">Vig-Removed Odds</div>
-              <div className="font-mono text-gray-200 text-right">{analysis.quantitative.vigRemovedOdds.toFixed(0)}</div>
-              <div className="text-gray-400">Kelly Stake</div>
-              <div className="font-mono text-yellow-400 text-right">
-                {analysis.quantitative.kellyCriterionStake.toFixed(2)}%
+              <div className="font-mono text-green-400 text-right">
+                {quantitative.expectedValue.toFixed(2)}%
               </div>
-              <div className="text-gray-400">Confidence</div>
-              <div className="w-full bg-gray-700 rounded-full h-2.5 mt-1 col-span-2">
-                <div
-                  className="bg-cyan-500 h-2.5 rounded-full"
-                  style={{ width: `${analysis.quantitative.confidenceScore * 100}%` }}
-                ></div>
+              <div className="text-gray-400">Vig-Removed Odds</div>
+              <div className="font-mono text-gray-200 text-right">
+                {quantitative.vigRemovedOdds.toFixed(2)}
+              </div>
+              <div className="text-gray-400">Kelly Criterion Stake</div>
+              <div className="font-mono text-gray-200 text-right">
+                {quantitative.kellyCriterionStake.toFixed(2)}%
+              </div>
+              <div className="text-gray-400">Confidence Score</div>
+              <div className="font-mono text-cyan-300 text-right">
+                {quantitative.confidenceScore.toFixed(1)} / 10
+              </div>
+              <div className="text-gray-400">Projected Mean</div>
+              <div className="font-mono text-gray-200 text-right">
+                {quantitative.projectedMean.toFixed(2)}
+              </div>
+              <div className="text-gray-400">Projected Std Dev</div>
+              <div className="font-mono text-gray-200 text-right">
+                {quantitative.projectedStdDev.toFixed(2)}
               </div>
             </div>
           </div>
 
-          <div className="rounded-lg border border-gray-700/50 p-4 bg-gray-900/30">
+          <div className="rounded-lg border border-gray-700/50 bg-gray-900/30 p-4">
             <h3 className="mb-3 flex items-center gap-2 text-md font-semibold text-cyan-400">
               <ListChecksIcon className="h-5 w-5" />
-              Reasoning Steps
+              Reasoning Trace
             </h3>
-            <ul className="space-y-3">
-              {analysis.reasoning.map((step) => (
-                <li key={step.step} className="text-sm text-gray-400">
-                  <strong className="text-gray-300">Step {step.step}:</strong> {step.description}
-                  <div className="mt-1 flex flex-wrap gap-1.5">
-                    {step.activatedModules.map((mod) => (
-                      <span key={mod} className="text-xs font-mono bg-gray-700 text-cyan-300 px-2 py-0.5 rounded-full">
-                        {mod}
+            <ol className="space-y-3 text-sm text-gray-300">
+              {reasoning.map((step) => (
+                <li key={step.step} className="rounded-md border border-gray-700/40 bg-gray-800/50 p-3">
+                  <div className="flex items-center justify-between text-xs text-gray-400 mb-2">
+                    <span className="font-medium text-gray-300">Step {step.step}</span>
+                    {step.activatedModules.length > 0 && (
+                      <span className="flex flex-wrap gap-1">
+                        {step.activatedModules.map((module) => (
+                          <span
+                            key={module}
+                            className="rounded-full bg-cyan-500/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-cyan-300"
+                          >
+                            {module}
+                          </span>
+                        ))}
                       </span>
-                    ))}
+                    )}
                   </div>
+                  <p>{step.description}</p>
                 </li>
               ))}
-            </ul>
+            </ol>
           </div>
         </div>
       </div>

@@ -5,8 +5,7 @@ import { batchAnalyzeProps } from '../services/betAnalysisService';
 import { MOCK_GAMES_SOURCE } from '../data/mockSportsData';
 import { exportToCsv, formatAmericanOdds } from '../utils';
 import DeepAnalysisDrilldown from './DeepAnalysisDrilldown';
-import { ChevronDownIcon } from '../assets/icons/ChevronDownIcon';
-import { ArrowDownIcon } from '../assets/icons/ArrowDownIcon';
+import { ArrowDownIcon, ChevronDownIcon } from './icons';
 
 const PROP_TYPES = Array.from(new Set(
   MOCK_GAMES_SOURCE.flatMap(g => g.players.flatMap(p => p.props?.map(prop => prop.propType) || []))
