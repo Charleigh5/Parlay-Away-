@@ -2,7 +2,7 @@ import React, { ReactNode } from 'react';
 import { Page } from '../../App';
 import BottomNav from './BottomNav';
 import ThemeToggle from '../common/ThemeToggle';
-import { BrainCircuitIcon } from '../../assets/icons/BrainCircuitIcon';
+import { BrainCircuitIcon } from '../icons';
 import FAB from '../common/FAB';
 import { useCelebration } from '../../contexts/CelebrationProvider';
 import FieldGoalCelebration from '../animations/FieldGoalCelebration';

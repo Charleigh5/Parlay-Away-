@@ -12,11 +12,7 @@ import ConnectionLines from './ConnectionLines';
 import PropLibrary from './PropLibrary';
 import CreatePropModal from './CreatePropModal';
 import NodeDetailPanel from './NodeDetailPanel';
-import { ZoomInIcon } from '../assets/icons/ZoomInIcon';
-import { ZoomOutIcon } from '../assets/icons/ZoomOutIcon';
-import { EyeIcon } from '../assets/icons/EyeIcon';
-import { SparklesIcon } from '../assets/icons/SparklesIcon';
-import { ChevronLeftIcon } from '../assets/icons/ChevronLeftIcon';
+import { ChevronLeftIcon, EyeIcon, SparklesIcon, ZoomInIcon, ZoomOutIcon } from './icons';
 import { formatAmericanOdds } from '../utils';
 import { useQuickAddModal } from '../contexts/QuickAddModalContext';
 

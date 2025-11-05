@@ -1,10 +1,12 @@
 import React, { useState, Suspense } from 'react';
 import { ChatHistoryProvider } from '../contexts/ChatHistoryContext';
-import { MessageSquareIcon } from './icons/MessageSquareIcon';
-import { TestTubeIcon } from './icons/TestTubeIcon';
-import { ScaleIcon } from './icons/ScaleIcon';
-import { PackageSearchIcon } from './icons/PackageSearchIcon';
-import { ShapesIcon } from './icons/ShapesIcon'; // Import new icon
+import {
+  MessageSquareIcon,
+  PackageSearchIcon,
+  ScaleIcon,
+  ShapesIcon,
+  TestTubeIcon,
+} from './icons'; // Icon aliases sourced from lucide-react
 
 type View = 'chat' | 'lens' | 'comparator' | 'ranker' | 'builder'; // Add 'builder' view
 
