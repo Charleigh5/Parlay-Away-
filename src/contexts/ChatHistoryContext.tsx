@@ -95,22 +95,41 @@ export const ChatHistoryProvider: React.FC<{ children: React.ReactNode }> = ({ c
     [activeChatId],
   );
 
-  const value = useMemo<ChatHistoryContextValue>(
+  const activeChat = useMemo(() => {
+    if (!activeChatId) {
+      return chatHistory[0];
+    }
+    return chatHistory.find((chat) => chat.id === activeChatId);
+  }, [activeChatId, chatHistory]);
+
+  const contextValue = useMemo<ChatHistoryContextValue>(
     () => ({
       chatHistory,
-      activeChatId,
       activeChat,
-      isLoading,
+      activeChatId: activeChat?.id ?? null,
       createNewChat,
-      deleteChat,
       setActiveChatId,
+      deleteChat,
       addMessageToActiveChat,
+      isLoading,
       setIsLoading,
     }),
-    [activeChat, activeChatId, addMessageToActiveChat, chatHistory, createNewChat, deleteChat, isLoading],
+    [
+      addMessageToActiveChat,
+      activeChat,
+      chatHistory,
+      createNewChat,
+      deleteChat,
+      isLoading,
+      setActiveChatId,
+    ],
   );
 
-  return <ChatHistoryContext.Provider value={value}>{children}</ChatHistoryContext.Provider>;
+  return (
+    <ChatHistoryContext.Provider value={contextValue}>
+      {children}
+    </ChatHistoryContext.Provider>
+  );
 };
 
 export const useChatHistory = (): ChatHistoryContextValue => {
@@ -118,7 +137,6 @@ export const useChatHistory = (): ChatHistoryContextValue => {
   if (!context) {
     throw new Error('useChatHistory must be used within a ChatHistoryProvider');
   }
+
   return context;
 };
-
-export default ChatHistoryContext;
