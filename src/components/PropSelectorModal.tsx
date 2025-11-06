@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Game, Player, PlayerProp, LineOdds, PropSelectionDetails } from '../types';
 import { getMarketData } from '../services/marketDataService';
-import { SearchIcon } from './icons/SearchIcon';
-import { XIcon } from './icons/XIcon';
+import { SearchIcon, XIcon } from './icons';
 import { formatAmericanOdds } from '../utils';
 
 interface PropSelectorModalProps {

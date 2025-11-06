@@ -1,7 +1,6 @@
 import React from 'react';
 import { useTheme } from '../../hooks/useTheme';
-import { SunIcon } from '../../assets/icons/SunIcon';
-import { MoonIcon } from '../../assets/icons/MoonIcon';
+import { MoonIcon, SunIcon } from '../icons';
 
 const ThemeToggle: React.FC = () => {
   const { theme, toggleTheme } = useTheme();

@@ -1,5 +1,5 @@
 import React from 'react';
-import { InfoIcon } from '../icons/InfoIcon';
+import { InfoIcon } from '../icons';
 
 interface InfoTooltipProps {
   info: string;
