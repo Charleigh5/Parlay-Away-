@@ -30,3 +30,8 @@ export default defineConfig(({ mode }) => {
       }
     };
 });
+
+// Testing is configured via vitest.config.ts
+// Run tests with: npm test
+// Run tests with UI: npm run test:ui
+// Run tests with coverage: npm run test:coverage
