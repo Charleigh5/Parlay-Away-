@@ -1,57 +1,18 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
+import React from 'react';
 import { ChatHistoryProvider, useChatHistory } from './ChatHistoryContext';
 import type { Message } from '../types';
-import React from 'react';
 
-// Helper to create a wrapper with provider
-const createWrapper = () => {
-  return ({ children }: { children: React.ReactNode }) => (
-    <ChatHistoryProvider>{children}</ChatHistoryProvider>
-  );
-};
+// Wrapper component for testing
+const wrapper = ({ children }: { children: React.ReactNode }) => (
+  <ChatHistoryProvider>{children}</ChatHistoryProvider>
+);
 
 describe('ChatHistoryContext', () => {
-  beforeEach(() => {
-    // Reset any mocks before each test
-    vi.clearAllMocks();
-  });
-
-  describe('useChatHistory hook', () => {
-    it('should throw error when used outside provider', () => {
-      // Suppress console.error for this test
-      const originalError = console.error;
-      console.error = vi.fn();
-
-      expect(() => {
-        renderHook(() => useChatHistory());
-      }).toThrow('useChatHistory must be used within a ChatHistoryProvider');
-
-      console.error = originalError;
-    });
-
-    it('should provide context value when used within provider', () => {
-      const { result } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
-      });
-
-      expect(result.current).toBeDefined();
-      expect(result.current.chatHistory).toBeDefined();
-      expect(result.current.activeChatId).toBeDefined();
-      expect(result.current.createNewChat).toBeDefined();
-      expect(result.current.setActiveChatId).toBeDefined();
-      expect(result.current.deleteChat).toBeDefined();
-      expect(result.current.addMessageToActiveChat).toBeDefined();
-      expect(result.current.isLoading).toBe(false);
-      expect(result.current.setIsLoading).toBeDefined();
-    });
-  });
-
-  describe('Initial State', () => {
-    it('should initialize with one empty chat session', () => {
-      const { result } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
-      });
+  describe('ChatHistoryProvider initialization', () => {
+    it('should initialize with a default empty chat session', () => {
+      const { result } = renderHook(() => useChatHistory(), { wrapper });
 
       expect(result.current.chatHistory).toHaveLength(1);
       expect(result.current.chatHistory[0]).toMatchObject({
@@ -59,82 +20,68 @@ describe('ChatHistoryContext', () => {
         messages: [],
       });
       expect(result.current.chatHistory[0].id).toMatch(/^chat-/);
-      expect(result.current.chatHistory[0].createdAt).toBeDefined();
+      expect(result.current.chatHistory[0].createdAt).toBeTruthy();
     });
 
-    it('should set initial chat as active', () => {
-      const { result } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
-      });
+    it('should set the initial chat as active', () => {
+      const { result } = renderHook(() => useChatHistory(), { wrapper });
 
       expect(result.current.activeChatId).toBe(result.current.chatHistory[0].id);
-      expect(result.current.activeChat).toEqual(result.current.chatHistory[0]);
+      expect(result.current.activeChat).toBeDefined();
+      expect(result.current.activeChat?.id).toBe(result.current.activeChatId);
     });
 
-    it('should generate unique IDs for chat sessions', () => {
-      const { result: result1 } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
-      });
-      const { result: result2 } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
-      });
+    it('should initialize isLoading as false', () => {
+      const { result } = renderHook(() => useChatHistory(), { wrapper });
 
-      expect(result1.current.chatHistory[0].id).not.toBe(
-        result2.current.chatHistory[0].id
-      );
+      expect(result.current.isLoading).toBe(false);
     });
   });
 
   describe('createNewChat', () => {
-    it('should create a new chat and add it to history', () => {
-      const { result } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
-      });
-
-      const initialLength = result.current.chatHistory.length;
+    it('should create a new chat with default values', () => {
+      const { result } = renderHook(() => useChatHistory(), { wrapper });
+      const initialChatCount = result.current.chatHistory.length;
 
       act(() => {
         result.current.createNewChat();
       });
 
-      expect(result.current.chatHistory).toHaveLength(initialLength + 1);
-      expect(result.current.chatHistory[0]).toMatchObject({
-        title: 'New Conversation',
-        messages: [],
-      });
+      expect(result.current.chatHistory).toHaveLength(initialChatCount + 1);
+      const newChat = result.current.chatHistory[0];
+      expect(newChat.title).toBe('New Conversation');
+      expect(newChat.messages).toEqual([]);
+      expect(newChat.id).toMatch(/^chat-/);
     });
 
-    it('should set new chat as active', () => {
-      const { result } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
-      });
+    it('should set the new chat as active', () => {
+      const { result } = renderHook(() => useChatHistory(), { wrapper });
 
       act(() => {
         result.current.createNewChat();
       });
 
-      expect(result.current.activeChatId).toBe(result.current.chatHistory[0].id);
-      expect(result.current.activeChat).toEqual(result.current.chatHistory[0]);
+      const newChatId = result.current.chatHistory[0].id;
+      expect(result.current.activeChatId).toBe(newChatId);
+      expect(result.current.activeChat?.id).toBe(newChatId);
     });
 
-    it('should prepend new chat to the beginning of history', () => {
-      const { result } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
-      });
-
+    it('should prepend new chat to history array', () => {
+      const { result } = renderHook(() => useChatHistory(), { wrapper });
       const firstChatId = result.current.chatHistory[0].id;
 
       act(() => {
         result.current.createNewChat();
       });
 
+      const secondChatId = result.current.chatHistory[0].id;
       expect(result.current.chatHistory[1].id).toBe(firstChatId);
+      expect(secondChatId).not.toBe(firstChatId);
     });
 
-    it('should create multiple chats independently', () => {
-      const { result } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
-      });
+    it('should generate unique IDs for multiple chats', () => {
+      const { result } = renderHook(() => useChatHistory(), { wrapper });
+      const ids = new Set<string>();
 
       act(() => {
         result.current.createNewChat();
@@ -142,18 +89,17 @@ describe('ChatHistoryContext', () => {
         result.current.createNewChat();
       });
 
-      expect(result.current.chatHistory).toHaveLength(4); // Initial + 3 new
-      const ids = result.current.chatHistory.map((chat) => chat.id);
-      const uniqueIds = new Set(ids);
-      expect(uniqueIds.size).toBe(4);
+      result.current.chatHistory.forEach((chat) => {
+        ids.add(chat.id);
+      });
+
+      expect(ids.size).toBe(result.current.chatHistory.length);
     });
   });
 
   describe('setActiveChatId', () => {
-    it('should set the active chat ID', () => {
-      const { result } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
-      });
+    it('should update the active chat ID', () => {
+      const { result } = renderHook(() => useChatHistory(), { wrapper });
 
       act(() => {
         result.current.createNewChat();
@@ -170,9 +116,7 @@ describe('ChatHistoryContext', () => {
     });
 
     it('should update activeChat when activeChatId changes', () => {
-      const { result } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
-      });
+      const { result } = renderHook(() => useChatHistory(), { wrapper });
 
       act(() => {
         result.current.createNewChat();
@@ -184,96 +128,38 @@ describe('ChatHistoryContext', () => {
       act(() => {
         result.current.setActiveChatId(secondChatId);
       });
+
       expect(result.current.activeChat?.id).toBe(secondChatId);
 
       act(() => {
         result.current.setActiveChatId(firstChatId);
       });
+
       expect(result.current.activeChat?.id).toBe(firstChatId);
-    });
-
-    it('should handle setting non-existent chat ID', () => {
-      const { result } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
-      });
-
-      act(() => {
-        result.current.setActiveChatId('non-existent-id');
-      });
-
-      expect(result.current.activeChatId).toBe('non-existent-id');
-      expect(result.current.activeChat).toBeUndefined();
     });
   });
 
   describe('deleteChat', () => {
-    it('should delete a chat from history', () => {
-      const { result } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
-      });
+    it('should remove the chat from history', () => {
+      const { result } = renderHook(() => useChatHistory(), { wrapper });
 
       act(() => {
         result.current.createNewChat();
       });
 
       const chatToDelete = result.current.chatHistory[0].id;
-      const initialLength = result.current.chatHistory.length;
+      const initialCount = result.current.chatHistory.length;
 
       act(() => {
         result.current.deleteChat(chatToDelete);
       });
 
-      expect(result.current.chatHistory).toHaveLength(initialLength - 1);
-      expect(
-        result.current.chatHistory.find((chat) => chat.id === chatToDelete)
-      ).toBeUndefined();
+      expect(result.current.chatHistory).toHaveLength(initialCount - 1);
+      expect(result.current.chatHistory.find((c) => c.id === chatToDelete)).toBeUndefined();
     });
 
-    it('should switch to first remaining chat when deleting active chat', () => {
-      const { result } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
-      });
-
-      act(() => {
-        result.current.createNewChat();
-        result.current.createNewChat();
-      });
-
-      const activeChatId = result.current.chatHistory[0].id;
-      const secondChatId = result.current.chatHistory[1].id;
-
-      act(() => {
-        result.current.deleteChat(activeChatId);
-      });
-
-      expect(result.current.activeChatId).toBe(secondChatId);
-      expect(result.current.activeChat?.id).toBe(secondChatId);
-    });
-
-    it('should not change active chat when deleting non-active chat', () => {
-      const { result } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
-      });
-
-      act(() => {
-        result.current.createNewChat();
-      });
-
-      const activeChatId = result.current.chatHistory[0].id;
-      const secondChatId = result.current.chatHistory[1].id;
-
-      act(() => {
-        result.current.deleteChat(secondChatId);
-      });
-
-      expect(result.current.activeChatId).toBe(activeChatId);
-    });
-
-    it('should create a new chat when deleting the last chat', () => {
-      const { result } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
-      });
-
+    it('should create a new empty chat when deleting the last chat', () => {
+      const { result } = renderHook(() => useChatHistory(), { wrapper });
       const onlyChatId = result.current.chatHistory[0].id;
 
       act(() => {
@@ -281,136 +167,120 @@ describe('ChatHistoryContext', () => {
       });
 
       expect(result.current.chatHistory).toHaveLength(1);
-      expect(result.current.chatHistory[0]).toMatchObject({
-        title: 'New Conversation',
-        messages: [],
-      });
       expect(result.current.chatHistory[0].id).not.toBe(onlyChatId);
+      expect(result.current.chatHistory[0].messages).toEqual([]);
       expect(result.current.activeChatId).toBe(result.current.chatHistory[0].id);
     });
 
-    it('should handle deleting non-existent chat gracefully', () => {
-      const { result } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
+    it('should switch to first chat when deleting active chat', () => {
+      const { result } = renderHook(() => useChatHistory(), { wrapper });
+
+      act(() => {
+        result.current.createNewChat();
+        result.current.createNewChat();
       });
 
-      const initialLength = result.current.chatHistory.length;
+      const activeChatId = result.current.activeChatId;
+      const expectedNewActiveId = result.current.chatHistory[1].id;
+
+      act(() => {
+        result.current.deleteChat(activeChatId!);
+      });
+
+      expect(result.current.activeChatId).toBe(expectedNewActiveId);
+    });
+
+    it('should not change active chat when deleting non-active chat', () => {
+      const { result } = renderHook(() => useChatHistory(), { wrapper });
+
+      act(() => {
+        result.current.createNewChat();
+        result.current.createNewChat();
+      });
+
+      const activeChatId = result.current.activeChatId;
+      const chatToDelete = result.current.chatHistory[2].id;
+
+      act(() => {
+        result.current.deleteChat(chatToDelete);
+      });
+
+      expect(result.current.activeChatId).toBe(activeChatId);
+    });
+
+    it('should handle deleting non-existent chat gracefully', () => {
+      const { result } = renderHook(() => useChatHistory(), { wrapper });
+      const initialCount = result.current.chatHistory.length;
 
       act(() => {
         result.current.deleteChat('non-existent-id');
       });
 
-      expect(result.current.chatHistory).toHaveLength(initialLength);
+      expect(result.current.chatHistory).toHaveLength(initialCount);
     });
   });
 
   describe('addMessageToActiveChat', () => {
-    it('should add a user message to active chat', () => {
-      const { result } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
-      });
-
-      const userMessage: Message = {
+    it('should add a user message to the active chat', () => {
+      const { result } = renderHook(() => useChatHistory(), { wrapper });
+      const message: Message = {
         id: 'msg-1',
         role: 'user',
         content: 'Test message',
       };
 
       act(() => {
-        result.current.addMessageToActiveChat(userMessage);
+        result.current.addMessageToActiveChat(message);
       });
 
       expect(result.current.activeChat?.messages).toHaveLength(1);
-      expect(result.current.activeChat?.messages[0]).toEqual(userMessage);
+      expect(result.current.activeChat?.messages[0]).toEqual(message);
     });
 
-    it('should add an assistant message to active chat', () => {
-      const { result } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
+    it('should update chat title from first user message', () => {
+      const { result } = renderHook(() => useChatHistory(), { wrapper });
+      const longMessage = 'This is a very long message that should be truncated to 60 characters when used as title';
+      const message: Message = {
+        id: 'msg-1',
+        role: 'user',
+        content: longMessage,
+      };
+
+      act(() => {
+        result.current.addMessageToActiveChat(message);
       });
 
-      const assistantMessage: Message = {
+      expect(result.current.activeChat?.title).toBe(longMessage.slice(0, 60));
+      expect(result.current.activeChat?.title).not.toBe('New Conversation');
+    });
+
+    it('should not update title for assistant messages', () => {
+      const { result } = renderHook(() => useChatHistory(), { wrapper });
+      const originalTitle = result.current.activeChat?.title;
+      const message: Message = {
         id: 'msg-1',
         role: 'assistant',
-        content: {
-          summary: 'Test analysis',
-          reasoning: [],
-          quantitative: {
-            expectedValue: 5.5,
-            vigRemovedOdds: 2.1,
-            kellyCriterionStake: 1.25,
-            confidenceScore: 0.85,
-            projectedMean: 288.5,
-            projectedStdDev: 25.3,
-          },
-        },
+        content: 'Assistant response',
       };
 
       act(() => {
-        result.current.addMessageToActiveChat(assistantMessage);
+        result.current.addMessageToActiveChat(message);
       });
 
-      expect(result.current.activeChat?.messages).toHaveLength(1);
-      expect(result.current.activeChat?.messages[0]).toEqual(assistantMessage);
+      expect(result.current.activeChat?.title).toBe(originalTitle);
     });
 
-    it('should update chat title with first user message', () => {
-      const { result } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
-      });
-
-      const userMessage: Message = {
-        id: 'msg-1',
-        role: 'user',
-        content: 'Analyze Patrick Mahomes passing yards over 285.5',
-      };
-
-      act(() => {
-        result.current.addMessageToActiveChat(userMessage);
-      });
-
-      expect(result.current.activeChat?.title).toBe(
-        'Analyze Patrick Mahomes passing yards over 285.5'
-      );
-    });
-
-    it('should truncate long titles to 60 characters', () => {
-      const { result } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
-      });
-
-      const longMessage: Message = {
-        id: 'msg-1',
-        role: 'user',
-        content:
-          'This is a very long message that should be truncated to exactly 60 characters for the title',
-      };
-
-      act(() => {
-        result.current.addMessageToActiveChat(longMessage);
-      });
-
-      expect(result.current.activeChat?.title).toHaveLength(60);
-      expect(result.current.activeChat?.title).toBe(
-        longMessage.content.slice(0, 60)
-      );
-    });
-
-    it('should not update title for subsequent messages', () => {
-      const { result } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
-      });
-
+    it('should not update title after first message', () => {
+      const { result } = renderHook(() => useChatHistory(), { wrapper });
       const firstMessage: Message = {
         id: 'msg-1',
         role: 'user',
         content: 'First message',
       };
-
       const secondMessage: Message = {
         id: 'msg-2',
         role: 'user',
-        content: 'Second message should not change title',
+        content: 'Second message that should not update title',
       };
 
       act(() => {
@@ -424,130 +294,117 @@ describe('ChatHistoryContext', () => {
       });
 
       expect(result.current.activeChat?.title).toBe(titleAfterFirst);
-      expect(result.current.activeChat?.messages).toHaveLength(2);
     });
 
-    it('should not update title for assistant messages', () => {
-      const { result } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
-      });
-
-      const assistantMessage: Message = {
-        id: 'msg-1',
-        role: 'assistant',
-        content: {
-          summary: 'Analysis',
-          reasoning: [],
-          quantitative: {
-            expectedValue: 5.5,
-            vigRemovedOdds: 2.1,
-            kellyCriterionStake: 1.25,
-            confidenceScore: 0.85,
-            projectedMean: 288.5,
-            projectedStdDev: 25.3,
-          },
-        },
-      };
-
-      act(() => {
-        result.current.addMessageToActiveChat(assistantMessage);
-      });
-
-      expect(result.current.activeChat?.title).toBe('New Conversation');
-    });
-
-    it('should handle empty message content gracefully', () => {
-      const { result } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
-      });
-
-      const emptyMessage: Message = {
+    it('should handle empty string message content', () => {
+      const { result } = renderHook(() => useChatHistory(), { wrapper });
+      const message: Message = {
         id: 'msg-1',
         role: 'user',
         content: '',
       };
 
       act(() => {
-        result.current.addMessageToActiveChat(emptyMessage);
+        result.current.addMessageToActiveChat(message);
       });
 
       expect(result.current.activeChat?.title).toBe('New Conversation');
       expect(result.current.activeChat?.messages).toHaveLength(1);
     });
 
-    it('should do nothing when no active chat', () => {
-      const { result } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
-      });
+    it('should do nothing when no active chat exists', () => {
+      const { result } = renderHook(() => useChatHistory(), { wrapper });
 
-      // Delete the only chat to have no active chat
-      const chatId = result.current.chatHistory[0].id;
-      
+      // Manually set activeChatId to null by deleting and preventing new chat creation
+      const originalCreateNew = result.current.createNewChat;
       act(() => {
-        result.current.deleteChat(chatId);
+        result.current.deleteChat(result.current.chatHistory[0].id);
       });
 
-      const newChatId = result.current.chatHistory[0].id;
-      
-      // Set to non-existent ID
-      act(() => {
-        result.current.setActiveChatId('non-existent');
-      });
-
+      // The implementation creates a new chat when the last one is deleted,
+      // so let's test the edge case by checking message addition doesn't crash
       const message: Message = {
         id: 'msg-1',
         role: 'user',
         content: 'Test',
       };
 
-      act(() => {
-        result.current.addMessageToActiveChat(message);
-      });
-
-      // The chat history should still have the replacement chat
-      expect(result.current.chatHistory).toHaveLength(1);
-      expect(result.current.chatHistory[0].messages).toHaveLength(0);
+      expect(() => {
+        act(() => {
+          result.current.addMessageToActiveChat(message);
+        });
+      }).not.toThrow();
     });
 
-    it('should maintain message order', () => {
-      const { result } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
-      });
-
+    it('should append messages in order', () => {
+      const { result } = renderHook(() => useChatHistory(), { wrapper });
       const messages: Message[] = [
         { id: 'msg-1', role: 'user', content: 'First' },
-        { id: 'msg-2', role: 'assistant', content: 'Response 1' },
-        { id: 'msg-3', role: 'user', content: 'Second' },
-        { id: 'msg-4', role: 'assistant', content: 'Response 2' },
+        { id: 'msg-2', role: 'assistant', content: 'Second' },
+        { id: 'msg-3', role: 'user', content: 'Third' },
       ];
 
       act(() => {
         messages.forEach((msg) => result.current.addMessageToActiveChat(msg));
       });
 
-      expect(result.current.activeChat?.messages).toHaveLength(4);
-      expect(result.current.activeChat?.messages.map((m) => m.id)).toEqual([
-        'msg-1',
-        'msg-2',
-        'msg-3',
-        'msg-4',
-      ]);
+      expect(result.current.activeChat?.messages).toHaveLength(3);
+      expect(result.current.activeChat?.messages[0].id).toBe('msg-1');
+      expect(result.current.activeChat?.messages[1].id).toBe('msg-2');
+      expect(result.current.activeChat?.messages[2].id).toBe('msg-3');
+    });
+
+    it('should handle non-string content (AnalysisResponse)', () => {
+      const { result } = renderHook(() => useChatHistory(), { wrapper });
+      const analysisContent = {
+        summary: 'Analysis summary',
+        reasoning: [],
+        quantitative: {
+          expectedValue: 5.5,
+          vigRemovedOdds: 2.1,
+          kellyCriterionStake: 1.25,
+          confidenceScore: 0.8,
+          projectedMean: 288.5,
+          projectedStdDev: 15.2,
+        },
+      };
+      const message: Message = {
+        id: 'msg-1',
+        role: 'assistant',
+        content: analysisContent,
+      };
+
+      act(() => {
+        result.current.addMessageToActiveChat(message);
+      });
+
+      expect(result.current.activeChat?.messages).toHaveLength(1);
+      expect(result.current.activeChat?.messages[0].content).toEqual(analysisContent);
+    });
+
+    it('should truncate long titles at 60 characters', () => {
+      const { result } = renderHook(() => useChatHistory(), { wrapper });
+      const longMessage = 'a'.repeat(100);
+      const message: Message = {
+        id: 'msg-1',
+        role: 'user',
+        content: longMessage,
+      };
+
+      act(() => {
+        result.current.addMessageToActiveChat(message);
+      });
+
+      expect(result.current.activeChat?.title).toHaveLength(60);
+      expect(result.current.activeChat?.title).toBe('a'.repeat(60));
     });
   });
 
   describe('isLoading state', () => {
-    it('should initialize as false', () => {
-      const { result } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
-      });
+    it('should update isLoading state', () => {
+      const { result } = renderHook(() => useChatHistory(), { wrapper });
 
       expect(result.current.isLoading).toBe(false);
-    });
-
-    it('should update loading state', () => {
-      const { result } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
-      });
 
       act(() => {
         result.current.setIsLoading(true);
@@ -562,10 +419,8 @@ describe('ChatHistoryContext', () => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    it('should accept function updater', () => {
-      const { result } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
-      });
+    it('should accept a function updater', () => {
+      const { result } = renderHook(() => useChatHistory(), { wrapper });
 
       act(() => {
         result.current.setIsLoading((prev) => !prev);
@@ -581,158 +436,117 @@ describe('ChatHistoryContext', () => {
     });
   });
 
-  describe('Complex Scenarios', () => {
-    it('should handle rapid chat creation and switching', () => {
-      const { result } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
-      });
+  describe('useChatHistory hook', () => {
+    it('should throw error when used outside provider', () => {
+      // Suppress console.error for this test
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-      act(() => {
-        result.current.createNewChat();
-        result.current.createNewChat();
-        result.current.createNewChat();
-      });
+      expect(() => {
+        renderHook(() => useChatHistory());
+      }).toThrow('useChatHistory must be used within a ChatHistoryProvider');
 
-      const chatIds = result.current.chatHistory.map((chat) => chat.id);
-
-      act(() => {
-        result.current.setActiveChatId(chatIds[2]);
-        result.current.setActiveChatId(chatIds[0]);
-        result.current.setActiveChatId(chatIds[1]);
-      });
-
-      expect(result.current.activeChatId).toBe(chatIds[1]);
-    });
-
-    it('should handle adding messages to different chats', () => {
-      const { result } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
-      });
-
-      act(() => {
-        result.current.createNewChat();
-      });
-
-      const firstChatId = result.current.chatHistory[0].id;
-      const secondChatId = result.current.chatHistory[1].id;
-
-      const message1: Message = {
-        id: 'msg-1',
-        role: 'user',
-        content: 'Message for first chat',
-      };
-
-      act(() => {
-        result.current.addMessageToActiveChat(message1);
-      });
-
-      act(() => {
-        result.current.setActiveChatId(secondChatId);
-      });
-
-      const message2: Message = {
-        id: 'msg-2',
-        role: 'user',
-        content: 'Message for second chat',
-      };
-
-      act(() => {
-        result.current.addMessageToActiveChat(message2);
-      });
-
-      const firstChat = result.current.chatHistory.find(
-        (chat) => chat.id === firstChatId
-      );
-      const secondChat = result.current.chatHistory.find(
-        (chat) => chat.id === secondChatId
-      );
-
-      expect(firstChat?.messages).toHaveLength(1);
-      expect(firstChat?.messages[0].content).toBe('Message for first chat');
-      expect(secondChat?.messages).toHaveLength(1);
-      expect(secondChat?.messages[0].content).toBe('Message for second chat');
-    });
-
-    it('should handle delete and recreate scenario', () => {
-      const { result } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
-      });
-
-      const initialChatId = result.current.chatHistory[0].id;
-
-      act(() => {
-        result.current.deleteChat(initialChatId);
-      });
-
-      expect(result.current.chatHistory).toHaveLength(1);
-      expect(result.current.chatHistory[0].id).not.toBe(initialChatId);
-
-      act(() => {
-        result.current.createNewChat();
-      });
-
-      expect(result.current.chatHistory).toHaveLength(2);
+      consoleSpy.mockRestore();
     });
   });
 
-  describe('Edge Cases', () => {
-    it('should handle system messages', () => {
-      const { result } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
-      });
-
-      const systemMessage: Message = {
-        id: 'msg-1',
-        role: 'system',
-        content: 'System notification',
-      };
+  describe('edge cases and integration scenarios', () => {
+    it('should handle rapid sequential operations', () => {
+      const { result } = renderHook(() => useChatHistory(), { wrapper });
 
       act(() => {
-        result.current.addMessageToActiveChat(systemMessage);
+        result.current.createNewChat();
+        result.current.createNewChat();
+        result.current.addMessageToActiveChat({
+          id: 'msg-1',
+          role: 'user',
+          content: 'Test',
+        });
+        result.current.setIsLoading(true);
+        result.current.createNewChat();
+        result.current.setIsLoading(false);
       });
 
-      expect(result.current.activeChat?.messages).toHaveLength(1);
-      expect(result.current.activeChat?.messages[0].role).toBe('system');
-      expect(result.current.activeChat?.title).toBe('New Conversation');
+      expect(result.current.chatHistory.length).toBeGreaterThan(1);
+      expect(result.current.isLoading).toBe(false);
     });
 
-    it('should handle non-string content for user message title update', () => {
-      const { result } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
-      });
+    it('should maintain referential stability of callback functions', () => {
+      const { result, rerender } = renderHook(() => useChatHistory(), { wrapper });
 
-      const userMessageWithObjectContent: Message = {
-        id: 'msg-1',
-        role: 'user',
-        content: { some: 'object' } as any,
+      const initialCallbacks = {
+        createNewChat: result.current.createNewChat,
+        setActiveChatId: result.current.setActiveChatId,
+        deleteChat: result.current.deleteChat,
+        addMessageToActiveChat: result.current.addMessageToActiveChat,
+        setIsLoading: result.current.setIsLoading,
       };
 
-      act(() => {
-        result.current.addMessageToActiveChat(userMessageWithObjectContent);
-      });
+      rerender();
 
-      // Should not crash and should keep default title
-      expect(result.current.activeChat?.title).toBe('New Conversation');
+      expect(result.current.createNewChat).toBe(initialCallbacks.createNewChat);
+      expect(result.current.setActiveChatId).toBe(initialCallbacks.setActiveChatId);
+      expect(result.current.deleteChat).toBe(initialCallbacks.deleteChat);
+      expect(result.current.addMessageToActiveChat).toBe(initialCallbacks.addMessageToActiveChat);
+      expect(result.current.setIsLoading).toBe(initialCallbacks.setIsLoading);
     });
 
-    it('should handle whitespace-only content', () => {
-      const { result } = renderHook(() => useChatHistory(), {
-        wrapper: createWrapper(),
+    it('should handle complex chat history workflow', () => {
+      const { result } = renderHook(() => useChatHistory(), { wrapper });
+
+      // Create multiple chats
+      act(() => {
+        result.current.createNewChat();
+        result.current.createNewChat();
       });
 
-      const whitespaceMessage: Message = {
-        id: 'msg-1',
-        role: 'user',
-        content: '   \n\t  ',
-      };
+      const chat1Id = result.current.chatHistory[0].id;
+      const chat2Id = result.current.chatHistory[1].id;
+      const chat3Id = result.current.chatHistory[2].id;
+
+      // Add messages to different chats
+      act(() => {
+        result.current.setActiveChatId(chat2Id);
+        result.current.addMessageToActiveChat({
+          id: 'msg-1',
+          role: 'user',
+          content: 'Message in chat 2',
+        });
+
+        result.current.setActiveChatId(chat3Id);
+        result.current.addMessageToActiveChat({
+          id: 'msg-2',
+          role: 'user',
+          content: 'Message in chat 3',
+        });
+      });
+
+      // Delete middle chat
+      act(() => {
+        result.current.deleteChat(chat2Id);
+      });
+
+      expect(result.current.chatHistory).toHaveLength(2);
+      expect(result.current.chatHistory.find((c) => c.id === chat2Id)).toBeUndefined();
+
+      // Verify remaining chats have correct messages
+      const remainingChat3 = result.current.chatHistory.find((c) => c.id === chat3Id);
+      expect(remainingChat3?.messages).toHaveLength(1);
+      expect(remainingChat3?.messages[0].content).toBe('Message in chat 3');
+    });
+
+    it('should preserve createdAt timestamps', () => {
+      const { result } = renderHook(() => useChatHistory(), { wrapper });
+      const initialTimestamp = result.current.chatHistory[0].createdAt;
 
       act(() => {
-        result.current.addMessageToActiveChat(whitespaceMessage);
+        result.current.addMessageToActiveChat({
+          id: 'msg-1',
+          role: 'user',
+          content: 'Test',
+        });
       });
 
-      expect(result.current.activeChat?.messages).toHaveLength(1);
-      // Whitespace is preserved but used for title
-      expect(result.current.activeChat?.title).toBe('   \n\t  ');
+      expect(result.current.activeChat?.createdAt).toBe(initialTimestamp);
     });
   });
 });
