@@ -1,14 +1,17 @@
-import React, { ReactElement } from 'react';
+import React from 'react';
 import { render, RenderOptions } from '@testing-library/react';
 import { ChatHistoryProvider } from '../contexts/ChatHistoryContext';
 
-// Custom render function that wraps components with providers
-const AllTheProviders = ({ children }: { children: React.ReactNode }) => {
+interface AllTheProvidersProps {
+  children: React.ReactNode;
+}
+
+const AllTheProviders: React.FC<AllTheProvidersProps> = ({ children }) => {
   return <ChatHistoryProvider>{children}</ChatHistoryProvider>;
 };
 
 const customRender = (
-  ui: ReactElement,
+  ui: React.ReactElement,
   options?: Omit<RenderOptions, 'wrapper'>
 ) => render(ui, { wrapper: AllTheProviders, ...options });
 

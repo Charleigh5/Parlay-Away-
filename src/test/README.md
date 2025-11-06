@@ -1,43 +1,51 @@
 # Test Suite
 
-This directory contains the test setup and utilities for the application.
+This directory contains test setup and utilities for the Synoptic Edge project.
+
+## Structure
+
+- `setup.ts` - Global test configuration and setup
+- `testUtils.tsx` - Custom render functions and test utilities
 
 ## Running Tests
 
+Run all tests:
 ```bash
-# Run all tests
 npm test
+```
 
-# Run tests in watch mode
+Run tests in watch mode:
+```bash
 npm test -- --watch
+```
 
-# Run tests with UI
-npm run test:ui
-
-# Run tests with coverage
+Run tests with coverage:
+```bash
 npm run test:coverage
 ```
 
-## Test Structure
-
-- `setup.ts` - Global test setup and configuration
-- `testUtils.tsx` - Shared testing utilities and custom render functions
-- Test files are colocated with source files using `.test.tsx` or `.spec.tsx` extensions
+Run tests with UI:
+```bash
+npm run test:ui
+```
 
 ## Writing Tests
 
-Tests use Vitest as the test runner and React Testing Library for component testing.
+### Unit Tests
 
-Example:
-```typescript
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@/src/test/testUtils';
-import { MyComponent } from './MyComponent';
+Place unit tests next to the file being tested with a `.test.ts` or `.test.tsx` extension.
 
-describe('MyComponent', () => {
-  it('should render correctly', () => {
-    render(<MyComponent />);
-    expect(screen.getByText('Hello')).toBeInTheDocument();
-  });
-});
-```
+### Test Coverage Goals
+
+- Context/Hooks: 90%+ coverage
+- Services: 85%+ coverage
+- Components: 80%+ coverage
+- Utilities: 95%+ coverage
+
+### Best Practices
+
+1. Descriptive test names: Use clear, behavior-focused descriptions
+2. Arrange-Act-Assert: Structure tests with clear setup, action, and verification
+3. Test behavior, not implementation: Focus on what the code does, not how
+4. Mock external dependencies: Use vi.mock() for external services
+5. Clean up: Use afterEach for cleanup when needed

@@ -1,4 +1,4 @@
-import { expect, afterEach, vi } from 'vitest';
+import { expect, afterEach } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 
@@ -7,14 +7,18 @@ afterEach(() => {
   cleanup();
 });
 
-// Mock window.crypto for tests
+// Mock crypto.randomUUID for consistent testing
 if (!globalThis.crypto) {
-  globalThis.crypto = {
-    randomUUID: () => Math.random().toString(36).substring(2, 15),
-  } as any;
+  globalThis.crypto = {} as Crypto;
+}
+if (!globalThis.crypto.randomUUID) {
+  let counter = 0;
+  globalThis.crypto.randomUUID = () => {
+    counter++;
+    return `test-uuid-${counter.toString().padStart(4, '0')}`;
+  };
 }
 
-// Mock process.env for tests
-if (!process.env.API_KEY) {
-  process.env.API_KEY = 'test-api-key';
-}
+// Mock environment variables
+process.env.API_KEY = 'test-api-key';
+process.env.GEMINI_API_KEY = 'test-api-key';

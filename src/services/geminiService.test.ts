@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi, Mock } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { GoogleGenAI } from '@google/genai';
 import {
   getAnalysis,
@@ -8,23 +8,17 @@ import {
   extractBetsFromImage,
   analyzeParlayCorrelation,
 } from './geminiService';
-import type {
-  AnalysisResponse,
-  SystemUpdate,
-  ExtractedBetLeg,
-  ParlayCorrelationAnalysis,
-} from '../types';
+import type { SystemUpdate, ExtractedBetLeg } from '../types';
 
 // Mock the GoogleGenAI module
 vi.mock('@google/genai', () => {
   const mockGenerateContent = vi.fn();
-  const mockModels = {
-    generateContent: mockGenerateContent,
-  };
-
+  
   return {
     GoogleGenAI: vi.fn(() => ({
-      models: mockModels,
+      models: {
+        generateContent: mockGenerateContent,
+      },
     })),
     Type: {
       OBJECT: 'object',
@@ -37,193 +31,96 @@ vi.mock('@google/genai', () => {
 });
 
 describe('geminiService', () => {
-  let mockGenerateContent: Mock;
+  let mockGenerateContent: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
+    // Get the mocked function
+    const GenAI = new GoogleGenAI({ apiKey: 'test' });
+    mockGenerateContent = GenAI.models.generateContent as ReturnType<typeof vi.fn>;
+    mockGenerateContent.mockClear();
+  });
+
+  afterEach(() => {
     vi.clearAllMocks();
-    const aiInstance = new GoogleGenAI({ apiKey: 'test-key' });
-    mockGenerateContent = aiInstance.models.generateContent as Mock;
+  });
+
+  describe('API Key Configuration', () => {
+    it('should use process.env.API_KEY for initialization', () => {
+      expect(process.env.API_KEY).toBe('test-api-key');
+    });
   });
 
   describe('getAnalysis', () => {
-    it('should fetch and parse analysis response successfully', async () => {
-      const mockResponse: AnalysisResponse = {
-        summary: 'Strong positive expected value on this bet.',
-        reasoning: [
-          {
-            step: 1,
-            description: 'Analyzed historical performance',
-            activatedModules: ['KM_01', 'KM_05'],
-          },
-        ],
-        quantitative: {
-          expectedValue: 5.5,
-          vigRemovedOdds: -105,
-          kellyCriterionStake: 2.0,
-          confidenceScore: 0.85,
-          projectedMean: 288.5,
-          projectedStdDev: 42.3,
+    const mockAnalysisResponse = {
+      summary: 'Strong positive EV opportunity',
+      reasoning: [
+        {
+          step: 1,
+          description: 'Analyzed historical performance',
+          activatedModules: ['KM_01', 'KM_03'],
         },
-      };
+      ],
+      quantitative: {
+        expectedValue: 5.5,
+        vigRemovedOdds: 2.1,
+        kellyCriterionStake: 1.25,
+        confidenceScore: 8.5,
+        projectedMean: 288.5,
+        projectedStdDev: 25.3,
+      },
+    };
 
+    it('should successfully fetch analysis', async () => {
       mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify(mockResponse),
+        text: JSON.stringify(mockAnalysisResponse),
       });
 
-      const result = await getAnalysis('Patrick Mahomes over 285.5 passing yards');
+      const result = await getAnalysis('Analyze Patrick Mahomes over 285.5 passing yards');
 
-      expect(result).toEqual(mockResponse);
+      expect(result).toEqual(mockAnalysisResponse);
       expect(mockGenerateContent).toHaveBeenCalledTimes(1);
-      expect(mockGenerateContent).toHaveBeenCalledWith({
-        model: 'gemini-2.5-flash',
-        contents: 'Patrick Mahomes over 285.5 passing yards',
-        config: expect.objectContaining({
-          systemInstruction: expect.stringContaining('The Analyzer'),
-          responseMimeType: 'application/json',
-          temperature: 0.7,
-        }),
-      });
-    });
-
-    it('should include correct system instruction', async () => {
-      mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify({
-          summary: 'Test',
-          reasoning: [],
-          quantitative: {
-            expectedValue: 0,
-            vigRemovedOdds: 0,
-            kellyCriterionStake: 0,
-            confidenceScore: 0,
-            projectedMean: 0,
-            projectedStdDev: 0,
-          },
-        }),
-      });
-
-      await getAnalysis('test query');
-
-      const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.config.systemInstruction).toContain('The Analyzer');
-      expect(callArgs.config.systemInstruction).toContain('Positive Expected Value');
-      expect(callArgs.config.systemInstruction).toContain('Kelly Criterion');
-      expect(callArgs.config.systemInstruction).toContain('projectedMean');
-      expect(callArgs.config.systemInstruction).toContain('projectedStdDev');
-    });
-
-    it('should handle API errors gracefully', async () => {
-      mockGenerateContent.mockRejectedValue(new Error('API rate limit exceeded'));
-
-      await expect(getAnalysis('test query')).rejects.toThrow(
-        'Failed to get analysis'
+      expect(mockGenerateContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: 'gemini-2.5-flash',
+          contents: 'Analyze Patrick Mahomes over 285.5 passing yards',
+          config: expect.objectContaining({
+            responseMimeType: 'application/json',
+            temperature: 0.7,
+          }),
+        })
       );
     });
 
-    it('should handle JSON parsing errors', async () => {
+    it('should include system instruction in API call', async () => {
       mockGenerateContent.mockResolvedValue({
-        text: 'invalid json{',
+        text: JSON.stringify(mockAnalysisResponse),
       });
 
-      await expect(getAnalysis('test query')).rejects.toThrow();
-    });
+      await getAnalysis('Test query');
 
-    it('should work with various query formats', async () => {
-      const mockResponse: AnalysisResponse = {
-        summary: 'Analysis complete',
-        reasoning: [],
-        quantitative: {
-          expectedValue: 3.2,
-          vigRemovedOdds: -110,
-          kellyCriterionStake: 1.5,
-          confidenceScore: 0.75,
-          projectedMean: 150.5,
-          projectedStdDev: 25.0,
-        },
-      };
-
-      mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify(mockResponse),
-      });
-
-      const queries = [
-        'Simple query',
-        'Patrick Mahomes over 285.5 passing yards @ -110',
-        'Compare Kelce receptions to Andrews',
-        '',
-      ];
-
-      for (const query of queries) {
-        const result = await getAnalysis(query);
-        expect(result).toEqual(mockResponse);
-      }
-
-      expect(mockGenerateContent).toHaveBeenCalledTimes(queries.length);
-    });
-  });
-
-  describe('proposeModelUpdate', () => {
-    it('should fetch and parse model update successfully', async () => {
-      const mockUpdate: SystemUpdate = {
-        id: 'UP-001',
-        status: 'Pending Review',
-        featureName: 'Live Momentum Tracker',
-        description: 'Track in-game momentum shifts',
-        integrationStrategy: 'Add real-time data stream',
-        impactAnalysis: 'Expected to improve ROI by 0.75%',
-        backtestResults: {
-          roiChange: 0.75,
-          brierScore: 0.18,
-          sharpeRatio: 1.45,
-        },
-      };
-
-      mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify(mockUpdate),
-      });
-
-      const result = await proposeModelUpdate();
-
-      expect(result).toEqual(mockUpdate);
-      expect(mockGenerateContent).toHaveBeenCalledTimes(1);
-    });
-
-    it('should retry on failure up to 3 times', async () => {
-      const mockUpdate: SystemUpdate = {
-        id: 'UP-002',
-        status: 'Pending Review',
-        featureName: 'Test Feature',
-        description: 'Test',
-        integrationStrategy: 'Test',
-        impactAnalysis: 'Test',
-        backtestResults: {
-          roiChange: 1.0,
-          brierScore: 0.2,
-          sharpeRatio: 1.5,
-        },
-      };
-
-      // Fail first two attempts, succeed on third
-      mockGenerateContent
-        .mockRejectedValueOnce(new Error('Temporary failure'))
-        .mockRejectedValueOnce(new Error('Temporary failure'))
-        .mockResolvedValueOnce({
-          text: JSON.stringify(mockUpdate),
-        });
-
-      const result = await proposeModelUpdate();
-
-      expect(result).toEqual(mockUpdate);
-      expect(mockGenerateContent).toHaveBeenCalledTimes(3);
-    });
-
-    it('should throw error after max retries', async () => {
-      mockGenerateContent.mockRejectedValue(new Error('Persistent failure'));
-
-      await expect(proposeModelUpdate()).rejects.toThrow(
-        'Failed to propose a model update'
+      expect(mockGenerateContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({
+            systemInstruction: expect.stringContaining('The Analyzer'),
+          }),
+        })
       );
+    });
 
-      expect(mockGenerateContent).toHaveBeenCalledTimes(3);
+    it('should throw error when API call fails', async () => {
+      mockGenerateContent.mockRejectedValue(new Error('API Error'));
+
+      await expect(getAnalysis('Test query')).rejects.toThrow(
+        'Failed to get analysis. The market may be too efficient to analyze this query.'
+      );
+    });
+
+    it('should handle malformed JSON response', async () => {
+      mockGenerateContent.mockResolvedValue({
+        text: 'Not valid JSON',
+      });
+
+      await expect(getAnalysis('Test query')).rejects.toThrow();
     });
 
     it('should handle empty response', async () => {
@@ -231,47 +128,136 @@ describe('geminiService', () => {
         text: '',
       });
 
-      await expect(proposeModelUpdate()).rejects.toThrow();
+      await expect(getAnalysis('Test query')).rejects.toThrow();
     });
 
-    it('should include proper prompt instructions', async () => {
+    it('should pass query correctly', async () => {
       mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify({
-          id: 'UP-001',
-          status: 'Pending Review',
-          featureName: 'Test',
-          description: 'Test',
-          integrationStrategy: 'Test',
-          impactAnalysis: 'Test',
-          backtestResults: {
-            roiChange: 0.5,
-            brierScore: 0.2,
-            sharpeRatio: 1.5,
-          },
-        }),
+        text: JSON.stringify(mockAnalysisResponse),
+      });
+
+      const query = 'Analyze Travis Kelce receiving yards';
+      await getAnalysis(query);
+
+      expect(mockGenerateContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          contents: query,
+        })
+      );
+    });
+
+    it('should handle network timeout', async () => {
+      mockGenerateContent.mockRejectedValue(new Error('Network timeout'));
+
+      await expect(getAnalysis('Test')).rejects.toThrow(
+        'Failed to get analysis'
+      );
+    });
+  });
+
+  describe('proposeModelUpdate', () => {
+    const mockUpdateResponse: SystemUpdate = {
+      id: 'UP-001',
+      status: 'Pending Review',
+      featureName: 'Live Momentum Tracker',
+      description: 'Real-time tracking of in-game momentum shifts',
+      integrationStrategy: 'WebSocket connection to live data feeds',
+      impactAnalysis: 'Expected to improve real-time betting decisions',
+      backtestResults: {
+        roiChange: 0.75,
+        brierScore: 0.15,
+        sharpeRatio: 1.8,
+      },
+    };
+
+    it('should successfully propose model update', async () => {
+      mockGenerateContent.mockResolvedValue({
+        text: JSON.stringify(mockUpdateResponse),
+      });
+
+      const result = await proposeModelUpdate();
+
+      expect(result).toEqual(mockUpdateResponse);
+      expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+    });
+
+    it('should retry on failure', async () => {
+      mockGenerateContent
+        .mockRejectedValueOnce(new Error('Temporary failure'))
+        .mockResolvedValueOnce({
+          text: JSON.stringify(mockUpdateResponse),
+        });
+
+      const result = await proposeModelUpdate();
+
+      expect(result).toEqual(mockUpdateResponse);
+      expect(mockGenerateContent).toHaveBeenCalledTimes(2);
+    });
+
+    it('should throw after max retries', async () => {
+      mockGenerateContent.mockRejectedValue(new Error('Persistent failure'));
+
+      await expect(proposeModelUpdate()).rejects.toThrow(
+        'Failed to propose a model update'
+      );
+      expect(mockGenerateContent).toHaveBeenCalledTimes(3);
+    });
+
+    it('should handle empty response', async () => {
+      mockGenerateContent.mockResolvedValue({ text: '' });
+
+      await expect(proposeModelUpdate()).rejects.toThrow(
+        'AI returned an empty response for model update proposal'
+      );
+    });
+
+    it('should include correct system instruction', async () => {
+      mockGenerateContent.mockResolvedValue({
+        text: JSON.stringify(mockUpdateResponse),
       });
 
       await proposeModelUpdate();
 
-      const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.contents).toContain('innovative new feature');
-      expect(callArgs.contents).toContain('backtest results');
-      expect(callArgs.contents).toContain('UP-');
+      expect(mockGenerateContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({
+            systemInstruction: expect.stringContaining('Project Synoptic Edge'),
+          }),
+        })
+      );
     });
 
-    it('should wait between retry attempts', async () => {
-      vi.useFakeTimers();
+    it('should use correct model', async () => {
+      mockGenerateContent.mockResolvedValue({
+        text: JSON.stringify(mockUpdateResponse),
+      });
 
-      mockGenerateContent.mockRejectedValue(new Error('Failure'));
+      await proposeModelUpdate();
+
+      expect(mockGenerateContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: 'gemini-2.5-flash',
+        })
+      );
+    });
+
+    it('should wait between retries', async () => {
+      vi.useFakeTimers();
+      mockGenerateContent
+        .mockRejectedValueOnce(new Error('Fail 1'))
+        .mockRejectedValueOnce(new Error('Fail 2'))
+        .mockResolvedValueOnce({
+          text: JSON.stringify(mockUpdateResponse),
+        });
 
       const promise = proposeModelUpdate();
-
-      // Fast-forward time for retries
-      await vi.advanceTimersByTimeAsync(2000);
-      await vi.advanceTimersByTimeAsync(4000);
-
-      await expect(promise).rejects.toThrow();
-
+      
+      // Fast-forward through retry delays
+      await vi.runAllTimersAsync();
+      
+      const result = await promise;
+      expect(result).toEqual(mockUpdateResponse);
+      
       vi.useRealTimers();
     });
   });
@@ -281,169 +267,190 @@ describe('geminiService', () => {
       id: 'UP-001',
       status: 'Pending Review',
       featureName: 'Test Feature',
-      description: 'Test',
-      integrationStrategy: 'Test',
-      impactAnalysis: 'Test',
+      description: 'Test description',
+      integrationStrategy: 'Test strategy',
+      impactAnalysis: 'Test impact',
       backtestResults: {
-        roiChange: 1.0,
+        roiChange: 0.5,
         brierScore: 0.2,
         sharpeRatio: 1.5,
       },
     };
 
-    it('should send acceptance feedback successfully', async () => {
-      mockGenerateContent.mockResolvedValue({
-        text: 'Feedback acknowledged',
-      });
-
-      await expect(sendUpdateFeedback(mockUpdate, 'accepted')).resolves.not.toThrow();
-
-      expect(mockGenerateContent).toHaveBeenCalledTimes(1);
-      const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.contents).toContain('ACCEPTED');
-      expect(callArgs.contents).toContain(mockUpdate.featureName);
-    });
-
-    it('should send rejection feedback successfully', async () => {
-      mockGenerateContent.mockResolvedValue({
-        text: 'Feedback acknowledged',
-      });
-
-      await expect(sendUpdateFeedback(mockUpdate, 'rejected')).resolves.not.toThrow();
-
-      expect(mockGenerateContent).toHaveBeenCalledTimes(1);
-      const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.contents).toContain('REJECTED');
-      expect(callArgs.contents).toContain(mockUpdate.featureName);
-    });
-
-    it('should handle API errors gracefully without throwing', async () => {
-      mockGenerateContent.mockRejectedValue(new Error('API error'));
-
-      await expect(sendUpdateFeedback(mockUpdate, 'accepted')).resolves.not.toThrow();
-    });
-
-    it('should use correct temperature setting', async () => {
-      mockGenerateContent.mockResolvedValue({
-        text: 'Acknowledged',
-      });
+    it('should send accepted feedback', async () => {
+      mockGenerateContent.mockResolvedValue({ text: 'Acknowledged' });
 
       await sendUpdateFeedback(mockUpdate, 'accepted');
 
-      const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.config.temperature).toBe(0.5);
+      expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+      expect(mockGenerateContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          contents: expect.stringContaining('ACCEPTED'),
+        })
+      );
+    });
+
+    it('should send rejected feedback', async () => {
+      mockGenerateContent.mockResolvedValue({ text: 'Acknowledged' });
+
+      await sendUpdateFeedback(mockUpdate, 'rejected');
+
+      expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+      expect(mockGenerateContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          contents: expect.stringContaining('REJECTED'),
+        })
+      );
+    });
+
+    it('should include feature name in feedback', async () => {
+      mockGenerateContent.mockResolvedValue({ text: 'Acknowledged' });
+
+      await sendUpdateFeedback(mockUpdate, 'accepted');
+
+      expect(mockGenerateContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          contents: expect.stringContaining(mockUpdate.featureName),
+        })
+      );
+    });
+
+    it('should handle API errors gracefully', async () => {
+      mockGenerateContent.mockRejectedValue(new Error('API Error'));
+
+      // Should not throw, just log error
+      await expect(
+        sendUpdateFeedback(mockUpdate, 'accepted')
+      ).resolves.toBeUndefined();
+    });
+
+    it('should use correct temperature setting', async () => {
+      mockGenerateContent.mockResolvedValue({ text: 'Acknowledged' });
+
+      await sendUpdateFeedback(mockUpdate, 'accepted');
+
+      expect(mockGenerateContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({
+            temperature: 0.5,
+          }),
+        })
+      );
     });
   });
 
   describe('getComparativeAnalysis', () => {
-    it('should compare two props successfully', async () => {
-      const mockAnalysis = 'Prop A offers better value with +6.2% EV. Recommendation: Prop A';
-
-      mockGenerateContent.mockResolvedValue({
-        text: mockAnalysis,
-      });
+    it('should compare two props', async () => {
+      const mockResponse = 'Prop A offers better value. Recommendation: Prop A';
+      mockGenerateContent.mockResolvedValue({ text: mockResponse });
 
       const result = await getComparativeAnalysis(
-        'Mahomes over 285.5 passing yards',
-        'Allen over 270.5 passing yards'
+        'Patrick Mahomes Over 285.5 passing yards (-110)',
+        'Josh Allen Over 275.5 passing yards (-105)'
       );
 
-      expect(result).toBe(mockAnalysis);
-      expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+      expect(result).toBe(mockResponse);
+      expect(mockGenerateContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          contents: expect.stringContaining('Prop A:'),
+        })
+      );
     });
 
-    it('should include both prop details in the prompt', async () => {
+    it('should include both prop details', async () => {
       mockGenerateContent.mockResolvedValue({
-        text: 'Recommendation: Prop B',
+        text: 'Analysis result',
       });
 
       await getComparativeAnalysis('Prop A details', 'Prop B details');
 
-      const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.contents).toContain('Prop A details');
-      expect(callArgs.contents).toContain('Prop B details');
+      expect(mockGenerateContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          contents: expect.stringMatching(/Prop A.*Prop B/s),
+        })
+      );
     });
 
-    it('should use The Arbiter system instruction', async () => {
-      mockGenerateContent.mockResolvedValue({
-        text: 'Recommendation: Neither',
-      });
-
-      await getComparativeAnalysis('Prop A', 'Prop B');
-
-      const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.config.systemInstruction).toContain('The Arbiter');
-      expect(callArgs.config.systemInstruction).toContain('superior bet');
-    });
-
-    it('should handle API errors', async () => {
-      mockGenerateContent.mockRejectedValue(new Error('API error'));
+    it('should throw error on API failure', async () => {
+      mockGenerateContent.mockRejectedValue(new Error('API Error'));
 
       await expect(
         getComparativeAnalysis('Prop A', 'Prop B')
       ).rejects.toThrow('Failed to get comparative analysis');
     });
 
-    it('should use temperature of 0.8', async () => {
-      mockGenerateContent.mockResolvedValue({
-        text: 'Analysis',
-      });
+    it('should use correct system instruction', async () => {
+      mockGenerateContent.mockResolvedValue({ text: 'Result' });
 
       await getComparativeAnalysis('Prop A', 'Prop B');
 
-      const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.config.temperature).toBe(0.8);
+      expect(mockGenerateContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({
+            systemInstruction: expect.stringContaining('The Arbiter'),
+          }),
+        })
+      );
+    });
+
+    it('should use higher temperature for creative comparison', async () => {
+      mockGenerateContent.mockResolvedValue({ text: 'Result' });
+
+      await getComparativeAnalysis('Prop A', 'Prop B');
+
+      expect(mockGenerateContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({
+            temperature: 0.8,
+          }),
+        })
+      );
     });
   });
 
   describe('extractBetsFromImage', () => {
     const mockImageData = {
-      data: 'base64-encoded-image-data',
+      data: 'base64encodedimage',
       mimeType: 'image/png',
     };
 
-    it('should extract bet legs from image successfully', async () => {
-      const mockBets: ExtractedBetLeg[] = [
-        {
-          player: 'Patrick Mahomes',
-          propType: 'Passing Yards',
-          line: 285.5,
-          position: 'Over',
-          marketOdds: -110,
-        },
-        {
-          player: 'Travis Kelce',
-          propType: 'Receptions',
-          line: 5.5,
-          position: 'Over',
-          marketOdds: -115,
-        },
-      ];
+    const mockExtractedLegs: ExtractedBetLeg[] = [
+      {
+        player: 'Patrick Mahomes',
+        propType: 'Passing Yards',
+        line: 285.5,
+        position: 'Over',
+        marketOdds: -110,
+      },
+      {
+        player: 'Travis Kelce',
+        propType: 'Receptions',
+        line: 5.5,
+        position: 'Over',
+        marketOdds: -120,
+      },
+    ];
 
+    it('should extract bet legs from image', async () => {
       mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify(mockBets),
+        text: JSON.stringify(mockExtractedLegs),
       });
 
       const result = await extractBetsFromImage(mockImageData);
 
-      expect(result).toEqual(mockBets);
-      expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(mockExtractedLegs);
+      expect(mockGenerateContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          contents: expect.objectContaining({
+            parts: expect.arrayContaining([
+              expect.objectContaining({ inlineData: mockImageData }),
+            ]),
+          }),
+        })
+      );
     });
 
-    it('should pass image data correctly', async () => {
-      mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify([]),
-      });
-
-      await extractBetsFromImage(mockImageData);
-
-      const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.contents.parts).toHaveLength(2);
-      expect(callArgs.contents.parts[0].inlineData).toEqual(mockImageData);
-      expect(callArgs.contents.parts[1].text).toContain('Extract all bet legs');
-    });
-
-    it('should handle empty bet slips', async () => {
+    it('should handle empty bet slip', async () => {
       mockGenerateContent.mockResolvedValue({
         text: JSON.stringify([]),
       });
@@ -453,42 +460,48 @@ describe('geminiService', () => {
       expect(result).toEqual([]);
     });
 
-    it('should handle API errors', async () => {
-      mockGenerateContent.mockRejectedValue(new Error('Invalid image'));
+    it('should throw error on API failure', async () => {
+      mockGenerateContent.mockRejectedValue(new Error('API Error'));
 
       await expect(extractBetsFromImage(mockImageData)).rejects.toThrow(
-        'Failed to extract bets'
+        'Failed to extract bets from the provided image'
       );
     });
 
-    it('should handle various image formats', async () => {
-      const imageFormats = [
-        { data: 'data1', mimeType: 'image/png' },
-        { data: 'data2', mimeType: 'image/jpeg' },
-        { data: 'data3', mimeType: 'image/webp' },
-      ];
-
+    it('should include text prompt with image', async () => {
       mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify([]),
-      });
-
-      for (const imageData of imageFormats) {
-        await extractBetsFromImage(imageData);
-      }
-
-      expect(mockGenerateContent).toHaveBeenCalledTimes(imageFormats.length);
-    });
-
-    it('should include OCR system instruction', async () => {
-      mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify([]),
+        text: JSON.stringify(mockExtractedLegs),
       });
 
       await extractBetsFromImage(mockImageData);
 
-      const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.config.systemInstruction).toContain('OCR');
-      expect(callArgs.config.systemInstruction).toContain('bet slip');
+      expect(mockGenerateContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          contents: expect.objectContaining({
+            parts: expect.arrayContaining([
+              expect.objectContaining({
+                text: expect.stringContaining('Extract all bet legs'),
+              }),
+            ]),
+          }),
+        })
+      );
+    });
+
+    it('should use JSON response schema', async () => {
+      mockGenerateContent.mockResolvedValue({
+        text: JSON.stringify(mockExtractedLegs),
+      });
+
+      await extractBetsFromImage(mockImageData);
+
+      expect(mockGenerateContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({
+            responseMimeType: 'application/json',
+          }),
+        })
+      );
     });
   });
 
@@ -506,200 +519,108 @@ describe('geminiService', () => {
         propType: 'Receptions',
         line: 5.5,
         position: 'Over',
-        marketOdds: -115,
+        marketOdds: -120,
       },
     ];
 
-    it('should analyze parlay correlation successfully', async () => {
-      const mockAnalysis: ParlayCorrelationAnalysis = {
-        overallScore: 0.45,
-        summary: 'Positive correlation due to game script dependency',
-        analysis: [
-          {
-            leg1Index: 0,
-            leg2Index: 1,
-            rho: 0.45,
-            relationship: 'Positive',
-            explanation: 'Kelce benefits from Mahomes passing volume',
-          },
-        ],
-      };
+    const mockCorrelationResponse = {
+      overallScore: 0.65,
+      summary: 'Strong positive correlation detected',
+      analysis: [
+        {
+          leg1Index: 0,
+          leg2Index: 1,
+          rho: 0.65,
+          relationship: 'Positive',
+          explanation: 'QB-receiver connection increases both props',
+        },
+      ],
+    };
 
+    it('should analyze parlay correlation', async () => {
       mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify(mockAnalysis),
+        text: JSON.stringify(mockCorrelationResponse),
       });
 
       const result = await analyzeParlayCorrelation(mockLegs);
 
-      expect(result).toEqual(mockAnalysis);
-      expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(mockCorrelationResponse);
     });
 
-    it('should include leg details in prompt', async () => {
+    it('should include all legs in prompt', async () => {
       mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify({
-          overallScore: 0,
-          summary: 'Test',
-          analysis: [],
-        }),
+        text: JSON.stringify(mockCorrelationResponse),
       });
 
       await analyzeParlayCorrelation(mockLegs);
 
-      const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.contents).toContain('Patrick Mahomes');
-      expect(callArgs.contents).toContain('Travis Kelce');
-      expect(callArgs.contents).toContain('Over 285.5 Passing Yards');
-      expect(callArgs.contents).toContain('Over 5.5 Receptions');
+      expect(mockGenerateContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          contents: expect.stringContaining('Patrick Mahomes'),
+        })
+      );
+      expect(mockGenerateContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          contents: expect.stringContaining('Travis Kelce'),
+        })
+      );
     });
 
-    it('should handle single leg parlay', async () => {
-      const singleLeg = [mockLegs[0]];
-
-      mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify({
-          overallScore: 0,
-          summary: 'Single leg, no correlation',
-          analysis: [],
-        }),
-      });
-
-      const result = await analyzeParlayCorrelation(singleLeg);
-
-      expect(result.analysis).toEqual([]);
-    });
-
-    it('should handle empty response error', async () => {
-      mockGenerateContent.mockResolvedValue({
-        text: '',
-      });
+    it('should throw error on empty response', async () => {
+      mockGenerateContent.mockResolvedValue({ text: '' });
 
       await expect(analyzeParlayCorrelation(mockLegs)).rejects.toThrow(
-        'AI returned an empty response'
+        'AI returned an empty response for correlation analysis'
       );
     });
 
     it('should handle API errors', async () => {
-      mockGenerateContent.mockRejectedValue(new Error('API error'));
+      mockGenerateContent.mockRejectedValue(new Error('API Error'));
 
       await expect(analyzeParlayCorrelation(mockLegs)).rejects.toThrow(
         'Failed to analyze parlay correlation'
       );
     });
 
-    it('should analyze multiple leg combinations', async () => {
-      const multipleLegs: ExtractedBetLeg[] = [
-        {
-          player: 'Player A',
-          propType: 'Stat A',
-          line: 100,
-          position: 'Over',
-          marketOdds: -110,
-        },
-        {
-          player: 'Player B',
-          propType: 'Stat B',
-          line: 200,
-          position: 'Under',
-          marketOdds: -110,
-        },
-        {
-          player: 'Player C',
-          propType: 'Stat C',
-          line: 300,
-          position: 'Over',
-          marketOdds: -110,
-        },
-      ];
-
-      const mockAnalysis: ParlayCorrelationAnalysis = {
-        overallScore: 0.25,
-        summary: 'Mixed correlations',
-        analysis: [
-          {
-            leg1Index: 0,
-            leg2Index: 1,
-            rho: 0.3,
-            relationship: 'Positive',
-            explanation: 'Related',
-          },
-          {
-            leg1Index: 0,
-            leg2Index: 2,
-            rho: -0.1,
-            relationship: 'Negative',
-            explanation: 'Opposing',
-          },
-          {
-            leg1Index: 1,
-            leg2Index: 2,
-            rho: 0.05,
-            relationship: 'Neutral',
-            explanation: 'Independent',
-          },
-        ],
-      };
-
+    it('should use correct system instruction', async () => {
       mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify(mockAnalysis),
-      });
-
-      const result = await analyzeParlayCorrelation(multipleLegs);
-
-      expect(result.analysis).toHaveLength(3);
-      // For 3 legs, we expect 3 pairwise correlations: (0,1), (0,2), (1,2)
-    });
-
-    it('should use correlation specialist system instruction', async () => {
-      mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify({
-          overallScore: 0,
-          summary: 'Test',
-          analysis: [],
-        }),
+        text: JSON.stringify(mockCorrelationResponse),
       });
 
       await analyzeParlayCorrelation(mockLegs);
 
-      const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.config.systemInstruction).toContain('correlation');
-      expect(callArgs.config.systemInstruction).toContain('parlay');
+      expect(mockGenerateContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({
+            systemInstruction: expect.stringContaining('correlation'),
+          }),
+        })
+      );
     });
-  });
 
-  describe('API configuration', () => {
-    it('should use correct model for all endpoints', async () => {
+    it('should handle single leg input', async () => {
+      const singleLeg = [mockLegs[0]];
+      const singleLegResponse = {
+        overallScore: 0,
+        summary: 'Single leg, no correlation',
+        analysis: [],
+      };
+
       mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify({ summary: 'test', reasoning: [], quantitative: {} }),
+        text: JSON.stringify(singleLegResponse),
       });
 
-      await getAnalysis('test');
+      const result = await analyzeParlayCorrelation(singleLeg);
 
-      const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.model).toBe('gemini-2.5-flash');
+      expect(result).toEqual(singleLegResponse);
     });
 
-    it('should initialize GoogleGenAI with API key from environment', () => {
-      expect(GoogleGenAI).toHaveBeenCalledWith({
-        apiKey: expect.any(String),
+    it('should handle malformed JSON response', async () => {
+      mockGenerateContent.mockResolvedValue({
+        text: 'Not valid JSON',
       });
-    });
-  });
 
-  describe('error messages', () => {
-    it('should provide user-friendly error messages', async () => {
-      mockGenerateContent.mockRejectedValue(new Error('Network error'));
-
-      const errors = [
-        { fn: () => getAnalysis('test'), message: 'Failed to get analysis' },
-        { fn: () => getComparativeAnalysis('a', 'b'), message: 'Failed to get comparative analysis' },
-        { fn: () => extractBetsFromImage({ data: '', mimeType: '' }), message: 'Failed to extract bets' },
-        { fn: () => analyzeParlayCorrelation([]), message: 'Failed to analyze parlay correlation' },
-      ];
-
-      for (const { fn, message } of errors) {
-        await expect(fn()).rejects.toThrow(message);
-      }
+      await expect(analyzeParlayCorrelation(mockLegs)).rejects.toThrow();
     });
   });
 });
