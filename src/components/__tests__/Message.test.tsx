@@ -1,47 +1,36 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import React from 'react';
 import Message from '../Message';
 import type { Message as MessageType, AnalysisResponse } from '../../types';
 
 // Mock the icon components
 vi.mock('../icons/UserIcon', () => ({
   UserIcon: ({ className }: { className?: string }) => (
-    <div data-testid="user-icon" className={className}>
-      UserIcon
-    </div>
+    <div data-testid="user-icon" className={className}>UserIcon</div>
   ),
 }));
 
-vi.mock('../../assets/icons/BrainCircuitIcon', () => ({
+vi.mock('../assets/icons/BrainCircuitIcon', () => ({
   BrainCircuitIcon: ({ className }: { className?: string }) => (
-    <div data-testid="brain-icon" className={className}>
-      BrainIcon
-    </div>
+    <div data-testid="brain-circuit-icon" className={className}>BrainCircuitIcon</div>
   ),
 }));
 
 vi.mock('../icons/AlertTriangleIcon', () => ({
   AlertTriangleIcon: ({ className }: { className?: string }) => (
-    <div data-testid="alert-icon" className={className}>
-      AlertIcon
-    </div>
+    <div data-testid="alert-triangle-icon" className={className}>AlertTriangleIcon</div>
   ),
 }));
 
 vi.mock('../icons/BarChartIcon', () => ({
   BarChartIcon: ({ className }: { className?: string }) => (
-    <div data-testid="bar-chart-icon" className={className}>
-      BarChartIcon
-    </div>
+    <div data-testid="bar-chart-icon" className={className}>BarChartIcon</div>
   ),
 }));
 
 vi.mock('../icons/ListChecksIcon', () => ({
   ListChecksIcon: ({ className }: { className?: string }) => (
-    <div data-testid="list-checks-icon" className={className}>
-      ListChecksIcon
-    </div>
+    <div data-testid="list-checks-icon" className={className}>ListChecksIcon</div>
   ),
 }));
 
@@ -49,591 +38,455 @@ describe('Message Component', () => {
   describe('User Messages', () => {
     it('should render user message with correct styling', () => {
       const message: MessageType = {
-        id: 'user-1',
+        id: 'msg-1',
         role: 'user',
-        content: 'What are the best player props today?',
+        content: 'Test user message',
       };
 
-      const { container } = render(<Message message={message} />);
+      render(<Message message={message} />);
 
-      expect(screen.getByText('What are the best player props today?')).toBeInTheDocument();
+      expect(screen.getByText('Test user message')).toBeInTheDocument();
       expect(screen.getByTestId('user-icon')).toBeInTheDocument();
-
-      // Check for user-specific styling classes
-      const messageContainer = container.querySelector('.justify-end');
-      expect(messageContainer).toBeInTheDocument();
     });
 
-    it('should render short user messages', () => {
+    it('should display user icon for user messages', () => {
       const message: MessageType = {
-        id: 'user-2',
+        id: 'msg-1',
         role: 'user',
-        content: 'Hi',
+        content: 'Hello',
       };
 
       render(<Message message={message} />);
 
-      expect(screen.getByText('Hi')).toBeInTheDocument();
+      const icon = screen.getByTestId('user-icon');
+      expect(icon).toBeInTheDocument();
+      expect(icon).toHaveClass('h-5', 'w-5');
     });
 
-    it('should render long user messages', () => {
-      const longContent =
-        'This is a very long message that contains multiple sentences and should still be rendered correctly without any issues. It tests the component ability to handle longer text content gracefully.';
-
+    it('should handle long user messages', () => {
+      const longMessage = 'a'.repeat(500);
       const message: MessageType = {
-        id: 'user-3',
+        id: 'msg-1',
         role: 'user',
-        content: longContent,
+        content: longMessage,
       };
 
       render(<Message message={message} />);
 
-      expect(screen.getByText(longContent)).toBeInTheDocument();
+      expect(screen.getByText(longMessage)).toBeInTheDocument();
     });
 
-    it('should handle special characters in user messages', () => {
+    it('should handle empty user messages', () => {
       const message: MessageType = {
-        id: 'user-4',
-        role: 'user',
-        content: 'What about <strong>Patrick Mahomes</strong> & Travis Kelce?',
-      };
-
-      render(<Message message={message} />);
-
-      expect(
-        screen.getByText('What about <strong>Patrick Mahomes</strong> & Travis Kelce?'),
-      ).toBeInTheDocument();
-    });
-
-    it('should handle empty user message content', () => {
-      const message: MessageType = {
-        id: 'user-5',
+        id: 'msg-1',
         role: 'user',
         content: '',
       };
 
-      const { container } = render(<Message message={message} />);
-
-      const messageContainer = container.querySelector('.justify-end');
-      expect(messageContainer).toBeInTheDocument();
-    });
-
-    it('should render user message with user icon', () => {
-      const message: MessageType = {
-        id: 'user-6',
-        role: 'user',
-        content: 'Test message',
-      };
-
       render(<Message message={message} />);
 
-      const userIcon = screen.getByTestId('user-icon');
-      expect(userIcon).toBeInTheDocument();
-      expect(userIcon).toHaveClass('h-5', 'w-5');
+      const container = screen.getByTestId('user-icon').parentElement?.parentElement;
+      expect(container).toBeInTheDocument();
+    });
+
+    it('should render with proper layout classes for user messages', () => {
+      const message: MessageType = {
+        id: 'msg-1',
+        role: 'user',
+        content: 'Test',
+      };
+
+      const { container } = render(<Message message={message} />);
+
+      const wrapper = container.firstChild as HTMLElement;
+      expect(wrapper).toHaveClass('flex', 'justify-end');
     });
   });
 
   describe('System Messages', () => {
     it('should render system message with alert icon', () => {
       const message: MessageType = {
-        id: 'system-1',
-        role: 'system',
-        content: 'Connection lost. Retrying...',
-      };
-
-      render(<Message message={message} />);
-
-      expect(screen.getByText('Connection lost. Retrying...')).toBeInTheDocument();
-      expect(screen.getByTestId('alert-icon')).toBeInTheDocument();
-    });
-
-    it('should render system message with centered layout', () => {
-      const message: MessageType = {
-        id: 'system-2',
+        id: 'msg-1',
         role: 'system',
         content: 'System notification',
       };
 
-      const { container } = render(<Message message={message} />);
+      render(<Message message={message} />);
 
-      const systemContainer = container.querySelector('.justify-center');
-      expect(systemContainer).toBeInTheDocument();
+      expect(screen.getByText('System notification')).toBeInTheDocument();
+      expect(screen.getByTestId('alert-triangle-icon')).toBeInTheDocument();
     });
 
-    it('should handle empty system messages', () => {
+    it('should center system messages', () => {
       const message: MessageType = {
-        id: 'system-3',
+        id: 'msg-1',
         role: 'system',
-        content: '',
+        content: 'Error occurred',
       };
 
       const { container } = render(<Message message={message} />);
 
-      const systemContainer = container.querySelector('.justify-center');
-      expect(systemContainer).toBeInTheDocument();
+      const wrapper = container.firstChild as HTMLElement;
+      expect(wrapper).toHaveClass('flex', 'justify-center');
     });
 
-    it('should style system messages differently from user messages', () => {
+    it('should display system icon with correct size', () => {
       const message: MessageType = {
-        id: 'system-4',
+        id: 'msg-1',
         role: 'system',
         content: 'System alert',
       };
 
-      const { container } = render(<Message message={message} />);
+      render(<Message message={message} />);
 
-      // System messages should have different background color
-      const systemMessage = container.querySelector('.bg-gray-700\\/50');
-      expect(systemMessage).toBeInTheDocument();
+      const icon = screen.getByTestId('alert-triangle-icon');
+      expect(icon).toHaveClass('h-4', 'w-4');
     });
   });
 
   describe('Assistant Messages with Analysis', () => {
-    const createAnalysisResponse = (overrides?: Partial<AnalysisResponse>): AnalysisResponse => ({
-      summary: 'This is a strong betting opportunity based on recent performance trends.',
+    const mockAnalysis: AnalysisResponse = {
+      summary: 'This is a comprehensive analysis of the betting opportunity.',
       reasoning: [
         {
           step: 1,
-          description: 'Analyzed historical data',
-          activatedModules: ['historical', 'statistical'],
+          description: 'Initial statistical analysis shows favorable conditions.',
+          activatedModules: ['KM_01', 'KM_02'],
         },
         {
           step: 2,
-          description: 'Evaluated matchup factors',
-          activatedModules: ['matchup', 'situational'],
+          description: 'Market analysis indicates value bet potential.',
+          activatedModules: ['KM_03'],
         },
       ],
       quantitative: {
-        expectedValue: 8.5,
-        vigRemovedOdds: -108,
-        kellyCriterionStake: 4.2,
-        confidenceScore: 7.8,
-        projectedMean: 28.5,
-        projectedStdDev: 3.1,
+        expectedValue: 5.75,
+        vigRemovedOdds: -108.5,
+        kellyCriterionStake: 2.35,
+        confidenceScore: 8.2,
+        projectedMean: 285.75,
+        projectedStdDev: 18.45,
       },
-      ...overrides,
-    });
+    };
 
     it('should render assistant message with analysis summary', () => {
-      const analysis = createAnalysisResponse();
       const message: MessageType = {
-        id: 'assistant-1',
+        id: 'msg-1',
         role: 'assistant',
-        content: analysis,
+        content: mockAnalysis,
       };
 
       render(<Message message={message} />);
 
-      expect(
-        screen.getByText('This is a strong betting opportunity based on recent performance trends.'),
-      ).toBeInTheDocument();
-      expect(screen.getByTestId('brain-icon')).toBeInTheDocument();
+      expect(screen.getByText(mockAnalysis.summary)).toBeInTheDocument();
+      expect(screen.getByTestId('brain-circuit-icon')).toBeInTheDocument();
     });
 
-    it('should display quantitative analysis section header', () => {
-      const analysis = createAnalysisResponse();
+    it('should display quantitative analysis section', () => {
       const message: MessageType = {
-        id: 'assistant-2',
+        id: 'msg-1',
         role: 'assistant',
-        content: analysis,
+        content: mockAnalysis,
       };
 
       render(<Message message={message} />);
 
       expect(screen.getByText('Quantitative Analysis')).toBeInTheDocument();
-      expect(screen.getByTestId('bar-chart-icon')).toBeInTheDocument();
-    });
-
-    it('should display expected value label', () => {
-      const analysis = createAnalysisResponse();
-      const message: MessageType = {
-        id: 'assistant-3',
-        role: 'assistant',
-        content: analysis,
-      };
-
-      render(<Message message={message} />);
-
       expect(screen.getByText('Expected Value (+EV)')).toBeInTheDocument();
     });
 
     it('should format expected value correctly', () => {
-      const analysis = createAnalysisResponse({
-        quantitative: {
-          expectedValue: 12.345,
-          vigRemovedOdds: -110,
-          kellyCriterionStake: 5.0,
-          confidenceScore: 8.5,
-          projectedMean: 30.0,
-          projectedStdDev: 2.5,
-        },
-      });
-
       const message: MessageType = {
-        id: 'assistant-4',
+        id: 'msg-1',
         role: 'assistant',
-        content: analysis,
-      };
-
-      const { container } = render(<Message message={message} />);
-
-      // The component renders: {analysis.quantitative.expectedValue.toFixed(2)}%
-      // Based on the diff, the line is incomplete but we can test partial render
-      const evElement = container.querySelector('.text-green-400');
-      expect(evElement).toBeInTheDocument();
-    });
-
-    it('should handle zero expected value', () => {
-      const analysis = createAnalysisResponse({
-        quantitative: {
-          expectedValue: 0.0,
-          vigRemovedOdds: -110,
-          kellyCriterionStake: 0.0,
-          confidenceScore: 5.0,
-          projectedMean: 25.0,
-          projectedStdDev: 3.0,
-        },
-      });
-
-      const message: MessageType = {
-        id: 'assistant-5',
-        role: 'assistant',
-        content: analysis,
+        content: mockAnalysis,
       };
 
       render(<Message message={message} />);
 
-      expect(screen.getByText('Expected Value (+EV)')).toBeInTheDocument();
+      expect(screen.getByText('5.75%')).toBeInTheDocument();
+    });
+
+    it('should display all quantitative metrics', () => {
+      const message: MessageType = {
+        id: 'msg-1',
+        role: 'assistant',
+        content: mockAnalysis,
+      };
+
+      render(<Message message={message} />);
+
+      expect(screen.getByText('Vig-Removed Odds')).toBeInTheDocument();
+      expect(screen.getByText('-108.50')).toBeInTheDocument();
+
+      expect(screen.getByText('Kelly Criterion Stake')).toBeInTheDocument();
+      expect(screen.getByText('2.35%')).toBeInTheDocument();
+
+      expect(screen.getByText('Confidence Score')).toBeInTheDocument();
+      expect(screen.getByText('8.2 / 10')).toBeInTheDocument();
+
+      expect(screen.getByText('Projected Mean')).toBeInTheDocument();
+      expect(screen.getByText('285.75')).toBeInTheDocument();
+
+      expect(screen.getByText('Projected Std Dev')).toBeInTheDocument();
+      expect(screen.getByText('18.45')).toBeInTheDocument();
+    });
+
+    it('should render reasoning trace section', () => {
+      const message: MessageType = {
+        id: 'msg-1',
+        role: 'assistant',
+        content: mockAnalysis,
+      };
+
+      render(<Message message={message} />);
+
+      expect(screen.getByText('Reasoning Trace')).toBeInTheDocument();
+      expect(screen.getByTestId('list-checks-icon')).toBeInTheDocument();
+    });
+
+    it('should display all reasoning steps', () => {
+      const message: MessageType = {
+        id: 'msg-1',
+        role: 'assistant',
+        content: mockAnalysis,
+      };
+
+      render(<Message message={message} />);
+
+      expect(screen.getByText('Step 1')).toBeInTheDocument();
+      expect(screen.getByText('Initial statistical analysis shows favorable conditions.')).toBeInTheDocument();
+
+      expect(screen.getByText('Step 2')).toBeInTheDocument();
+      expect(screen.getByText('Market analysis indicates value bet potential.')).toBeInTheDocument();
+    });
+
+    it('should display activated modules for each step', () => {
+      const message: MessageType = {
+        id: 'msg-1',
+        role: 'assistant',
+        content: mockAnalysis,
+      };
+
+      render(<Message message={message} />);
+
+      expect(screen.getByText('KM_01')).toBeInTheDocument();
+      expect(screen.getByText('KM_02')).toBeInTheDocument();
+      expect(screen.getByText('KM_03')).toBeInTheDocument();
+    });
+
+    it('should handle reasoning steps without activated modules', () => {
+      const analysisWithoutModules: AnalysisResponse = {
+        ...mockAnalysis,
+        reasoning: [
+          {
+            step: 1,
+            description: 'Basic analysis',
+            activatedModules: [],
+          },
+        ],
+      };
+
+      const message: MessageType = {
+        id: 'msg-1',
+        role: 'assistant',
+        content: analysisWithoutModules,
+      };
+
+      render(<Message message={message} />);
+
+      expect(screen.getByText('Basic analysis')).toBeInTheDocument();
+      expect(screen.queryByText(/KM_/)).not.toBeInTheDocument();
+    });
+
+    it('should format numbers with correct precision', () => {
+      const analysisWithPrecision: AnalysisResponse = {
+        ...mockAnalysis,
+        quantitative: {
+          expectedValue: 1.23456,
+          vigRemovedOdds: -105.789,
+          kellyCriterionStake: 0.987654,
+          confidenceScore: 7.654321,
+          projectedMean: 299.9999,
+          projectedStdDev: 20.1111,
+        },
+      };
+
+      const message: MessageType = {
+        id: 'msg-1',
+        role: 'assistant',
+        content: analysisWithPrecision,
+      };
+
+      render(<Message message={message} />);
+
+      // expectedValue: 2 decimal places
+      expect(screen.getByText('1.23%')).toBeInTheDocument();
+
+      // vigRemovedOdds: 2 decimal places
+      expect(screen.getByText('-105.79')).toBeInTheDocument();
+
+      // kellyCriterionStake: 2 decimal places
+      expect(screen.getByText('0.99%')).toBeInTheDocument();
+
+      // confidenceScore: 1 decimal place
+      expect(screen.getByText('7.7 / 10')).toBeInTheDocument();
+
+      // projectedMean: 2 decimal places
+      expect(screen.getByText('300.00')).toBeInTheDocument();
+
+      // projectedStdDev: 2 decimal places
+      expect(screen.getByText('20.11')).toBeInTheDocument();
     });
 
     it('should handle negative expected value', () => {
-      const analysis = createAnalysisResponse({
+      const analysisWithNegativeEV: AnalysisResponse = {
+        ...mockAnalysis,
         quantitative: {
-          expectedValue: -5.5,
-          vigRemovedOdds: -110,
-          kellyCriterionStake: 0.0,
-          confidenceScore: 3.0,
-          projectedMean: 20.0,
-          projectedStdDev: 4.0,
+          ...mockAnalysis.quantitative,
+          expectedValue: -2.5,
         },
-      });
+      };
 
       const message: MessageType = {
-        id: 'assistant-6',
+        id: 'msg-1',
         role: 'assistant',
-        content: analysis,
+        content: analysisWithNegativeEV,
       };
 
       render(<Message message={message} />);
 
-      expect(screen.getByText('Expected Value (+EV)')).toBeInTheDocument();
+      expect(screen.getByText('-2.50%')).toBeInTheDocument();
     });
 
-    it('should handle very large expected value', () => {
-      const analysis = createAnalysisResponse({
-        quantitative: {
-          expectedValue: 999.99,
-          vigRemovedOdds: -110,
-          kellyCriterionStake: 10.0,
-          confidenceScore: 10.0,
-          projectedMean: 100.0,
-          projectedStdDev: 1.0,
-        },
-      });
+    it('should handle multiple reasoning steps', () => {
+      const analysisWithManySteps: AnalysisResponse = {
+        ...mockAnalysis,
+        reasoning: Array.from({ length: 5 }, (_, i) => ({
+          step: i + 1,
+          description: `Step ${i + 1} description`,
+          activatedModules: [`KM_${String(i + 1).padStart(2, '0')}`],
+        })),
+      };
 
       const message: MessageType = {
-        id: 'assistant-7',
+        id: 'msg-1',
         role: 'assistant',
-        content: analysis,
+        content: analysisWithManySteps,
       };
 
       render(<Message message={message} />);
 
-      expect(screen.getByText('Expected Value (+EV)')).toBeInTheDocument();
+      for (let i = 1; i <= 5; i++) {
+        expect(screen.getByText(`Step ${i}`)).toBeInTheDocument();
+        expect(screen.getByText(`Step ${i} description`)).toBeInTheDocument();
+      }
     });
 
-    it('should render with empty summary', () => {
-      const analysis = createAnalysisResponse({ summary: '' });
+    it('should render brain circuit icon for assistant messages', () => {
       const message: MessageType = {
-        id: 'assistant-8',
+        id: 'msg-1',
         role: 'assistant',
-        content: analysis,
-      };
-
-      const { container } = render(<Message message={message} />);
-
-      // Should still render the quantitative section
-      expect(screen.getByText('Quantitative Analysis')).toBeInTheDocument();
-    });
-
-    it('should render with long summary', () => {
-      const longSummary = 'A'.repeat(500);
-      const analysis = createAnalysisResponse({ summary: longSummary });
-      const message: MessageType = {
-        id: 'assistant-9',
-        role: 'assistant',
-        content: analysis,
+        content: mockAnalysis,
       };
 
       render(<Message message={message} />);
 
-      expect(screen.getByText(longSummary)).toBeInTheDocument();
-    });
-
-    it('should apply correct styling to assistant messages', () => {
-      const analysis = createAnalysisResponse();
-      const message: MessageType = {
-        id: 'assistant-10',
-        role: 'assistant',
-        content: analysis,
-      };
-
-      const { container } = render(<Message message={message} />);
-
-      // Check for assistant-specific styling
-      const assistantContainer = container.querySelector('.justify-start');
-      expect(assistantContainer).toBeInTheDocument();
-
-      const messageContent = container.querySelector('.bg-gray-800');
-      expect(messageContent).toBeInTheDocument();
-    });
-
-    it('should render brain icon with correct classes', () => {
-      const analysis = createAnalysisResponse();
-      const message: MessageType = {
-        id: 'assistant-11',
-        role: 'assistant',
-        content: analysis,
-      };
-
-      render(<Message message={message} />);
-
-      const brainIcon = screen.getByTestId('brain-icon');
-      expect(brainIcon).toBeInTheDocument();
-      expect(brainIcon).toHaveClass('h-5', 'w-5');
-    });
-
-    it('should handle analysis with empty reasoning array', () => {
-      const analysis = createAnalysisResponse({ reasoning: [] });
-      const message: MessageType = {
-        id: 'assistant-12',
-        role: 'assistant',
-        content: analysis,
-      };
-
-      render(<Message message={message} />);
-
-      expect(screen.getByText(analysis.summary)).toBeInTheDocument();
-      expect(screen.getByText('Quantitative Analysis')).toBeInTheDocument();
+      const icon = screen.getByTestId('brain-circuit-icon');
+      expect(icon).toBeInTheDocument();
+      expect(icon).toHaveClass('h-5', 'w-5');
     });
   });
 
   describe('Edge Cases', () => {
-    it('should handle message with undefined content gracefully', () => {
-      const message = {
-        id: 'edge-1',
-        role: 'user',
-        content: undefined,
-      } as any;
-
-      // Should not crash
-      const { container } = render(<Message message={message} />);
-      expect(container).toBeInTheDocument();
-    });
-
-    it('should handle message with null content gracefully', () => {
-      const message = {
-        id: 'edge-2',
-        role: 'user',
-        content: null,
-      } as any;
-
-      // Should not crash
-      const { container } = render(<Message message={message} />);
-      expect(container).toBeInTheDocument();
-    });
-
-    it('should handle message with very long ID', () => {
-      const message: MessageType = {
-        id: 'a'.repeat(1000),
-        role: 'user',
-        content: 'Test',
-      };
-
-      render(<Message message={message} />);
-      expect(screen.getByText('Test')).toBeInTheDocument();
-    });
-
-    it('should handle analysis with extreme quantitative values', () => {
-      const analysis: AnalysisResponse = {
-        summary: 'Extreme values test',
+    it('should handle zero values in quantitative analysis', () => {
+      const analysisWithZeros: AnalysisResponse = {
+        summary: 'Zero values test',
         reasoning: [],
         quantitative: {
-          expectedValue: Number.MAX_SAFE_INTEGER,
-          vigRemovedOdds: Number.MIN_SAFE_INTEGER,
-          kellyCriterionStake: 0.00001,
-          confidenceScore: 0.1,
-          projectedMean: 999999.99,
-          projectedStdDev: 0.001,
+          expectedValue: 0,
+          vigRemovedOdds: 0,
+          kellyCriterionStake: 0,
+          confidenceScore: 0,
+          projectedMean: 0,
+          projectedStdDev: 0,
         },
       };
 
       const message: MessageType = {
-        id: 'extreme-1',
+        id: 'msg-1',
         role: 'assistant',
-        content: analysis,
+        content: analysisWithZeros,
       };
 
       render(<Message message={message} />);
-      expect(screen.getByText('Extreme values test')).toBeInTheDocument();
+
+      expect(screen.getByText('0.00%')).toBeInTheDocument();
+      expect(screen.getByText('0.0 / 10')).toBeInTheDocument();
     });
 
-    it('should handle messages with special Unicode characters', () => {
+    it('should handle very large numbers', () => {
+      const analysisWithLargeNumbers: AnalysisResponse = {
+        summary: 'Large numbers test',
+        reasoning: [],
+        quantitative: {
+          expectedValue: 9999.99,
+          vigRemovedOdds: -9999.99,
+          kellyCriterionStake: 999.99,
+          confidenceScore: 10.0,
+          projectedMean: 99999.99,
+          projectedStdDev: 9999.99,
+        },
+      };
+
       const message: MessageType = {
-        id: 'unicode-1',
-        role: 'user',
-        content: '🏈 What about Patrick Mahomes? 📊 €100 bet? 中文测试',
+        id: 'msg-1',
+        role: 'assistant',
+        content: analysisWithLargeNumbers,
       };
 
       render(<Message message={message} />);
-      expect(screen.getByText(/Patrick Mahomes/)).toBeInTheDocument();
+
+      expect(screen.getByText('9999.99%')).toBeInTheDocument();
+      expect(screen.getByText('-9999.99')).toBeInTheDocument();
     });
 
-    it('should maintain proper HTML structure', () => {
-      const analysis = createAnalysisResponse();
-      const message: MessageType = {
-        id: 'structure-1',
-        role: 'assistant',
-        content: analysis,
-      };
-
-      const { container } = render(<Message message={message} />);
-
-      // Check that proper div structure exists
-      expect(container.querySelector('div')).toBeInTheDocument();
-      expect(container.querySelectorAll('div').length).toBeGreaterThan(1);
-    });
-  });
-
-  describe('Accessibility', () => {
-    it('should render semantic HTML for user messages', () => {
-      const message: MessageType = {
-        id: 'a11y-1',
-        role: 'user',
-        content: 'Accessible message',
-      };
-
-      const { container } = render(<Message message={message} />);
-
-      // Check for proper div structure
-      expect(container.querySelector('div')).toBeInTheDocument();
-    });
-
-    it('should render semantic HTML for assistant messages', () => {
-      const analysis: AnalysisResponse = {
-        summary: 'Accessible analysis',
+    it('should handle empty reasoning array', () => {
+      const analysisWithoutReasoning: AnalysisResponse = {
+        summary: 'No reasoning steps',
         reasoning: [],
         quantitative: {
           expectedValue: 5.0,
           vigRemovedOdds: -110,
-          kellyCriterionStake: 2.5,
-          confidenceScore: 7.0,
-          projectedMean: 25.0,
-          projectedStdDev: 3.0,
+          kellyCriterionStake: 2.0,
+          confidenceScore: 7.5,
+          projectedMean: 250,
+          projectedStdDev: 15,
         },
       };
 
       const message: MessageType = {
-        id: 'a11y-2',
+        id: 'msg-1',
         role: 'assistant',
-        content: analysis,
-      };
-
-      const { container } = render(<Message message={message} />);
-
-      // Check for headings
-      const heading = screen.getByText('Quantitative Analysis');
-      expect(heading).toBeInTheDocument();
-      expect(heading.tagName).toBe('H3');
-    });
-
-    it('should have proper heading hierarchy', () => {
-      const analysis: AnalysisResponse = {
-        summary: 'Test analysis',
-        reasoning: [],
-        quantitative: {
-          expectedValue: 5.0,
-          vigRemovedOdds: -110,
-          kellyCriterionStake: 2.5,
-          confidenceScore: 7.0,
-          projectedMean: 25.0,
-          projectedStdDev: 3.0,
-        },
-      };
-
-      const message: MessageType = {
-        id: 'a11y-3',
-        role: 'assistant',
-        content: analysis,
+        content: analysisWithoutReasoning,
       };
 
       render(<Message message={message} />);
 
-      const h3Elements = screen.getAllByRole('heading', { level: 3 });
-      expect(h3Elements.length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText('Reasoning Trace')).toBeInTheDocument();
+      expect(screen.queryByText(/Step/)).not.toBeInTheDocument();
     });
-  });
 
-  describe('Component Rendering Performance', () => {
-    it('should render quickly with minimal content', () => {
+    it('should handle special characters in content', () => {
       const message: MessageType = {
-        id: 'perf-1',
+        id: 'msg-1',
         role: 'user',
-        content: 'Quick render test',
+        content: 'Message with <special> & "characters" and \'quotes\'',
       };
 
-      const start = performance.now();
       render(<Message message={message} />);
-      const end = performance.now();
 
-      // Rendering should be fast (under 100ms)
-      expect(end - start).toBeLessThan(100);
-    });
-
-    it('should handle re-renders without issues', () => {
-      const message: MessageType = {
-        id: 'perf-2',
-        role: 'user',
-        content: 'Re-render test',
-      };
-
-      const { rerender } = render(<Message message={message} />);
-
-      // Re-render with same props
-      rerender(<Message message={message} />);
-
-      expect(screen.getByText('Re-render test')).toBeInTheDocument();
-    });
-
-    it('should handle prop updates', () => {
-      const message1: MessageType = {
-        id: 'perf-3',
-        role: 'user',
-        content: 'First content',
-      };
-
-      const message2: MessageType = {
-        id: 'perf-4',
-        role: 'user',
-        content: 'Updated content',
-      };
-
-      const { rerender } = render(<Message message={message1} />);
-      expect(screen.getByText('First content')).toBeInTheDocument();
-
-      rerender(<Message message={message2} />);
-      expect(screen.getByText('Updated content')).toBeInTheDocument();
-      expect(screen.queryByText('First content')).not.toBeInTheDocument();
+      expect(screen.getByText('Message with <special> & "characters" and \'quotes\'')).toBeInTheDocument();
     });
   });
 });

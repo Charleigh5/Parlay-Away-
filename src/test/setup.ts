@@ -7,9 +7,14 @@ afterEach(() => {
   cleanup();
 });
 
+// Mock environment variables
+vi.stubEnv('API_KEY', 'test-api-key');
+vi.stubEnv('GEMINI_API_KEY', 'test-api-key');
+
 // Mock crypto.randomUUID for consistent test IDs
-Object.defineProperty(globalThis, 'crypto', {
-  value: {
-    randomUUID: vi.fn(() => 'test-uuid-123'),
-  },
-});
+if (!globalThis.crypto) {
+  globalThis.crypto = {} as Crypto;
+}
+if (!globalThis.crypto.randomUUID) {
+  globalThis.crypto.randomUUID = () => 'test-uuid-' + Math.random().toString(36).substring(2, 15);
+}
