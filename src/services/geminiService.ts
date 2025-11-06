@@ -4,7 +4,7 @@ import { AnalysisResponse, SystemUpdate, ExtractedBetLeg, ParlayCorrelationAnaly
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 if (!GEMINI_API_KEY) {
-  throw new Error("GEMINI_API_KEY environment variable is not set. Please configure it to enable Gemini features.");
+  throw new Error('GEMINI_API_KEY environment variable is not set. Please provide a valid Gemini API key.');
 }
 
 const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });

@@ -18,9 +18,37 @@
     "moduleDetection": "force",
     "allowJs": true,
     "jsx": "react-jsx",
+    "baseUrl": ".",
     "paths": {
       "@/*": [
-        "./*"
+        "./src/*"
+      ],
+      "data": [
+        "./src/data"
+      ],
+      "data/*": [
+        "./src/data/*"
+      ],
+      "hooks/*": [
+        "./src/hooks/*"
+      ],
+      "services": [
+        "./src/services"
+      ],
+      "services/*": [
+        "./src/services/*"
+      ],
+      "types": [
+        "./src/types.ts"
+      ],
+      "types/*": [
+        "./src/types/*"
+      ],
+      "utils": [
+        "./src/utils.ts"
+      ],
+      "utils/*": [
+        "./src/utils/*"
       ]
     },
     "allowImportingTsExtensions": true,

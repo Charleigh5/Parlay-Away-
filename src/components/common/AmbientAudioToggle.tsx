@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import audioService from '../../services/audioService';
 import useLocalStorage from '../../hooks/useLocalStorage';
-import { AudioOnIcon } from '../../assets/icons/AudioOnIcon';
-import { AudioOffIcon } from '../../assets/icons/AudioOffIcon';
+import { AudioOffIcon, AudioOnIcon } from '../icons';
 
 const AmbientAudioToggle: React.FC = () => {
   const [isAudioEnabled, setIsAudioEnabled] = useLocalStorage('ambient-audio-enabled', false);
