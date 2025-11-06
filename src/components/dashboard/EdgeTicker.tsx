@@ -1,6 +1,6 @@
 import React from 'react';
 import { useBestEdges } from '../../hooks/useBestEdges';
-import { FireIcon } from '../../assets/icons/FireIcon';
+import { FireIcon } from '../icons';
 import FootballLoader from '../common/FootballLoader';
 import { useLiveDataPulse } from '../../hooks/useLiveDataPulse';
 

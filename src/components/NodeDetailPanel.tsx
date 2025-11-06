@@ -1,9 +1,7 @@
 import React from 'react';
 import { ParlayNode } from '../types';
 import { formatAmericanOdds } from '../utils';
-import { ClipboardListIcon } from '../assets/icons/ClipboardListIcon';
-import { CopyIcon } from '../assets/icons/CopyIcon';
-import { Trash2Icon } from '../assets/icons/Trash2Icon';
+import { ClipboardListIcon, CopyIcon, Trash2Icon } from './icons';
 
 interface NodeDetailPanelProps {
   selectedNode: ParlayNode | null;

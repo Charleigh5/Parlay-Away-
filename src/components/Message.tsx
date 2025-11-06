@@ -1,10 +1,12 @@
 import React from 'react';
 import { Message as MessageType, AnalysisResponse } from '../types';
-import { UserIcon } from './icons/UserIcon';
-import { BrainCircuitIcon } from '../assets/icons/BrainCircuitIcon';
-import { AlertTriangleIcon } from './icons/AlertTriangleIcon';
-import { BarChartIcon } from './icons/BarChartIcon';
-import { ListChecksIcon } from './icons/ListChecksIcon';
+import {
+  AlertTriangleIcon,
+  BarChartIcon,
+  BrainCircuitIcon,
+  ListChecksIcon,
+  UserIcon,
+} from './icons';
 
 const Message: React.FC<{ message: MessageType }> = ({ message }) => {
   if (message.role === 'user') {
