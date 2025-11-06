@@ -7,17 +7,14 @@ afterEach(() => {
   cleanup();
 });
 
-// Mock crypto.randomUUID if not available
+// Mock window.crypto for tests
 if (!globalThis.crypto) {
-  globalThis.crypto = {} as Crypto;
+  globalThis.crypto = {
+    randomUUID: () => Math.random().toString(36).substring(2, 15),
+  } as any;
 }
 
-if (!globalThis.crypto.randomUUID) {
-  globalThis.crypto.randomUUID = () => {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-      const r = (Math.random() * 16) | 0;
-      const v = c === 'x' ? r : (r & 0x3) | 0x8;
-      return v.toString(16);
-    });
-  };
+// Mock process.env for tests
+if (!process.env.API_KEY) {
+  process.env.API_KEY = 'test-api-key';
 }
