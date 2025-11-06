@@ -1,261 +1,218 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { 
-  getAnalysis, 
-  proposeModelUpdate, 
-  sendUpdateFeedback,
-  getComparativeAnalysis,
-  extractBetsFromImage,
-  analyzeParlayCorrelation
-} from '../geminiService';
-import type { SystemUpdate, ExtractedBetLeg } from '../../types';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { GoogleGenAI } from '@google/genai';
+import * as geminiService from '../geminiService';
+import type { ExtractedBetLeg, SystemUpdate } from '../../types';
 
 // Mock the GoogleGenAI module
 vi.mock('@google/genai', () => {
   const mockGenerateContent = vi.fn();
   
   return {
-    GoogleGenAI: vi.fn().mockImplementation(() => ({
+    GoogleGenAI: vi.fn(() => ({
       models: {
         generateContent: mockGenerateContent,
       },
     })),
     Type: {
       OBJECT: 'object',
+      ARRAY: 'array',
       STRING: 'string',
       NUMBER: 'number',
       INTEGER: 'integer',
-      ARRAY: 'array',
     },
   };
 });
 
 describe('geminiService', () => {
-  let mockGenerateContent: any;
+  let mockGenerateContent: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Get the mock function
-    const { GoogleGenAI } = require('@google/genai');
-    const mockAI = new GoogleGenAI({ apiKey: 'test-key' });
-    mockGenerateContent = mockAI.models.generateContent;
+    const GoogleGenAIInstance = new GoogleGenAI({ apiKey: 'test-key' });
+    mockGenerateContent = GoogleGenAIInstance.models.generateContent as ReturnType<typeof vi.fn>;
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
+  describe('API initialization', () => {
+    it('should initialize GoogleGenAI with API key from environment', () => {
+      expect(GoogleGenAI).toHaveBeenCalledWith({ apiKey: 'test-api-key' });
+    });
   });
 
   describe('getAnalysis', () => {
-    it('should return analysis response for valid query', async () => {
-      const mockResponse = {
-        summary: 'Strong +EV opportunity',
-        reasoning: [
-          {
-            step: 1,
-            description: 'Historical analysis shows consistent performance',
-            activatedModules: ['KM_01'],
-          },
-        ],
-        quantitative: {
-          expectedValue: 5.5,
-          vigRemovedOdds: 2.1,
-          kellyCriterionStake: 1.25,
-          confidenceScore: 0.85,
-          projectedMean: 288.5,
-          projectedStdDev: 45.2,
+    const mockAnalysisResponse = {
+      summary: 'Strong bet with positive expected value',
+      reasoning: [
+        {
+          step: 1,
+          description: 'Analyzed historical performance',
+          activatedModules: ['KM_01', 'KM_02'],
         },
-      };
+      ],
+      quantitative: {
+        expectedValue: 5.5,
+        vigRemovedOdds: -105,
+        kellyCriterionStake: 1.25,
+        confidenceScore: 0.85,
+        projectedMean: 288.5,
+        projectedStdDev: 42.3,
+      },
+    };
 
+    beforeEach(() => {
       mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify(mockResponse),
+        text: JSON.stringify(mockAnalysisResponse),
       });
-
-      const result = await getAnalysis('Analyze Patrick Mahomes passing yards over 285.5');
-
-      expect(result).toEqual(mockResponse);
-      expect(mockGenerateContent).toHaveBeenCalledOnce();
     });
 
-    it('should pass correct configuration to API', async () => {
-      mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify({
-          summary: 'Test',
-          reasoning: [],
-          quantitative: {
-            expectedValue: 0,
-            vigRemovedOdds: 0,
-            kellyCriterionStake: 0,
-            confidenceScore: 0,
-            projectedMean: 0,
-            projectedStdDev: 0,
-          },
-        }),
-      });
+    it('should return parsed analysis response', async () => {
+      const query = 'Analyze Patrick Mahomes passing yards over 285.5';
+      const result = await geminiService.getAnalysis(query);
 
-      await getAnalysis('Test query');
-
-      const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.model).toBe('gemini-2.5-flash');
-      expect(callArgs.config.responseMimeType).toBe('application/json');
-      expect(callArgs.config.temperature).toBe(0.7);
-    });
-
-    it('should throw error when API fails', async () => {
-      mockGenerateContent.mockRejectedValue(new Error('API Error'));
-
-      await expect(getAnalysis('Test query')).rejects.toThrow(
-        'Failed to get analysis. The market may be too efficient to analyze this query.'
+      expect(result).toEqual(mockAnalysisResponse);
+      expect(mockGenerateContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: 'gemini-2.5-flash',
+          contents: query,
+          config: expect.objectContaining({
+            systemInstruction: expect.stringContaining('The Analyzer'),
+            responseMimeType: 'application/json',
+            temperature: 0.7,
+          }),
+        })
       );
     });
 
-    it('should handle empty query string', async () => {
-      mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify({
-          summary: 'Empty query',
-          reasoning: [],
-          quantitative: {
-            expectedValue: 0,
-            vigRemovedOdds: 0,
-            kellyCriterionStake: 0,
-            confidenceScore: 0,
-            projectedMean: 0,
-            projectedStdDev: 0,
-          },
-        }),
-      });
+    it('should include correct system instruction', async () => {
+      await geminiService.getAnalysis('Test query');
 
-      const result = await getAnalysis('');
-      expect(result).toBeDefined();
+      const call = mockGenerateContent.mock.calls[0][0];
+      expect(call.config.systemInstruction).toContain('Project Synoptic Edge');
+      expect(call.config.systemInstruction).toContain('Positive Expected Value');
+      expect(call.config.systemInstruction).toContain('Kelly Criterion');
     });
 
-    it('should handle malformed JSON response', async () => {
-      mockGenerateContent.mockResolvedValue({
-        text: 'Not valid JSON',
-      });
+    it('should use gemini-2.5-flash model', async () => {
+      await geminiService.getAnalysis('Test query');
 
-      await expect(getAnalysis('Test')).rejects.toThrow();
+      const call = mockGenerateContent.mock.calls[0][0];
+      expect(call.model).toBe('gemini-2.5-flash');
     });
 
-    it('should handle response with missing fields', async () => {
-      mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify({
-          summary: 'Incomplete',
-        }),
-      });
+    it('should handle API errors gracefully', async () => {
+      mockGenerateContent.mockRejectedValue(new Error('API Error'));
 
-      const result = await getAnalysis('Test');
-      expect(result.summary).toBe('Incomplete');
+      await expect(geminiService.getAnalysis('Test query')).rejects.toThrow(
+        'Failed to get analysis'
+      );
     });
 
-    it('should handle very long query strings', async () => {
-      const longQuery = 'A'.repeat(10000);
-      
+    it('should handle JSON parsing errors', async () => {
       mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify({
-          summary: 'Long query processed',
-          reasoning: [],
-          quantitative: {
-            expectedValue: 0,
-            vigRemovedOdds: 0,
-            kellyCriterionStake: 0,
-            confidenceScore: 0,
-            projectedMean: 0,
-            projectedStdDev: 0,
-          },
-        }),
+        text: 'Invalid JSON',
       });
 
-      const result = await getAnalysis(longQuery);
-      expect(result.summary).toBe('Long query processed');
+      await expect(geminiService.getAnalysis('Test query')).rejects.toThrow();
     });
 
-    it('should handle special characters in query', async () => {
-      mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify({
-          summary: 'Special chars handled',
-          reasoning: [],
-          quantitative: {
-            expectedValue: 0,
-            vigRemovedOdds: 0,
-            kellyCriterionStake: 0,
-            confidenceScore: 0,
-            projectedMean: 0,
-            projectedStdDev: 0,
-          },
-        }),
-      });
+    it('should pass query as contents parameter', async () => {
+      const query = 'Analyze Joe Burrow passing TDs over 1.5';
+      await geminiService.getAnalysis(query);
 
-      const result = await getAnalysis('Query with "quotes" and \'apostrophes\' & symbols');
-      expect(result).toBeDefined();
+      const call = mockGenerateContent.mock.calls[0][0];
+      expect(call.contents).toBe(query);
     });
   });
 
   describe('proposeModelUpdate', () => {
-    const mockUpdate: SystemUpdate = {
+    const mockSystemUpdate: SystemUpdate = {
       id: 'UP-001',
       status: 'Pending Review',
-      featureName: 'Live Momentum Analysis',
-      description: 'Real-time in-game momentum tracking',
-      integrationStrategy: 'WebSocket integration with live data feeds',
-      impactAnalysis: 'Expected to improve real-time betting accuracy by 15%',
+      featureName: 'Live Momentum Tracker',
+      description: 'Real-time analysis of game momentum',
+      integrationStrategy: 'Integrate with live data feed',
+      impactAnalysis: 'Expected to improve ROI by 0.75%',
       backtestResults: {
-        roiChange: 2.5,
+        roiChange: 0.75,
         brierScore: 0.18,
-        sharpeRatio: 1.85,
+        sharpeRatio: 1.35,
       },
     };
 
-    it('should return model update proposal on success', async () => {
+    beforeEach(() => {
       mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify(mockUpdate),
+        text: JSON.stringify(mockSystemUpdate),
       });
+    });
 
-      const result = await proposeModelUpdate();
+    it('should return parsed system update', async () => {
+      const result = await geminiService.proposeModelUpdate();
 
-      expect(result).toEqual(mockUpdate);
-      expect(mockGenerateContent).toHaveBeenCalledOnce();
+      expect(result).toEqual(mockSystemUpdate);
+      expect(mockGenerateContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: 'gemini-2.5-flash',
+          config: expect.objectContaining({
+            systemInstruction: expect.stringContaining('research and development agent'),
+            responseMimeType: 'application/json',
+          }),
+        })
+      );
+    });
+
+    it('should include innovative feature prompt', async () => {
+      await geminiService.proposeModelUpdate();
+
+      const call = mockGenerateContent.mock.calls[0][0];
+      expect(call.contents).toContain('innovative new feature');
+      expect(call.contents).toContain('Synoptic Edge');
     });
 
     it('should retry on failure', async () => {
       mockGenerateContent
         .mockRejectedValueOnce(new Error('First failure'))
+        .mockRejectedValueOnce(new Error('Second failure'))
         .mockResolvedValueOnce({
-          text: JSON.stringify(mockUpdate),
+          text: JSON.stringify(mockSystemUpdate),
         });
 
-      const result = await proposeModelUpdate();
+      const result = await geminiService.proposeModelUpdate();
 
-      expect(result).toEqual(mockUpdate);
-      expect(mockGenerateContent).toHaveBeenCalledTimes(2);
+      expect(result).toEqual(mockSystemUpdate);
+      expect(mockGenerateContent).toHaveBeenCalledTimes(3);
     });
 
-    it('should throw error after max retries', async () => {
+    it('should throw after max retries', async () => {
       mockGenerateContent.mockRejectedValue(new Error('Persistent failure'));
 
-      await expect(proposeModelUpdate()).rejects.toThrow(
-        'Failed to propose a model update. The AI core may be temporarily unavailable.'
+      await expect(geminiService.proposeModelUpdate()).rejects.toThrow(
+        'Failed to propose a model update'
       );
-
       expect(mockGenerateContent).toHaveBeenCalledTimes(3);
-    }, 10000); // Increase timeout for retry delays
-
-    it('should handle empty response', async () => {
-      mockGenerateContent.mockResolvedValue({
-        text: '',
-      });
-
-      await expect(proposeModelUpdate()).rejects.toThrow();
     });
 
-    it('should use correct model configuration', async () => {
-      mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify(mockUpdate),
-      });
+    it('should handle empty response', async () => {
+      mockGenerateContent.mockResolvedValue({ text: '' });
 
-      await proposeModelUpdate();
+      await expect(geminiService.proposeModelUpdate()).rejects.toThrow(
+        'AI returned an empty response'
+      );
+    });
 
-      const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.model).toBe('gemini-2.5-flash');
-      expect(callArgs.config.responseMimeType).toBe('application/json');
+    it('should wait between retries', async () => {
+      vi.useFakeTimers();
+      mockGenerateContent
+        .mockRejectedValueOnce(new Error('First failure'))
+        .mockResolvedValueOnce({
+          text: JSON.stringify(mockSystemUpdate),
+        });
+
+      const promise = geminiService.proposeModelUpdate();
+      
+      await vi.advanceTimersByTimeAsync(2000);
+      
+      await expect(promise).resolves.toEqual(mockSystemUpdate);
+      
+      vi.useRealTimers();
     });
   });
 
@@ -268,102 +225,106 @@ describe('geminiService', () => {
       integrationStrategy: 'Test strategy',
       impactAnalysis: 'Test impact',
       backtestResults: {
-        roiChange: 1.5,
+        roiChange: 0.5,
         brierScore: 0.2,
-        sharpeRatio: 1.5,
+        sharpeRatio: 1.2,
       },
     };
 
-    it('should send accepted feedback successfully', async () => {
-      mockGenerateContent.mockResolvedValue({
-        text: 'Acknowledged',
-      });
-
-      await expect(sendUpdateFeedback(mockUpdate, 'accepted')).resolves.not.toThrow();
-      expect(mockGenerateContent).toHaveBeenCalledOnce();
+    beforeEach(() => {
+      mockGenerateContent.mockResolvedValue({ text: 'Feedback acknowledged' });
     });
 
-    it('should send rejected feedback successfully', async () => {
-      mockGenerateContent.mockResolvedValue({
-        text: 'Acknowledged',
-      });
+    it('should send acceptance feedback', async () => {
+      await geminiService.sendUpdateFeedback(mockUpdate, 'accepted');
 
-      await expect(sendUpdateFeedback(mockUpdate, 'rejected')).resolves.not.toThrow();
-      expect(mockGenerateContent).toHaveBeenCalledOnce();
+      expect(mockGenerateContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: 'gemini-2.5-flash',
+          contents: expect.stringContaining('ACCEPTED'),
+          config: expect.objectContaining({
+            systemInstruction: expect.stringContaining('research and development'),
+            temperature: 0.5,
+          }),
+        })
+      );
     });
 
-    it('should not throw error on API failure', async () => {
-      mockGenerateContent.mockRejectedValue(new Error('API Error'));
+    it('should send rejection feedback', async () => {
+      await geminiService.sendUpdateFeedback(mockUpdate, 'rejected');
 
-      await expect(sendUpdateFeedback(mockUpdate, 'accepted')).resolves.not.toThrow();
+      const call = mockGenerateContent.mock.calls[0][0];
+      expect(call.contents).toContain('REJECTED');
+      expect(call.contents).toContain('Test Feature');
     });
 
-    it('should include feature name in feedback', async () => {
-      mockGenerateContent.mockResolvedValue({
-        text: 'Acknowledged',
-      });
+    it('should handle feedback errors silently', async () => {
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      mockGenerateContent.mockRejectedValue(new Error('Feedback error'));
 
-      await sendUpdateFeedback(mockUpdate, 'accepted');
+      await expect(
+        geminiService.sendUpdateFeedback(mockUpdate, 'accepted')
+      ).resolves.toBeUndefined();
 
-      const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.contents).toContain('Test Feature');
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      consoleErrorSpy.mockRestore();
     });
 
-    it('should use correct temperature setting', async () => {
-      mockGenerateContent.mockResolvedValue({
-        text: 'Acknowledged',
-      });
+    it('should log successful feedback', async () => {
+      const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-      await sendUpdateFeedback(mockUpdate, 'accepted');
+      await geminiService.sendUpdateFeedback(mockUpdate, 'accepted');
 
-      const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.config.temperature).toBe(0.5);
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Feedback for update UP-001')
+      );
+      consoleLogSpy.mockRestore();
     });
   });
 
   describe('getComparativeAnalysis', () => {
-    it('should return comparative analysis', async () => {
-      const mockAnalysis = 'Prop A offers superior value due to better odds and higher confidence. Recommendation: Prop A';
+    const mockComparison = 'Recommendation: Prop A';
 
-      mockGenerateContent.mockResolvedValue({
-        text: mockAnalysis,
-      });
-
-      const result = await getComparativeAnalysis(
-        'Patrick Mahomes passing yards over 285.5 at -110',
-        'Josh Allen passing yards over 275.5 at -115'
-      );
-
-      expect(result).toBe(mockAnalysis);
-      expect(mockGenerateContent).toHaveBeenCalledOnce();
+    beforeEach(() => {
+      mockGenerateContent.mockResolvedValue({ text: mockComparison });
     });
 
-    it('should throw error on API failure', async () => {
-      mockGenerateContent.mockRejectedValue(new Error('API Error'));
+    it('should return comparative analysis text', async () => {
+      const propA = 'Mahomes Over 285.5 yards';
+      const propB = 'Allen Over 275.5 yards';
+
+      const result = await geminiService.getComparativeAnalysis(propA, propB);
+
+      expect(result).toBe(mockComparison);
+      expect(mockGenerateContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: 'gemini-2.5-flash',
+          contents: expect.stringContaining(propA),
+          config: expect.objectContaining({
+            systemInstruction: expect.stringContaining('The Arbiter'),
+            temperature: 0.8,
+          }),
+        })
+      );
+    });
+
+    it('should include both props in comparison', async () => {
+      const propA = 'Prop A details';
+      const propB = 'Prop B details';
+
+      await geminiService.getComparativeAnalysis(propA, propB);
+
+      const call = mockGenerateContent.mock.calls[0][0];
+      expect(call.contents).toContain('Prop A: Prop A details');
+      expect(call.contents).toContain('Prop B: Prop B details');
+    });
+
+    it('should handle comparison errors', async () => {
+      mockGenerateContent.mockRejectedValue(new Error('Comparison failed'));
 
       await expect(
-        getComparativeAnalysis('Prop A', 'Prop B')
-      ).rejects.toThrow('Failed to get comparative analysis. The Arbiter may be temporarily unavailable.');
-    });
-
-    it('should handle empty prop details', async () => {
-      mockGenerateContent.mockResolvedValue({
-        text: 'Recommendation: Neither',
-      });
-
-      const result = await getComparativeAnalysis('', '');
-      expect(result).toBeDefined();
-    });
-
-    it('should use higher temperature for creativity', async () => {
-      mockGenerateContent.mockResolvedValue({
-        text: 'Analysis',
-      });
-
-      await getComparativeAnalysis('Prop A', 'Prop B');
-
-      const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.config.temperature).toBe(0.8);
+        geminiService.getComparativeAnalysis('Prop A', 'Prop B')
+      ).rejects.toThrow('Failed to get comparative analysis');
     });
   });
 
@@ -379,84 +340,66 @@ describe('geminiService', () => {
       {
         player: 'Travis Kelce',
         propType: 'Receptions',
-        line: 6.5,
+        line: 5.5,
         position: 'Over',
         marketOdds: -115,
       },
     ];
 
-    it('should extract bet legs from image', async () => {
+    const mockImageData = {
+      data: 'base64-encoded-image-data',
+      mimeType: 'image/png',
+    };
+
+    beforeEach(() => {
       mockGenerateContent.mockResolvedValue({
         text: JSON.stringify(mockExtractedLegs),
       });
-
-      const imageData = {
-        data: 'base64-encoded-image-data',
-        mimeType: 'image/png',
-      };
-
-      const result = await extractBetsFromImage(imageData);
-
-      expect(result).toEqual(mockExtractedLegs);
-      expect(mockGenerateContent).toHaveBeenCalledOnce();
     });
 
-    it('should throw error on API failure', async () => {
-      mockGenerateContent.mockRejectedValue(new Error('OCR Error'));
+    it('should extract bets from image', async () => {
+      const result = await geminiService.extractBetsFromImage(mockImageData);
 
-      const imageData = {
-        data: 'base64-data',
-        mimeType: 'image/png',
-      };
-
-      await expect(extractBetsFromImage(imageData)).rejects.toThrow(
-        'Failed to extract bets from the provided image. Please ensure it\'s a clear screenshot of a bet slip.'
+      expect(result).toEqual(mockExtractedLegs);
+      expect(mockGenerateContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: 'gemini-2.5-flash',
+          contents: expect.objectContaining({
+            parts: expect.arrayContaining([
+              expect.objectContaining({ inlineData: mockImageData }),
+              expect.objectContaining({ text: expect.stringContaining('Extract all bet legs') }),
+            ]),
+          }),
+          config: expect.objectContaining({
+            systemInstruction: expect.stringContaining('OCR and NLP'),
+            responseMimeType: 'application/json',
+          }),
+        })
       );
     });
 
-    it('should handle empty extraction result', async () => {
-      mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify([]),
-      });
+    it('should handle extraction errors', async () => {
+      mockGenerateContent.mockRejectedValue(new Error('OCR failed'));
 
-      const imageData = {
-        data: 'base64-data',
-        mimeType: 'image/png',
-      };
-
-      const result = await extractBetsFromImage(imageData);
-      expect(result).toEqual([]);
+      await expect(
+        geminiService.extractBetsFromImage(mockImageData)
+      ).rejects.toThrow('Failed to extract bets from the provided image');
     });
 
-    it('should handle different image formats', async () => {
-      mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify(mockExtractedLegs),
-      });
+    it('should handle invalid JSON response', async () => {
+      mockGenerateContent.mockResolvedValue({ text: 'Not valid JSON' });
 
-      const jpegData = {
-        data: 'jpeg-data',
-        mimeType: 'image/jpeg',
-      };
-
-      const result = await extractBetsFromImage(jpegData);
-      expect(result).toBeDefined();
+      await expect(
+        geminiService.extractBetsFromImage(mockImageData)
+      ).rejects.toThrow();
     });
 
-    it('should pass image parts correctly to API', async () => {
-      mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify(mockExtractedLegs),
-      });
+    it('should pass correct image format', async () => {
+      await geminiService.extractBetsFromImage(mockImageData);
 
-      const imageData = {
-        data: 'test-data',
-        mimeType: 'image/png',
-      };
-
-      await extractBetsFromImage(imageData);
-
-      const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.contents.parts).toBeDefined();
-      expect(callArgs.contents.parts.length).toBe(2); // Image and text parts
+      const call = mockGenerateContent.mock.calls[0][0];
+      const imagePart = call.contents.parts.find((p: any) => p.inlineData);
+      expect(imagePart.inlineData).toEqual(mockImageData);
     });
   });
 
@@ -472,7 +415,7 @@ describe('geminiService', () => {
       {
         player: 'Travis Kelce',
         propType: 'Receptions',
-        line: 6.5,
+        line: 5.5,
         position: 'Over',
         marketOdds: -115,
       },
@@ -480,163 +423,143 @@ describe('geminiService', () => {
 
     const mockCorrelationAnalysis = {
       overallScore: 0.65,
-      summary: 'Strong positive correlation between these props',
+      summary: 'Strong positive correlation between QB and TE',
       analysis: [
         {
           leg1Index: 0,
           leg2Index: 1,
-          rho: 0.65,
+          rho: 0.72,
           relationship: 'Positive' as const,
-          explanation: 'QB and primary receiver typically correlate positively',
+          explanation: 'Mahomes passing yards correlate with Kelce receptions',
         },
       ],
     };
 
-    it('should analyze parlay correlation', async () => {
+    beforeEach(() => {
       mockGenerateContent.mockResolvedValue({
         text: JSON.stringify(mockCorrelationAnalysis),
       });
+    });
 
-      const result = await analyzeParlayCorrelation(mockLegs);
+    it('should analyze parlay correlation', async () => {
+      const result = await geminiService.analyzeParlayCorrelation(mockLegs);
 
       expect(result).toEqual(mockCorrelationAnalysis);
-      expect(mockGenerateContent).toHaveBeenCalledOnce();
-    });
-
-    it('should throw error on API failure', async () => {
-      mockGenerateContent.mockRejectedValue(new Error('Analysis Error'));
-
-      await expect(analyzeParlayCorrelation(mockLegs)).rejects.toThrow(
-        'Failed to analyze parlay correlation. The AI may be temporarily unavailable.'
+      expect(mockGenerateContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: 'gemini-2.5-flash',
+          contents: expect.stringContaining('correlation'),
+          config: expect.objectContaining({
+            systemInstruction: expect.stringContaining('correlation between player props'),
+            responseMimeType: 'application/json',
+          }),
+        })
       );
     });
 
-    it('should throw error on empty response', async () => {
-      mockGenerateContent.mockResolvedValue({
-        text: '',
-      });
+    it('should include all legs in analysis prompt', async () => {
+      await geminiService.analyzeParlayCorrelation(mockLegs);
 
-      await expect(analyzeParlayCorrelation(mockLegs)).rejects.toThrow(
-        'AI returned an empty response for correlation analysis.'
-      );
+      const call = mockGenerateContent.mock.calls[0][0];
+      expect(call.contents).toContain('Patrick Mahomes');
+      expect(call.contents).toContain('Travis Kelce');
+      expect(call.contents).toContain('Over 285.5 Passing Yards');
+      expect(call.contents).toContain('Over 5.5 Receptions');
     });
 
-    it('should handle single leg (no correlation)', async () => {
+    it('should handle empty response', async () => {
+      mockGenerateContent.mockResolvedValue({ text: '' });
+
+      await expect(
+        geminiService.analyzeParlayCorrelation(mockLegs)
+      ).rejects.toThrow('AI returned an empty response');
+    });
+
+    it('should handle correlation analysis errors', async () => {
+      mockGenerateContent.mockRejectedValue(new Error('Analysis failed'));
+
+      await expect(
+        geminiService.analyzeParlayCorrelation(mockLegs)
+      ).rejects.toThrow('Failed to analyze parlay correlation');
+    });
+
+    it('should handle single leg input', async () => {
       const singleLeg = [mockLegs[0]];
-      
-      mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify({
-          overallScore: 0,
-          summary: 'Single leg, no correlation analysis',
-          analysis: [],
-        }),
-      });
-
-      const result = await analyzeParlayCorrelation(singleLeg);
-      expect(result.analysis).toHaveLength(0);
-    });
-
-    it('should handle many legs with multiple correlations', async () => {
-      const manyLegs = Array.from({ length: 5 }, (_, i) => ({
-        player: `Player ${i}`,
-        propType: 'Yards',
-        line: 100 + i * 10,
-        position: 'Over' as const,
-        marketOdds: -110,
-      }));
-
-      const manyCorrelations = {
-        overallScore: 0.3,
-        summary: 'Mixed correlations',
-        analysis: [
-          { leg1Index: 0, leg2Index: 1, rho: 0.5, relationship: 'Positive' as const, explanation: 'Test' },
-          { leg1Index: 0, leg2Index: 2, rho: -0.2, relationship: 'Negative' as const, explanation: 'Test' },
-          { leg1Index: 1, leg2Index: 2, rho: 0.1, relationship: 'Neutral' as const, explanation: 'Test' },
-        ],
+      const singleLegAnalysis = {
+        overallScore: 0,
+        summary: 'No correlation with single leg',
+        analysis: [],
       };
 
       mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify(manyCorrelations),
+        text: JSON.stringify(singleLegAnalysis),
       });
 
-      const result = await analyzeParlayCorrelation(manyLegs);
-      expect(result.analysis.length).toBeGreaterThan(1);
+      const result = await geminiService.analyzeParlayCorrelation(singleLeg);
+      expect(result).toEqual(singleLegAnalysis);
     });
 
-    it('should handle negative correlations', async () => {
-      const negativeCorrelation = {
-        overallScore: -0.4,
-        summary: 'Negative correlation detected',
-        analysis: [
-          {
-            leg1Index: 0,
-            leg2Index: 1,
-            rho: -0.4,
-            relationship: 'Negative' as const,
-            explanation: 'Opposing teams create negative correlation',
-          },
-        ],
-      };
+    it('should format leg indices correctly', async () => {
+      await geminiService.analyzeParlayCorrelation(mockLegs);
 
-      mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify(negativeCorrelation),
-      });
-
-      const result = await analyzeParlayCorrelation(mockLegs);
-      expect(result.overallScore).toBeLessThan(0);
+      const call = mockGenerateContent.mock.calls[0][0];
+      expect(call.contents).toContain('"index": 0');
+      expect(call.contents).toContain('"index": 1');
     });
   });
 
-  describe('API Configuration', () => {
-    it('should use process.env.API_KEY for authentication', () => {
-      // This is implicitly tested by the mock setup
-      // The GoogleGenAI constructor should be called with the API key
-      expect(true).toBe(true);
+  describe('Error handling and edge cases', () => {
+    it('should handle network timeouts', async () => {
+      mockGenerateContent.mockImplementation(
+        () => new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 100))
+      );
+
+      await expect(geminiService.getAnalysis('Test')).rejects.toThrow();
     });
 
-    it('should use gemini-2.5-flash model consistently', async () => {
+    it('should handle malformed JSON responses', async () => {
+      mockGenerateContent.mockResolvedValue({ text: '{ invalid json }' });
+
+      await expect(geminiService.getAnalysis('Test')).rejects.toThrow();
+    });
+
+    it('should handle null response text', async () => {
+      mockGenerateContent.mockResolvedValue({ text: null });
+
+      await expect(geminiService.getAnalysis('Test')).rejects.toThrow();
+    });
+
+    it('should handle undefined response', async () => {
+      mockGenerateContent.mockResolvedValue(undefined);
+
+      await expect(geminiService.getAnalysis('Test')).rejects.toThrow();
+    });
+  });
+
+  describe('Schema validation', () => {
+    it('should use correct schema for analysis response', async () => {
       mockGenerateContent.mockResolvedValue({
         text: JSON.stringify({
           summary: 'Test',
           reasoning: [],
           quantitative: {
-            expectedValue: 0,
-            vigRemovedOdds: 0,
-            kellyCriterionStake: 0,
-            confidenceScore: 0,
-            projectedMean: 0,
-            projectedStdDev: 0,
+            expectedValue: 5,
+            vigRemovedOdds: -110,
+            kellyCriterionStake: 1,
+            confidenceScore: 0.8,
+            projectedMean: 100,
+            projectedStdDev: 10,
           },
         }),
       });
 
-      await getAnalysis('Test');
-      
-      const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.model).toBe('gemini-2.5-flash');
-    });
-  });
+      await geminiService.getAnalysis('Test');
 
-  describe('Error Handling', () => {
-    it('should log errors to console', async () => {
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      
-      mockGenerateContent.mockRejectedValue(new Error('Test Error'));
-
-      await expect(getAnalysis('Test')).rejects.toThrow();
-      
-      expect(consoleErrorSpy).toHaveBeenCalled();
-      consoleErrorSpy.mockRestore();
-    });
-
-    it('should provide user-friendly error messages', async () => {
-      mockGenerateContent.mockRejectedValue(new Error('Network error'));
-
-      try {
-        await getAnalysis('Test');
-      } catch (error) {
-        expect((error as Error).message).toContain('Failed to get analysis');
-      }
+      const call = mockGenerateContent.mock.calls[0][0];
+      expect(call.config.responseSchema).toBeDefined();
+      expect(call.config.responseSchema.required).toContain('summary');
+      expect(call.config.responseSchema.required).toContain('reasoning');
+      expect(call.config.responseSchema.required).toContain('quantitative');
     });
   });
 });
