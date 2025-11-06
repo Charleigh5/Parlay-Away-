@@ -11,13 +11,27 @@ export default defineConfig(({ mode }) => {
       },
       plugins: [react()],
       define: {
-        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
         'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
       },
       resolve: {
         alias: {
-          '@': path.resolve(__dirname, '.'),
+          '@': path.resolve(__dirname, 'src'),
+          data: path.resolve(__dirname, 'src/data'),
+          'data/': path.resolve(__dirname, 'src/data/'),
+          hooks: path.resolve(__dirname, 'src/hooks'),
+          'hooks/': path.resolve(__dirname, 'src/hooks/'),
+          services: path.resolve(__dirname, 'src/services'),
+          'services/': path.resolve(__dirname, 'src/services/'),
+          types: path.resolve(__dirname, 'src/types.ts'),
+          'types/': path.resolve(__dirname, 'src/types/'),
+          utils: path.resolve(__dirname, 'src/utils.ts'),
+          'utils/': path.resolve(__dirname, 'src/utils/'),
         }
       }
     };
 });
+
+// Testing is configured via vitest.config.ts
+// Run tests with: npm test
+// Run tests with UI: npm run test:ui
+// Run tests with coverage: npm run test:coverage

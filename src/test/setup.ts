@@ -2,16 +2,14 @@ import { expect, afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 
-// Cleanup after each test
+// Cleanup after each test case
 afterEach(() => {
   cleanup();
 });
 
-// Mock crypto.randomUUID for consistent test IDs
-const mockRandomUUID = vi.fn(() => 'test-uuid-123');
-Object.defineProperty(globalThis, 'crypto', {
-  value: {
-    randomUUID: mockRandomUUID,
-  },
-  writable: true,
-});
+// Mock environment variables
+process.env.API_KEY = 'test-api-key';
+process.env.GEMINI_API_KEY = 'test-api-key';
+
+// Extend expect matchers
+expect.extend({});
