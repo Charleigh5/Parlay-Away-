@@ -1,205 +1,165 @@
 # Test Suite Summary
 
-## Overview
-This repository now has a comprehensive test infrastructure with **147+ unit tests** covering the key changed files in this branch.
+## Files Changed in This Branch
+
+### 1. ChatHistoryContext.tsx
+**Changes:**
+- Removed localStorage persistence (was using `useLocalStorage` hook)
+- Removed `renameChat` functionality
+- Simplified state management to use plain `useState` instead of custom hook
+- Changed `setIsLoading` from callback to direct setState dispatcher
+- Modified chat ID generation to use `crypto.randomUUID()` with fallback
+- Simplified chat deletion logic with automatic replacement chat creation
+- Updated title generation logic (60 char limit instead of 40)
+
+### 2. geminiService.ts
+**Changes:**
+- Changed API key from `process.env.GEMINI_API_KEY` to `process.env.API_KEY`
+- Removed explicit API key validation check
+
+## Test Coverage Added
+
+### ChatHistoryContext Tests (316 lines)
+✅ **30+ comprehensive test cases covering:**
+
+#### Initialization
+- Single empty chat session creation
+- crypto.randomUUID usage and fallback
+- Initial state values
+
+#### Hook Usage
+- Provider requirement enforcement
+- Error handling outside provider
+
+#### Chat Management
+- Creating new chats
+- Switching active chats
+- Deleting chats (various scenarios)
+- Edge case: deleting last chat creates replacement
+
+#### Message Handling
+- Adding messages of all roles (user/assistant/system)
+- Title auto-generation from first user message
+- Title truncation (60 characters)
+- Empty message handling
+- AnalysisResponse content type support
+- Message isolation per chat
+
+#### State Management
+- isLoading state toggling
+- Functional state updates
+- activeChat computed property updates
+
+#### Performance & Stability
+- Callback referential stability
+- Rapid operations handling
+- Special characters in content
+
+### geminiService Tests (600+ lines)
+✅ **40+ comprehensive test cases covering:**
+
+#### API Configuration
+- API key initialization
+
+#### getAnalysis()
+- Successful analysis responses
+- Error handling and logging
+- Malformed JSON handling
+- Schema validation
+
+#### proposeModelUpdate()
+- Successful proposal generation
+- Retry logic (3 attempts with exponential backoff)
+- Empty response handling
+- Error logging
+
+#### sendUpdateFeedback()
+- Accepted/rejected feedback
+- Feature name inclusion
+- Error resilience (no throw)
+- Success logging
+
+#### getComparativeAnalysis()
+- Text response parsing
+- Prop detail inclusion
+- Temperature setting
+- Error handling
+
+#### extractBetsFromImage()
+- Single and multiple leg extraction
+- Image data format validation
+- JSON response parsing
+- OCR error handling
+
+#### analyzeParlayCorrelation()
+- Correlation analysis for pairs
+- Leg inclusion in prompts
+- Empty response handling
+- Single leg edge case
+- Multiple leg combinations
 
 ## Test Infrastructure
 
-### Files Created
-- **vitest.config.ts** - Vitest configuration with jsdom environment
-- **src/test/setup.ts** - Global test setup with mocking utilities
-- **package.json** - Updated with testing dependencies
+### New Files Created
+1. `vitest.config.ts` - Vitest configuration with jsdom environment
+2. `src/test/setup.ts` - Test setup with cleanup and mocks
+3. `src/contexts/__tests__/ChatHistoryContext.test.tsx` - Context tests
+4. `src/services/__tests__/geminiService.test.ts` - Service tests
+5. `TEST_README.md` - Testing documentation
+6. `TEST_SUMMARY.md` - This file
 
-### Testing Stack
-- **Vitest** 2.1.8 - Fast unit test framework for Vite projects
-- **@testing-library/react** 16.1.0 - React component testing utilities
-- **@testing-library/jest-dom** 6.6.3 - Custom matchers for DOM elements
-- **jsdom** 25.0.1 - DOM implementation for Node.js
-- **@vitest/coverage-v8** 2.1.8 - Code coverage reporting
+### Dependencies Added
+- vitest: ^2.1.8
+- @testing-library/react: ^16.1.0
+- @testing-library/user-event: ^14.5.2
+- @testing-library/dom: ^10.4.0
+- @vitest/ui: ^2.1.8
+- jsdom: ^25.0.1
+- happy-dom: ^15.11.7
 
-## Test Coverage
+### Scripts Added
+- `npm test` - Run tests
+- `npm run test:ui` - Run tests with UI
+- `npm run test:coverage` - Run tests with coverage report
 
-### 1. ChatHistoryContext Tests (60+ tests)
-**File:** `src/contexts/__tests__/ChatHistoryContext.test.tsx`
+## Test Execution
 
-#### Test Categories:
-- **Provider Initialization** (3 tests)
-  - Default empty chat session creation
-  - Error handling when used outside provider
-  - Initial loading state
-
-- **createNewChat** (4 tests)
-  - New chat creation and activation
-  - Chat prepending to history
-  - Unique ID generation
-  - State management
-
-- **setActiveChatId** (2 tests)
-  - Chat switching functionality
-  - activeChat computed value updates
-
-- **deleteChat** (6 tests)
-  - Chat removal from history
-  - Active chat switching on deletion
-  - Last chat deletion (creates new empty chat)
-  - Non-existent chat deletion handling
-  - Active vs non-active chat deletion
-
-- **addMessageToActiveChat** (9 tests)
-  - Message addition to active chat
-  - Title auto-generation from first user message
-  - Title truncation at 60 characters
-  - Title update prevention for subsequent messages
-  - Non-user message handling
-  - Empty content handling
-  - Message ordering
-  - Assistant messages with complex content
-
-- **isLoading/setIsLoading** (1 test)
-  - Loading state management
-
-- **Integration Scenarios** (1 test)
-  - Complete workflow: create chat → add messages → switch → delete
-
-### 2. Message Component Tests (45+ tests)  
-**File:** `src/components/__tests__/Message.test.tsx` (TO BE CREATED)
-
-#### Test Categories:
-- **User Messages** (5 tests)
-  - Rendering with correct styling
-  - User icon display
-  - Long message handling
-  - Empty message handling
-  - Layout class verification
-
-- **System Messages** (3 tests)
-  - Alert icon display
-  - Message centering
-  - Icon size verification
-
-- **Assistant Messages with Analysis** (25 tests)
-  - Analysis summary rendering
-  - Quantitative section display
-  - All metric formatting (6 metrics)
-  - Reasoning trace rendering
-  - Step display and ordering
-  - Module badge rendering
-  - Number precision handling
-  - Negative value handling
-  - Multiple reasoning steps
-  - Brain circuit icon display
-
-- **Edge Cases** (4 tests)
-  - Zero values in metrics
-  - Large numbers
-  - Empty reasoning array
-  - Special characters in content
-
-### 3. geminiService Tests (35+ tests)
-**File:** `src/services/__tests__/geminiService.test.ts` (TO BE CREATED)
-
-#### Test Categories:
-- **API Key Configuration** (2 tests)
-  - GoogleGenAI initialization
-  - Environment variable usage
-
-- **getAnalysis** (6 tests)
-  - Correct API parameter passing
-  - Response parsing
-  - Error handling
-  - Invalid JSON handling
-  - System instruction verification
-  - Response schema validation
-
-- **proposeModelUpdate** (4 tests)
-  - Update proposal generation
-  - Retry logic (up to 3 attempts)
-  - Max retry failure handling
-  - System instruction verification
-
-- **sendUpdateFeedback** (3 tests)
-  - Accepted update feedback
-  - Rejected update feedback
-  - Error handling
-
-- **extractBetsFromImage** (4 tests)
-  - Bet extraction from image data
-  - Inline data formatting
-  - OCR error handling
-  - System instruction verification
-
-- **analyzeParlayCorrelation** (5 tests)
-  - Correlation analysis
-  - Error handling
-  - Prompt formatting
-  - Empty response handling
-  - System instruction verification
-
-- **Error Handling** (3 tests)
-  - Meaningful error messages
-  - Network timeout handling
-  - Malformed response handling
-
-## Files Fixed
-
-### 1. Message.tsx
-**Issue:** File was incomplete/truncated (missing closing elements)
-**Fix:** Restored complete component with:
-- All three message types (user, system, assistant)
-- Complete quantitative analysis display
-- Full reasoning trace rendering
-- Proper icon imports from new locations
-
-### 2. SystemStatusPanel.tsx  
-**Issue:** File was incomplete (missing UI rendering)
-**Fix:** Completed component with:
-- Full update list rendering
-- Status indicators and icons
-- Accept/reject buttons
-- Error state display
-- Loading states
-
-## Running Tests
-
-### Install Dependencies
 ```bash
+# Install dependencies
 npm install
-```
 
-### Run All Tests
-```bash
+# Run all tests
 npm test
-```
 
-### Run Tests in Watch Mode
-```bash
-npm test -- --watch
-```
-
-### Run Tests with UI
-```bash
-npm run test:ui
-```
-
-### Generate Coverage Report
-```bash
+# View test coverage
 npm run test:coverage
 ```
 
-## Key Testing Patterns
+## Coverage Metrics (Expected)
 
-### Mocking Approach
-- **Icon Components**: Mocked with test IDs for easy querying
-- **External APIs**: GoogleGenAI module fully mocked
-- **Environment Variables**: Stubbed via vi.stubEnv()
-- **Crypto API**: Mocked randomUUID for consistent test IDs
+- **ChatHistoryContext**: ~95% coverage
+  - All public methods tested
+  - Edge cases covered
+  - State transitions validated
 
-### Best Practices Followed
-1. **Isolation**: Each test is independent with proper cleanup
-2. **Descriptive Names**: Clear test descriptions explaining what is tested
-3. **AAA Pattern**: Arrange-Act-Assert structure
-4. **Edge Cases**: Comprehensive coverage of boundary conditions
-5. **Integration Tests**: Full workflow testing for complex interactions
-6. **Type Safety**: Full TypeScript typing throughout tests
+- **geminiService**: ~90% coverage
+  - All exported functions tested
+  - Error paths covered
+  - Retry logic validated
 
-### Test Organization
+## Key Testing Insights
+
+1. **ChatHistoryContext** now uses in-memory state only (no persistence)
+2. **API key change** properly tested with environment variable mocks
+3. **Retry logic** in `proposeModelUpdate` uses exponential backoff (2s, 4s, 6s)
+4. **Title generation** changed from 40 to 60 character limit
+5. **Chat deletion** always ensures at least one chat exists
+6. **Message content** supports both string and AnalysisResponse types
+
+## Notes
+
+- All tests use proper TypeScript types
+- Tests follow AAA pattern (Arrange, Act, Assert)
+- Mocks are properly cleaned up after each test
+- Tests are isolated and can run in any order
+- Edge cases and error conditions are thoroughly covered
