@@ -102,7 +102,7 @@ export const ChatHistoryProvider: React.FC<ChatHistoryProviderProps> = ({ childr
 
       setChatHistory((prevHistory) => {
         let workingHistory = prevHistory;
-        let targetChatId = activeChatId;
+        let targetChatId = activeChatId ?? prevHistory[0]?.id ?? null;
 
         if (!targetChatId && message.role === 'user') {
           const generatedChat = createEmptyChat();
