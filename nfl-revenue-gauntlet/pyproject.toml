@@ -1,0 +1,15 @@
+[project]
+name = "nfl-revenue-gauntlet"
+version = "0.1.0"
+description = "Point-in-time NFL betting research harness."
+requires-python = ">=3.11"
+dependencies = ["numpy>=1.26","pandas>=2.1","scikit-learn>=1.4"]
+
+[project.optional-dependencies]
+provider = ["sports-odds-api>=0.1"]
+parquet = ["pyarrow>=15"]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
